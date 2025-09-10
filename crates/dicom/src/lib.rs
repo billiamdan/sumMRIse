@@ -3,7 +3,7 @@ pub mod parser;
 pub mod utils;
 
 pub use error::{DicomError, Result};
-pub use parser::DicomParser;
+pub use parser::{DicomParser, DicomInvestigation, StudyInfo};
 
 use summrise_core::models::MedicalStudy;
 

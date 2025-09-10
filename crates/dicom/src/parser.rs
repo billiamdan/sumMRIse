@@ -7,11 +7,72 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 use dicom::object::open_file;
 
+#[derive(Debug, Clone)]
+pub struct DicomInvestigation {
+    pub study_uid: String,
+    pub study_info: StudyInfo,
+    pub file_paths: Vec<String>,
+    pub directory_path: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct StudyInfo {
+    pub patient_id: Option<String>,
+    pub study_date: Option<String>,
+    pub study_description: Option<String>,
+    pub modality: String,
+    pub file_count: usize,
+}
+
 pub struct DicomParser;
 
 impl DicomParser {
     pub fn new() -> Self {
         Self
+    }
+
+    pub async fn find_dicom_investigations(&self, folder_path: &str) -> Result<Vec<DicomInvestigation>> {
+        info!("Searching for DICOM investigations in folder: {}", folder_path);
+        
+        let mut investigations = Vec::new();
+        let mut study_map: HashMap<String, Vec<String>> = HashMap::new(); // Study UID -> file paths
+        
+        // Walk through all files in the folder recursively
+        for entry in WalkDir::new(folder_path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+        {
+            let path = entry.path();
+            if self.is_dicom_file(path) {
+                // Try to get study UID from the file
+                if let Ok(study_uid) = self.get_study_instance_uid(path).await {
+                    let path_str = path.to_string_lossy().to_string();
+                    study_map.entry(study_uid).or_insert_with(Vec::new).push(path_str);
+                }
+            }
+        }
+        
+        // Create investigation objects for each study
+        for (study_uid, file_paths) in study_map {
+            if let Some(first_file) = file_paths.first() {
+                // Get basic study info from first file
+                if let Ok(study_info) = self.get_study_info(first_file).await {
+                    // Find the common directory for all files in this study
+                    let directory_path = self.find_common_directory(&file_paths);
+                    
+                    investigations.push(DicomInvestigation {
+                        study_uid: study_uid.clone(),
+                        study_info,
+                        file_paths,
+                        directory_path,
+                    });
+                }
+            }
+        }
+        
+        info!("Found {} DICOM investigations", investigations.len());
+        Ok(investigations)
     }
 
     pub async fn load_study_from_folder(&self, folder_path: &str) -> Result<MedicalStudy> {
@@ -294,5 +355,95 @@ impl DicomParser {
             .ok()
             .and_then(|e| e.to_str().ok())
             .map(|s| s.to_string()))
+    }
+
+    async fn get_study_instance_uid(&self, path: &Path) -> Result<String> {
+        let obj = open_file(path)
+            .map_err(|e| DicomError::InvalidFile(format!("Failed to parse DICOM file: {}", e)))?;
+        
+        obj.element_by_name("StudyInstanceUID")
+            .ok()
+            .and_then(|e| e.to_str().ok())
+            .map(|s| s.to_string())
+            .ok_or_else(|| DicomError::InvalidFile("StudyInstanceUID not found".to_string()))
+    }
+
+    async fn get_study_info(&self, file_path: &str) -> Result<StudyInfo> {
+        let obj = open_file(file_path)
+            .map_err(|e| DicomError::InvalidFile(format!("Failed to parse DICOM file: {}", e)))?;
+        
+        let patient_id = obj.element_by_name("PatientID")
+            .ok()
+            .and_then(|e| e.to_str().ok())
+            .map(|s| s.to_string());
+        
+        let study_date = obj.element_by_name("StudyDate")
+            .ok()
+            .and_then(|e| e.to_str().ok())
+            .map(|s| s.to_string());
+        
+        let study_description = obj.element_by_name("StudyDescription")
+            .ok()
+            .and_then(|e| e.to_str().ok())
+            .map(|s| s.to_string());
+        
+        let modality = obj.element_by_name("Modality")
+            .ok()
+            .and_then(|e| e.to_str().ok())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "Unknown".to_string());
+        
+        Ok(StudyInfo {
+            patient_id,
+            study_date,
+            study_description,
+            modality,
+            file_count: 0, // Will be set later
+        })
+    }
+
+    fn find_common_directory(&self, file_paths: &[String]) -> String {
+        if file_paths.is_empty() {
+            return String::new();
+        }
+        
+        if file_paths.len() == 1 {
+            // Single file, return its parent directory
+            if let Some(parent) = std::path::Path::new(&file_paths[0]).parent() {
+                return parent.to_string_lossy().to_string();
+            }
+            return String::new();
+        }
+        
+        // Find common path prefix
+        let mut common_components = Vec::new();
+        let first_path = std::path::Path::new(&file_paths[0]);
+        let first_components: Vec<_> = first_path.components().collect();
+        
+        for (i, component) in first_components.iter().enumerate() {
+            let mut is_common = true;
+            for path_str in file_paths.iter().skip(1) {
+                let path = std::path::Path::new(path_str);
+                let components: Vec<_> = path.components().collect();
+                if i >= components.len() || &components[i] != component {
+                    is_common = false;
+                    break;
+                }
+            }
+            
+            if is_common {
+                common_components.push(component);
+            } else {
+                break;
+            }
+        }
+        
+        // Reconstruct the common path
+        let mut common_path = std::path::PathBuf::new();
+        for component in common_components {
+            common_path.push(component);
+        }
+        
+        common_path.to_string_lossy().to_string()
     }
 }

@@ -5,10 +5,11 @@ use gtk4::{
     Button, Label,
     FileChooserDialog, FileChooserAction, ResponseType,
     Popover, Entry, Switch, SpinButton,
-    Frame, DrawingArea, ComboBoxText, Scale
+    Frame, DrawingArea, ComboBoxText, Scale,
+    ListBox, ListBoxRow, ScrolledWindow, Dialog
 };
 use log::info;
-use summrise_dicom::DicomParser;
+use summrise_dicom::{DicomParser, DicomInvestigation};
 use std::cell::RefCell;
 use std::rc::Rc;
 use serde::{Serialize, Deserialize};
@@ -422,32 +423,54 @@ fn show_folder_info(
     let main_box_clone = main_box.clone();
     
     glib::MainContext::default().spawn_local(async move {
-        // First, try to load from cache
-        if let Some(cached_study) = load_from_cache(&folder_path) {
-            progress_dialog.close();
-            info!("Loaded DICOM data from cache");
-                update_study_state(&cached_study, &current_study_clone, &drawing_areas_clone, &main_box_clone);
-            return;
-        }
+        progress_dialog.close();
         
-        // If not in cache, load from files
-        info!("Loading DICOM files from disk (not in cache)");
+        // Search for DICOM investigations in the selected folder
+        info!("Searching for DICOM investigations in folder: {}", folder_path);
         let parser = DicomParser::new();
         
-        match parser.load_study_from_folder(&folder_path).await {
-            Ok(study) => {
-                progress_dialog.close();
-                
-                // Save to cache for next time
-                if let Err(e) = save_to_cache(&folder_path, &study) {
-                    info!("Failed to save to cache: {}", e);
+        match parser.find_dicom_investigations(&folder_path).await {
+            Ok(investigations) => {
+                match investigations.len() {
+                    0 => {
+                        show_error_dialog(&parent_clone, "No DICOM investigations found in the selected folder.");
+                    }
+                    1 => {
+                        // Single investigation found, load it directly
+                        let investigation = &investigations[0];
+                        info!("Single investigation found, loading directly");
+                        
+                        // First, try to load from cache
+                        if let Some(cached_study) = load_from_cache(&folder_path) {
+                            info!("Loaded DICOM data from cache");
+                            update_study_state(&cached_study, &current_study_clone, &drawing_areas_clone, &main_box_clone);
+                            return;
+                        }
+                        
+                        // Load from files
+                        match parser.load_study_from_folder(&investigation.directory_path).await {
+                            Ok(study) => {
+                                // Save to cache for next time
+                                if let Err(e) = save_to_cache(&folder_path, &study) {
+                                    info!("Failed to save to cache: {}", e);
+                                }
+                                
+                                update_study_state(&study, &current_study_clone, &drawing_areas_clone, &main_box_clone);
+                            }
+                            Err(e) => {
+                                show_error_dialog(&parent_clone, &format!("Failed to load DICOM investigation: {}", e));
+                            }
+                        }
+                    }
+                    _ => {
+                        // Multiple investigations found, show selector
+                        info!("Multiple investigations found ({}), showing selector", investigations.len());
+                        show_investigation_selector(&parent_clone, investigations, &current_study_clone, &drawing_areas_clone, &main_box_clone);
+                    }
                 }
-                
-                update_study_state(&study, &current_study_clone, &drawing_areas_clone, &main_box_clone);
             }
             Err(e) => {
-                progress_dialog.close();
-                show_error_dialog(&parent_clone, &format!("Failed to load DICOM files: {}", e));
+                show_error_dialog(&parent_clone, &format!("Failed to search for DICOM investigations: {}", e));
             }
         }
     });
@@ -464,6 +487,121 @@ fn show_error_dialog(parent: &ApplicationWindow, message: &str) {
         .build();
 
     dialog.connect_response(|dialog, _| {
+        dialog.close();
+    });
+
+    dialog.present();
+}
+
+fn show_investigation_selector(
+    parent: &ApplicationWindow,
+    investigations: Vec<DicomInvestigation>,
+    current_study: &Rc<RefCell<Option<summrise_core::models::MedicalStudy>>>,
+    drawing_areas: &Rc<RefCell<Vec<DrawingArea>>>,
+    main_box: &Box
+) {
+    let dialog = gtk4::Dialog::builder()
+        .transient_for(parent)
+        .modal(true)
+        .title("Select DICOM Investigation")
+        .build();
+
+    let content_area = dialog.content_area();
+    let content_box = Box::new(Orientation::Vertical, 10);
+    content_box.set_margin_top(20);
+    content_box.set_margin_bottom(20);
+    content_box.set_margin_start(20);
+    content_box.set_margin_end(20);
+
+    // Title
+    let title_label = Label::new(Some("Multiple DICOM investigations found. Please select one:"));
+    title_label.add_css_class("title-3");
+    content_box.append(&title_label);
+
+    // Investigation list
+    let list_box = gtk4::ListBox::new();
+    list_box.set_selection_mode(gtk4::SelectionMode::Single);
+
+    for (i, investigation) in investigations.iter().enumerate() {
+        let row = gtk4::ListBoxRow::new();
+        let row_box = Box::new(Orientation::Vertical, 5);
+        row_box.set_margin_top(10);
+        row_box.set_margin_bottom(10);
+        row_box.set_margin_start(10);
+        row_box.set_margin_end(10);
+
+        // Study description or fallback
+        let study_title = investigation.study_info.study_description
+            .as_deref()
+            .unwrap_or("Unnamed Study");
+        
+        let title_label = Label::new(Some(&format!("{}. {}", i + 1, study_title)));
+        title_label.add_css_class("title-4");
+        title_label.set_xalign(0.0);
+        row_box.append(&title_label);
+
+        // Details
+        let details_text = format!(
+            "Patient ID: {}\nStudy Date: {}\nModality: {}\nFiles: {}",
+            investigation.study_info.patient_id.as_deref().unwrap_or("Unknown"),
+            investigation.study_info.study_date.as_deref().unwrap_or("Unknown"),
+            investigation.study_info.modality,
+            investigation.file_paths.len()
+        );
+        let details_label = Label::new(Some(&details_text));
+        details_label.add_css_class("body");
+        details_label.set_xalign(0.0);
+        details_label.set_wrap(true);
+        row_box.append(&details_label);
+
+        row.set_child(Some(&row_box));
+        list_box.append(&row);
+    }
+
+    let scrolled_window = gtk4::ScrolledWindow::new();
+    scrolled_window.set_child(Some(&list_box));
+    scrolled_window.set_min_content_height(300);
+    content_box.append(&scrolled_window);
+
+    content_area.append(&content_box);
+
+    // Buttons
+    dialog.add_button("Cancel", ResponseType::Cancel);
+    dialog.add_button("Load Selected", ResponseType::Accept);
+
+    // Clone references for the closure
+    let parent_clone = parent.clone();
+    let current_study_clone = current_study.clone();
+    let drawing_areas_clone = drawing_areas.clone();
+    let main_box_clone = main_box.clone();
+
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            if let Some(selected_row) = list_box.selected_row() {
+                let index = selected_row.index() as usize;
+                if index < investigations.len() {
+                    let investigation = investigations[index].clone();
+                    
+                    // Load the selected investigation
+                    let parent_clone2 = parent_clone.clone();
+                    let current_study_clone2 = current_study_clone.clone();
+                    let drawing_areas_clone2 = drawing_areas_clone.clone();
+                    let main_box_clone2 = main_box_clone.clone();
+                    
+                    glib::MainContext::default().spawn_local(async move {
+                        let parser = DicomParser::new();
+                        match parser.load_study_from_folder(&investigation.directory_path).await {
+                            Ok(study) => {
+                                update_study_state(&study, &current_study_clone2, &drawing_areas_clone2, &main_box_clone2);
+                            }
+                            Err(e) => {
+                                show_error_dialog(&parent_clone2, &format!("Failed to load selected investigation: {}", e));
+                            }
+                        }
+                    });
+                }
+            }
+        }
         dialog.close();
     });
 
