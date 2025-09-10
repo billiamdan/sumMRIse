@@ -343,12 +343,15 @@ fn create_welcome_screen(
     recent_frame.set_child(Some(&recent_content));
     content.append(&recent_frame);
 
-    // Connect the open button
+    // Connect the open button to the actual folder picker
+    let parent_clone = parent.clone();
+    let current_study_clone = current_study.clone();
+    let drawing_areas_clone = drawing_areas.clone();
+    let main_box_clone = main_box.clone();
+    
     open_button.connect_clicked(move |_| {
         info!("Open DICOM folder button clicked from welcome screen");
-        // This will be connected to the main window's folder picker
-        // For now, we'll show a message
-        info!("Please use the folder button in the header bar to open DICOM files");
+        show_folder_picker(&parent_clone, &current_study_clone, &drawing_areas_clone, &main_box_clone);
     });
 
     content
@@ -635,6 +638,32 @@ fn create_settings_content() -> Box {
 }
 
 
+fn calculate_optimal_window_level(pixel_data: &[u16]) -> (f64, f64) {
+    if pixel_data.is_empty() {
+        return (2047.0, 4095.0); // Default values
+    }
+    
+    // Calculate percentiles for better contrast
+    let mut sorted_pixels = pixel_data.to_vec();
+    sorted_pixels.sort_unstable();
+    
+    let len = sorted_pixels.len();
+    let p2 = sorted_pixels[(len * 2 / 100).min(len - 1)] as f64;
+    let p98 = sorted_pixels[(len * 98 / 100).min(len - 1)] as f64;
+    
+    // Calculate window center and width based on percentiles
+    let window_center = (p2 + p98) / 2.0;
+    let window_width = (p98 - p2) * 1.2; // Add some margin for better contrast
+    
+    // Ensure reasonable bounds
+    let window_center = window_center.clamp(0.0, 65535.0);
+    let window_width = window_width.clamp(1.0, 65535.0);
+    
+    info!("Optimal WL calculation: p2={}, p98={}, center={}, width={}", p2, p98, window_center, window_width);
+    
+    (window_center, window_width)
+}
+
 fn render_dicom_image(cr: &cairo::Context, image_data: &summrise_core::models::ImageData, width: i32, height: i32) {
     let img_width = image_data.width as i32;
     let img_height = image_data.height as i32;
@@ -659,9 +688,8 @@ fn render_dicom_image(cr: &cairo::Context, image_data: &summrise_core::models::I
     let offset_x = (width - scaled_width) / 2;
     let offset_y = (height - scaled_height) / 2;
     
-    // Apply window/level transformation
-    let window_center = image_data.window_center;
-    let window_width = image_data.window_width;
+    // Calculate optimal window/level for better contrast
+    let (window_center, window_width) = calculate_optimal_window_level(&image_data.pixel_data);
     
     info!("Window/Level in render: Center={}, Width={}", window_center, window_width);
     
