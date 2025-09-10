@@ -867,7 +867,8 @@ fn create_dicom_viewer(
     viewer_content.append(&study_info_frame);
     
     // Multiple projections viewer
-    let projections_label = Label::new(Some("DICOM Image Viewer - Multiple Projections"));
+    let study_title = study.study_description.as_deref().unwrap_or("DICOM Study");
+    let projections_label = Label::new(Some(&format!("{} - Multiple Projections", study_title)));
     projections_label.add_css_class("title-2");
     projections_label.set_margin_bottom(20);
     viewer_content.append(&projections_label);
