@@ -1,0 +1,54 @@
+[package]
+name = "summrise"
+version = "0.1.0"
+edition = "2021"
+authors = ["billiamdan"]
+license = "MIT"
+description = "Cross-platform medical imaging viewer with AI analysis capabilities"
+
+[workspace]
+members = [
+    "crates/core",
+    "crates/dicom",
+    "crates/rendering",
+    "crates/llm",
+    "crates/gui-linux",
+    "crates/gui-macos",
+    "crates/gui-windows",
+]
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+log = "0.4"
+env_logger = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+toml = "0.8"
+dirs = "5.0"
+
+# GUI dependencies
+gtk4 = "0.7"
+gio = "0.18"
+glib = "0.18"
+cairo-rs = "0.18"
+
+# Re-export workspace crates
+summrise-core = { path = "crates/core" }
+summrise-dicom = { path = "crates/dicom" }
+summrise-gui-linux = { path = "crates/gui-linux" }
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bin]]
+name = "summrise"
+path = "src/main.rs"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

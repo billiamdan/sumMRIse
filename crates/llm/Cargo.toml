@@ -1,0 +1,19 @@
+[package]
+name = "summrise-llm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = { version = "0.11", features = ["json"] }
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+anyhow = "1.0"
+thiserror = "1.0"
+log = "0.4"
+uuid = { version = "1.0", features = ["v4"] }
+base64 = "0.21"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Re-export other crates
+summrise-core = { path = "../core" }

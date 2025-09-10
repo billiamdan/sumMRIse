@@ -1,0 +1,17 @@
+[package]
+name = "summrise-dicom"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+dicom = "0.6"
+dicom-parser = "0.6"
+tokio = { version = "1.0", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+anyhow = "1.0"
+thiserror = "1.0"
+log = "0.4"
+uuid = { version = "1.0", features = ["v4"] }
+image = "0.24"
+walkdir = "2.4"
+summrise-core = { path = "../core" }
