@@ -421,7 +421,6 @@ fn show_folder_info(
         if let Some(cached_study) = load_from_cache(&folder_path) {
             progress_dialog.close();
             info!("Loaded DICOM data from cache");
-                show_study_info(&parent_clone, &cached_study);
                 update_study_state(&cached_study, &current_study_clone, &drawing_areas_clone, &main_box_clone);
             return;
         }
@@ -439,7 +438,6 @@ fn show_folder_info(
                     info!("Failed to save to cache: {}", e);
                 }
                 
-                show_study_info(&parent_clone, &study);
                 update_study_state(&study, &current_study_clone, &drawing_areas_clone, &main_box_clone);
             }
             Err(e) => {
@@ -450,71 +448,6 @@ fn show_folder_info(
     });
 }
 
-fn show_study_info(parent: &ApplicationWindow, study: &summrise_core::models::MedicalStudy) {
-    let info_text = format!(
-        "Study loaded successfully!\n\n\
-        Patient ID: {}\n\
-        Study Date: {}\n\
-        Study Description: {}\n\
-        Modality: {}\n\
-        Number of Series: {}",
-        study.patient_id.as_deref().unwrap_or("Unknown"),
-        study.study_date.as_deref().unwrap_or("Unknown"),
-        study.study_description.as_deref().unwrap_or("Unknown"),
-        study.modality,
-        study.series.len()
-    );
-
-    // Create detailed study information for the welcome tab
-    let detailed_info = format!(
-        "Patient ID: {}\n\
-        Study Date: {}\n\
-        Study Description: {}\n\
-        Modality: {}\n\
-        Number of Series: {}\n\
-        Study ID: {}",
-        study.patient_id.as_deref().unwrap_or("Unknown"),
-        study.study_date.as_deref().unwrap_or("Unknown"),
-        study.study_description.as_deref().unwrap_or("Unknown"),
-        study.modality,
-        study.series.len(),
-        study.id
-    );
-
-    // Add series details
-    let mut series_info = String::new();
-    for (i, series) in study.series.iter().enumerate() {
-        series_info.push_str(&format!(
-            "\n\nSeries {}:\n\
-            - Description: {}\n\
-            - Modality: {}\n\
-            - Number of Instances: {}\n\
-            - Series Number: {}",
-            i + 1,
-            series.series_description.as_deref().unwrap_or("Unknown"),
-            series.modality,
-            series.instances.len(),
-            series.series_number.map(|n| n.to_string()).unwrap_or_else(|| "Unknown".to_string())
-        ));
-    }
-
-    let _full_info = format!("{}{}", detailed_info, series_info);
-
-    let dialog = gtk4::MessageDialog::builder()
-        .transient_for(parent)
-        .modal(true)
-        .title("DICOM Study Loaded")
-        .message_type(gtk4::MessageType::Info)
-        .text(&info_text)
-        .secondary_text("The study has been loaded and is ready for viewing and analysis.")
-        .build();
-
-    dialog.connect_response(|dialog, _| {
-        dialog.close();
-    });
-
-    dialog.present();
-}
 
 fn show_error_dialog(parent: &ApplicationWindow, message: &str) {
     let dialog = gtk4::MessageDialog::builder()
