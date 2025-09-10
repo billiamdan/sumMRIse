@@ -185,7 +185,7 @@ fn create_main_window(app: &Application) {
     let drawing_areas = Rc::new(RefCell::new(Vec::<DrawingArea>::new()));
 
     // Create welcome screen (shown when no data is loaded)
-    let welcome_screen = create_welcome_screen(&current_study, &drawing_areas);
+    let welcome_screen = create_welcome_screen(&window, &current_study, &drawing_areas, &main_box);
     main_box.append(&welcome_screen);
 
     // Connect button signals
@@ -245,8 +245,10 @@ fn create_main_window(app: &Application) {
 }
 
 fn create_welcome_screen(
-    _current_study: &Rc<RefCell<Option<summrise_core::models::MedicalStudy>>>,
-    _drawing_areas: &Rc<RefCell<Vec<DrawingArea>>>
+    parent: &ApplicationWindow,
+    current_study: &Rc<RefCell<Option<summrise_core::models::MedicalStudy>>>,
+    drawing_areas: &Rc<RefCell<Vec<DrawingArea>>>,
+    main_box: &Box
 ) -> Box {
     let content = Box::new(Orientation::Vertical, 20);
     content.set_margin_top(40);
