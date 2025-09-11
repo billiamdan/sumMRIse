@@ -35,9 +35,11 @@ impl DicomParser {
         info!("Searching for DICOM investigations in folder: {}", folder_path);
         
         let mut investigations = Vec::new();
-        let mut study_map: HashMap<String, Vec<String>> = HashMap::new(); // Study UID -> file paths
         
-        // Walk through all files in the folder recursively
+        // Group DICOM files by their containing directory
+        // Each directory with DICOM files is considered one investigation
+        let mut directory_map: HashMap<String, Vec<String>> = HashMap::new();
+        
         for entry in WalkDir::new(folder_path)
             .into_iter()
             .filter_map(|e| e.ok())
@@ -45,28 +47,58 @@ impl DicomParser {
         {
             let path = entry.path();
             if self.is_dicom_file(path) {
-                // Try to get study UID from the file
-                if let Ok(study_uid) = self.get_study_instance_uid(path).await {
-                    let path_str = path.to_string_lossy().to_string();
-                    study_map.entry(study_uid).or_insert_with(Vec::new).push(path_str);
+                // Skip DICOMDIR files - they're not actual image data
+                if path.file_name().unwrap_or_default().to_string_lossy().to_uppercase() == "DICOMDIR" {
+                    continue;
                 }
+                
+                // Group by the main DICOM directory
+                // Find the "Dicom" directory that contains the actual image files
+                let mut current_dir = path.parent().unwrap_or(path);
+                let mut dicom_dir = current_dir;
+                
+                // Walk up the directory tree to find the main DICOM directory
+                // Stop when we find a directory that contains "Dicom" and has subdirectories
+                while let Some(parent) = current_dir.parent() {
+                    let parent_str = parent.to_string_lossy();
+                    if parent_str.contains("Dicom") || parent_str.to_lowercase().contains("dicom") {
+                        // Check if this directory has subdirectories (like PAT0, STUDY0, etc.)
+                        if parent.read_dir().map(|mut dir| dir.next().is_some()).unwrap_or(false) {
+                            dicom_dir = parent;
+                            break;
+                        }
+                    }
+                    current_dir = parent;
+                }
+                
+                let directory_key = dicom_dir.to_string_lossy().to_string();
+                let path_str = path.to_string_lossy().to_string();
+                directory_map.entry(directory_key).or_insert_with(Vec::new).push(path_str);
             }
         }
         
-        // Create investigation objects for each study
-        for (study_uid, file_paths) in study_map {
+        // Create investigation objects for each directory
+        for (directory_path, file_paths) in directory_map {
             if let Some(first_file) = file_paths.first() {
+                // Get study UID from the first file for identification
+                let study_uid = self.get_study_instance_uid(std::path::Path::new(first_file)).await
+                    .unwrap_or_else(|_| directory_path.clone());
+                
+                info!("Processing directory {} with {} files, first file: {}", directory_path, file_paths.len(), first_file);
                 // Get basic study info from first file
-                if let Ok(study_info) = self.get_study_info(first_file).await {
-                    // Find the common directory for all files in this study
-                    let directory_path = self.find_common_directory(&file_paths);
-                    
-                    investigations.push(DicomInvestigation {
-                        study_uid: study_uid.clone(),
-                        study_info,
-                        file_paths,
-                        directory_path,
-                    });
+                match self.get_study_info(first_file).await {
+                    Ok(study_info) => {
+                        investigations.push(DicomInvestigation {
+                            study_uid: study_uid.clone(),
+                            study_info,
+                            file_paths,
+                            directory_path: directory_path.clone(),
+                        });
+                        info!("Successfully created investigation for directory {}", directory_path);
+                    }
+                    Err(e) => {
+                        warn!("Failed to get study info for {}: {}", first_file, e);
+                    }
                 }
             }
         }
@@ -91,8 +123,17 @@ impl DicomParser {
             if self.is_dicom_file(path) {
                 match self.parse_dicom_file(path).await {
                     Ok(instance) => {
-                        let series_uid = self.get_series_instance_uid(&instance)?;
-                        series_map.entry(series_uid).or_insert_with(Vec::new).push(instance);
+                        match self.get_series_instance_uid(&instance) {
+                            Ok(series_uid) => {
+                                series_map.entry(series_uid).or_insert_with(Vec::new).push(instance);
+                            }
+                            Err(e) => {
+                                warn!("Failed to get series UID for file {:?}: {}", path, e);
+                                // Use file path as fallback series identifier
+                                let fallback_uid = path.to_string_lossy().to_string();
+                                series_map.entry(fallback_uid).or_insert_with(Vec::new).push(instance);
+                            }
+                        }
                     }
                     Err(e) => {
                         warn!("Failed to parse DICOM file {:?}: {}", path, e);
@@ -289,11 +330,24 @@ impl DicomParser {
         let obj = open_file(&instance.file_path)
             .map_err(|e| DicomError::InvalidFile(format!("Failed to parse DICOM file: {}", e)))?;
         
-        obj.element_by_name("SeriesInstanceUID")
+        // Try to get SeriesInstanceUID, fallback to SOPInstanceUID if not found
+        if let Some(series_uid) = obj.element_by_name("SeriesInstanceUID")
             .ok()
             .and_then(|e| e.to_str().ok())
-            .map(|s| s.to_string())
-            .ok_or_else(|| DicomError::InvalidFile("SeriesInstanceUID not found".to_string()))
+            .map(|s| s.to_string()) {
+            return Ok(series_uid);
+        }
+        
+        // Fallback: use SOPInstanceUID as series identifier
+        if let Some(sop_uid) = obj.element_by_name("SOPInstanceUID")
+            .ok()
+            .and_then(|e| e.to_str().ok())
+            .map(|s| s.to_string()) {
+            return Ok(sop_uid);
+        }
+        
+        // Last resort: use file path as identifier
+        Ok(instance.file_path.clone())
     }
 
     fn get_series_description(&self, instance: &Instance) -> Result<Option<String>> {

@@ -431,6 +431,8 @@ fn show_folder_info(
         
         match parser.find_dicom_investigations(&folder_path).await {
             Ok(investigations) => {
+                info!("Found {} investigations: {:?}", investigations.len(), 
+                    investigations.iter().map(|i| &i.study_uid).collect::<Vec<_>>());
                 match investigations.len() {
                     0 => {
                         show_error_dialog(&parent_clone, "No DICOM investigations found in the selected folder.");
@@ -465,6 +467,11 @@ fn show_folder_info(
                     _ => {
                         // Multiple investigations found, show selector
                         info!("Multiple investigations found ({}), showing selector", investigations.len());
+                        info!("Investigation details: {:?}", investigations.iter().map(|i| format!("Study: {}, Patient: {:?}, Date: {:?}", 
+                            i.study_info.study_description.as_deref().unwrap_or("Unknown"),
+                            i.study_info.patient_id,
+                            i.study_info.study_date
+                        )).collect::<Vec<_>>());
                         show_investigation_selector(&parent_clone, investigations, &current_study_clone, &drawing_areas_clone, &main_box_clone);
                     }
                 }
@@ -1057,9 +1064,15 @@ fn create_dicom_viewer(
                     if !series.instances.is_empty() {
                         let instance = &series.instances[0];
                         if let Some(image_data) = &instance.image_data {
-                            info!("Projection 2: {}x{} pixels", image_data.width, image_data.height);
-                            render_dicom_image(cr, image_data, width, height);
-                            return;
+                            // Check if image data is valid (not just default 512x512)
+                            if image_data.width > 0 && image_data.height > 0 && 
+                               !(image_data.width == 512 && image_data.height == 512 && image_data.pixel_data.iter().all(|&p| p == 0)) {
+                                info!("Projection 2: {}x{} pixels", image_data.width, image_data.height);
+                                render_dicom_image(cr, image_data, width, height);
+                                return;
+                            } else {
+                                info!("Projection 2: Invalid or empty image data ({}x{})", image_data.width, image_data.height);
+                            }
                         }
                     }
                 }
@@ -1067,7 +1080,7 @@ fn create_dicom_viewer(
             cr.set_source_rgb(0.8, 0.8, 0.8);
             cr.set_font_size(24.0);
             cr.move_to(width as f64 / 2.0 - 150.0, height as f64 / 2.0);
-            cr.show_text("No image data").unwrap();
+            cr.show_text("No valid image data").unwrap();
         });
         
         projection2_box.append(&drawing2);
