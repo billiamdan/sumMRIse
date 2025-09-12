@@ -456,48 +456,4 @@ impl DicomParser {
         })
     }
 
-    fn find_common_directory(&self, file_paths: &[String]) -> String {
-        if file_paths.is_empty() {
-            return String::new();
-        }
-        
-        if file_paths.len() == 1 {
-            // Single file, return its parent directory
-            if let Some(parent) = std::path::Path::new(&file_paths[0]).parent() {
-                return parent.to_string_lossy().to_string();
-            }
-            return String::new();
-        }
-        
-        // Find common path prefix
-        let mut common_components = Vec::new();
-        let first_path = std::path::Path::new(&file_paths[0]);
-        let first_components: Vec<_> = first_path.components().collect();
-        
-        for (i, component) in first_components.iter().enumerate() {
-            let mut is_common = true;
-            for path_str in file_paths.iter().skip(1) {
-                let path = std::path::Path::new(path_str);
-                let components: Vec<_> = path.components().collect();
-                if i >= components.len() || &components[i] != component {
-                    is_common = false;
-                    break;
-                }
-            }
-            
-            if is_common {
-                common_components.push(component);
-            } else {
-                break;
-            }
-        }
-        
-        // Reconstruct the common path
-        let mut common_path = std::path::PathBuf::new();
-        for component in common_components {
-            common_path.push(component);
-        }
-        
-        common_path.to_string_lossy().to_string()
-    }
 }

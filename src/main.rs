@@ -6,7 +6,7 @@ use gtk4::{
     FileChooserDialog, FileChooserAction, ResponseType,
     Popover, Entry, Switch, SpinButton,
     Frame, DrawingArea, ComboBoxText, Scale,
-    ListBox, ListBoxRow, ScrolledWindow, Dialog
+    ScrolledWindow
 };
 use log::info;
 use summrise_dicom::{DicomParser, DicomInvestigation};
@@ -184,9 +184,12 @@ fn create_main_window(app: &Application) {
     
     // Store references to drawing areas for redraws
     let drawing_areas = Rc::new(RefCell::new(Vec::<DrawingArea>::new()));
+    
+    // Track current image index for each series
+    let series_image_indices = Rc::new(RefCell::new(Vec::<usize>::new()));
 
     // Create welcome screen (shown when no data is loaded)
-    let welcome_screen = create_welcome_screen(&window, &current_study, &drawing_areas, &main_box);
+    let welcome_screen = create_welcome_screen(&window, &current_study, &drawing_areas, &series_image_indices, &main_box);
     main_box.append(&welcome_screen);
 
     // Connect button signals
@@ -195,9 +198,10 @@ fn create_main_window(app: &Application) {
 
     let current_study_clone = current_study.clone();
     let drawing_areas_clone = drawing_areas.clone();
+    let series_image_indices_clone = series_image_indices.clone();
     open_folder_button.connect_clicked(move |_| {
         info!("Open folder button clicked");
-        show_folder_picker(&window_clone, &current_study_clone, &drawing_areas_clone, &main_box_clone1);
+        show_folder_picker(&window_clone, &current_study_clone, &drawing_areas_clone, &series_image_indices_clone, &main_box_clone1);
     });
 
     // Settings popup
@@ -218,10 +222,11 @@ fn create_main_window(app: &Application) {
     let window_clone2 = window.clone();
     let current_study_clone2 = current_study.clone();
     let drawing_areas_clone2 = drawing_areas.clone();
+    let series_image_indices_clone2 = series_image_indices.clone();
     let main_box_clone2 = main_box.clone();
     open_folder_action.connect_activate(move |_, _| {
         info!("Open folder menu item clicked");
-        show_folder_picker(&window_clone2, &current_study_clone2, &drawing_areas_clone2, &main_box_clone2);
+        show_folder_picker(&window_clone2, &current_study_clone2, &drawing_areas_clone2, &series_image_indices_clone2, &main_box_clone2);
     });
     action_group.add_action(&open_folder_action);
 
@@ -249,6 +254,7 @@ fn create_welcome_screen(
     parent: &ApplicationWindow,
     current_study: &Rc<RefCell<Option<summrise_core::models::MedicalStudy>>>,
     drawing_areas: &Rc<RefCell<Vec<DrawingArea>>>,
+    series_image_indices: &Rc<RefCell<Vec<usize>>>,
     main_box: &Box
 ) -> Box {
     let content = Box::new(Orientation::Vertical, 20);
@@ -350,11 +356,12 @@ fn create_welcome_screen(
     let parent_clone = parent.clone();
     let current_study_clone = current_study.clone();
     let drawing_areas_clone = drawing_areas.clone();
+    let series_image_indices_clone = series_image_indices.clone();
     let main_box_clone = main_box.clone();
     
     open_button.connect_clicked(move |_| {
         info!("Open DICOM folder button clicked from welcome screen");
-        show_folder_picker(&parent_clone, &current_study_clone, &drawing_areas_clone, &main_box_clone);
+        show_folder_picker(&parent_clone, &current_study_clone, &drawing_areas_clone, &series_image_indices_clone, &main_box_clone);
     });
 
     content
@@ -364,6 +371,7 @@ fn show_folder_picker(
     parent: &ApplicationWindow, 
     current_study: &Rc<RefCell<Option<summrise_core::models::MedicalStudy>>>,
     drawing_areas: &Rc<RefCell<Vec<DrawingArea>>>,
+    series_image_indices: &Rc<RefCell<Vec<usize>>>,
     main_box: &Box
 ) {
     let dialog = FileChooserDialog::builder()
@@ -380,13 +388,14 @@ fn show_folder_picker(
     let parent_clone = parent.clone();
     let current_study_clone = current_study.clone();
     let drawing_areas_clone = drawing_areas.clone();
+    let series_image_indices_clone = series_image_indices.clone();
     let main_box_clone = main_box.clone();
     dialog.connect_response(move |dialog, response| {
         if response == ResponseType::Accept {
             if let Some(folder) = dialog.file() {
                 if let Some(path) = folder.path() {
                     info!("Selected folder: {:?}", path);
-                    show_folder_info(&parent_clone, &path.to_string_lossy(), &current_study_clone, &drawing_areas_clone, &main_box_clone);
+                    show_folder_info(&parent_clone, &path.to_string_lossy(), &current_study_clone, &drawing_areas_clone, &series_image_indices_clone, &main_box_clone);
                 }
             }
         }
@@ -401,6 +410,7 @@ fn show_folder_info(
     folder_path: &str, 
     current_study: &Rc<RefCell<Option<summrise_core::models::MedicalStudy>>>,
     drawing_areas: &Rc<RefCell<Vec<DrawingArea>>>,
+    series_image_indices: &Rc<RefCell<Vec<usize>>>,
     main_box: &Box
 ) {
     // Create a progress dialog
@@ -420,6 +430,7 @@ fn show_folder_info(
     let folder_path = folder_path.to_string();
     let current_study_clone = current_study.clone();
     let drawing_areas_clone = drawing_areas.clone();
+    let series_image_indices_clone = series_image_indices.clone();
     let main_box_clone = main_box.clone();
     
     glib::MainContext::default().spawn_local(async move {
@@ -445,7 +456,7 @@ fn show_folder_info(
                         // First, try to load from cache
                         if let Some(cached_study) = load_from_cache(&folder_path) {
                             info!("Loaded DICOM data from cache");
-                            update_study_state(&cached_study, &current_study_clone, &drawing_areas_clone, &main_box_clone);
+                            update_study_state(&cached_study, &current_study_clone, &drawing_areas_clone, &series_image_indices_clone, &main_box_clone);
                             return;
                         }
                         
@@ -457,7 +468,7 @@ fn show_folder_info(
                                     info!("Failed to save to cache: {}", e);
                                 }
                                 
-                                update_study_state(&study, &current_study_clone, &drawing_areas_clone, &main_box_clone);
+                                update_study_state(&study, &current_study_clone, &drawing_areas_clone, &series_image_indices_clone, &main_box_clone);
                             }
                             Err(e) => {
                                 show_error_dialog(&parent_clone, &format!("Failed to load DICOM investigation: {}", e));
@@ -472,7 +483,7 @@ fn show_folder_info(
                             i.study_info.patient_id,
                             i.study_info.study_date
                         )).collect::<Vec<_>>());
-                        show_investigation_selector(&parent_clone, investigations, &current_study_clone, &drawing_areas_clone, &main_box_clone);
+                        show_investigation_selector(&parent_clone, investigations, &current_study_clone, &drawing_areas_clone, &series_image_indices_clone, &main_box_clone);
                     }
                 }
             }
@@ -505,6 +516,7 @@ fn show_investigation_selector(
     investigations: Vec<DicomInvestigation>,
     current_study: &Rc<RefCell<Option<summrise_core::models::MedicalStudy>>>,
     drawing_areas: &Rc<RefCell<Vec<DrawingArea>>>,
+    series_image_indices: &Rc<RefCell<Vec<usize>>>,
     main_box: &Box
 ) {
     let dialog = gtk4::Dialog::builder()
@@ -580,6 +592,7 @@ fn show_investigation_selector(
     let parent_clone = parent.clone();
     let current_study_clone = current_study.clone();
     let drawing_areas_clone = drawing_areas.clone();
+    let series_image_indices_clone = series_image_indices.clone();
     let main_box_clone = main_box.clone();
 
     dialog.connect_response(move |dialog, response| {
@@ -593,13 +606,14 @@ fn show_investigation_selector(
                     let parent_clone2 = parent_clone.clone();
                     let current_study_clone2 = current_study_clone.clone();
                     let drawing_areas_clone2 = drawing_areas_clone.clone();
+                    let series_image_indices_clone2 = series_image_indices_clone.clone();
                     let main_box_clone2 = main_box_clone.clone();
                     
                     glib::MainContext::default().spawn_local(async move {
                         let parser = DicomParser::new();
                         match parser.load_study_from_folder(&investigation.directory_path).await {
                             Ok(study) => {
-                                update_study_state(&study, &current_study_clone2, &drawing_areas_clone2, &main_box_clone2);
+                                update_study_state(&study, &current_study_clone2, &drawing_areas_clone2, &series_image_indices_clone2, &main_box_clone2);
                             }
                             Err(e) => {
                                 show_error_dialog(&parent_clone2, &format!("Failed to load selected investigation: {}", e));
@@ -908,6 +922,7 @@ fn update_study_state(
     study: &summrise_core::models::MedicalStudy, 
     current_study: &Rc<RefCell<Option<summrise_core::models::MedicalStudy>>>,
     drawing_areas: &Rc<RefCell<Vec<DrawingArea>>>,
+    series_image_indices: &Rc<RefCell<Vec<usize>>>,
     main_box: &Box
 ) {
     info!("Updating study state with {} series", study.series.len());
@@ -923,12 +938,21 @@ fn update_study_state(
             }
         }
     }
+    
+    // Initialize series image indices (start at 0 for each series)
+    let mut indices = series_image_indices.borrow_mut();
+    indices.clear();
+    for _ in 0..study.series.len() {
+        indices.push(0);
+    }
+    drop(indices);
+    
     // Update the shared state
     *current_study.borrow_mut() = Some(study.clone());
     info!("Study state updated successfully");
     
     // Replace welcome screen with DICOM viewer
-    create_dicom_viewer(study, current_study, drawing_areas, main_box);
+    create_dicom_viewer(study, current_study, drawing_areas, series_image_indices, main_box);
     
     info!("DICOM viewer created and displayed");
 }
@@ -937,6 +961,7 @@ fn create_dicom_viewer(
     study: &summrise_core::models::MedicalStudy,
     current_study: &Rc<RefCell<Option<summrise_core::models::MedicalStudy>>>,
     drawing_areas: &Rc<RefCell<Vec<DrawingArea>>>,
+    series_image_indices: &Rc<RefCell<Vec<usize>>>,
     main_box: &Box
 ) {
     // Clear the main box
@@ -974,168 +999,167 @@ fn create_dicom_viewer(
     study_info_frame.set_child(Some(&study_info_content));
     viewer_content.append(&study_info_frame);
     
-    // Multiple projections viewer
+    // Series viewer
     let study_title = study.study_description.as_deref().unwrap_or("DICOM Study");
-    let projections_label = Label::new(Some(&format!("{} - Multiple Projections", study_title)));
-    projections_label.add_css_class("title-2");
-    projections_label.set_margin_bottom(20);
-    viewer_content.append(&projections_label);
+    let series_label = Label::new(Some(&format!("{} - Series Viewer", study_title)));
+    series_label.add_css_class("title-2");
+    series_label.set_margin_bottom(20);
+    viewer_content.append(&series_label);
     
-    let projections_container = Box::new(Orientation::Horizontal, 10);
-    projections_container.set_margin_start(20);
-    projections_container.set_margin_end(20);
-    projections_container.set_margin_bottom(20);
+    // Create series viewers dynamically based on actual series count
+    let series_container = Box::new(Orientation::Horizontal, 10);
+    series_container.set_margin_start(20);
+    series_container.set_margin_end(20);
+    series_container.set_margin_bottom(20);
     
-    // Create drawing areas for each series (up to 3)
-    let current_study_clone1 = current_study.clone();
-    let current_study_clone2 = current_study.clone();
-    let current_study_clone3 = current_study.clone();
+    // Wrap the series container in a scrolled window for horizontal scrolling
+    let scrolled_window = gtk4::ScrolledWindow::new();
+    scrolled_window.set_child(Some(&series_container));
+    scrolled_window.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Never);
+    scrolled_window.set_min_content_width(800); // Ensure minimum width for series
+    scrolled_window.set_max_content_width(1200); // Limit maximum width
+    scrolled_window.set_hexpand(true);
     
-    // First projection
-    let projection1_frame = Frame::new(None);
-    projection1_frame.add_css_class("card");
-    let projection1_box = Box::new(Orientation::Vertical, 5);
-    projection1_box.set_margin_top(10);
-    projection1_box.set_margin_bottom(10);
-    projection1_box.set_margin_start(10);
-    projection1_box.set_margin_end(10);
+    // Clear existing drawing areas
+    drawing_areas.borrow_mut().clear();
     
-    let projection1_label = Label::new(Some("Projection 1"));
-    projection1_label.add_css_class("title-3");
-    projection1_box.append(&projection1_label);
-    
-    let drawing1 = DrawingArea::new();
-    drawing1.set_size_request(400, 500);
-    drawing1.add_css_class("viewer");
-    
-    drawing1.set_draw_func(move |_, cr, width, height| {
-        info!("Projection 1 drawing area redraw: {}x{}", width, height);
-        cr.set_source_rgb(0.0, 0.0, 0.0);
-        cr.paint().unwrap();
-        if let Some(study) = current_study_clone1.borrow().as_ref() {
-            if !study.series.is_empty() {
-                let series = &study.series[0];
-                if !series.instances.is_empty() {
-                    let instance = &series.instances[0];
-                    if let Some(image_data) = &instance.image_data {
-                        info!("Projection 1: {}x{} pixels", image_data.width, image_data.height);
-                        render_dicom_image(cr, image_data, width, height);
-                        return;
-                    }
+    // Create a series viewer for each series
+    for (series_index, series) in study.series.iter().enumerate() {
+        let series_frame = Frame::new(None);
+        series_frame.add_css_class("card");
+        let series_box = Box::new(Orientation::Vertical, 5);
+        series_box.set_margin_top(10);
+        series_box.set_margin_bottom(10);
+        series_box.set_margin_start(10);
+        series_box.set_margin_end(10);
+        
+        // Series header with navigation controls
+        let series_header = Box::new(Orientation::Horizontal, 10);
+        series_header.set_halign(gtk4::Align::Center);
+        
+        let series_title = format!("Series {} ({} images)", series_index + 1, series.instances.len());
+        let series_label = Label::new(Some(&series_title));
+        series_label.add_css_class("title-3");
+        series_header.append(&series_label);
+        
+        series_box.append(&series_header);
+        
+        // Drawing area for the series
+        let drawing = DrawingArea::new();
+        drawing.set_size_request(400, 500);
+        drawing.add_css_class("viewer");
+        
+        // Navigation controls
+        if series.instances.len() > 1 {
+            let nav_box = Box::new(Orientation::Horizontal, 5);
+            nav_box.set_halign(gtk4::Align::Center);
+            nav_box.set_margin_top(5);
+            nav_box.set_margin_bottom(5);
+            
+            // Previous button
+            let prev_button = Button::with_label("◀");
+            prev_button.add_css_class("flat");
+            prev_button.set_tooltip_text(Some("Previous image"));
+            
+            // Current image indicator
+            let current_image_label = Label::new(Some("1"));
+            current_image_label.add_css_class("body");
+            current_image_label.set_margin_start(10);
+            current_image_label.set_margin_end(10);
+            
+            // Next button
+            let next_button = Button::with_label("▶");
+            next_button.add_css_class("flat");
+            next_button.set_tooltip_text(Some("Next image"));
+            
+            // Previous button callback
+            let prev_label = current_image_label.clone();
+            let series_image_indices_prev = series_image_indices.clone();
+            let drawing_prev = drawing.clone();
+            let series_index_prev = series_index;
+            let _total_images_prev = series.instances.len();
+            
+            prev_button.connect_clicked(move |_| {
+                let mut indices = series_image_indices_prev.borrow_mut();
+                if indices[series_index_prev] > 0 {
+                    indices[series_index_prev] -= 1;
+                    let current = indices[series_index_prev] + 1;
+                    prev_label.set_text(&format!("{}", current));
+                    drawing_prev.queue_draw();
                 }
-            }
+            });
+            
+            // Next button callback
+            let next_label = current_image_label.clone();
+            let series_image_indices_next = series_image_indices.clone();
+            let drawing_next = drawing.clone();
+            let series_index_next = series_index;
+            let total_images_next = series.instances.len();
+            
+            next_button.connect_clicked(move |_| {
+                let mut indices = series_image_indices_next.borrow_mut();
+                if indices[series_index_next] < total_images_next - 1 {
+                    indices[series_index_next] += 1;
+                    let current = indices[series_index_next] + 1;
+                    next_label.set_text(&format!("{}", current));
+                    drawing_next.queue_draw();
+                }
+            });
+            
+            nav_box.append(&prev_button);
+            nav_box.append(&current_image_label);
+            nav_box.append(&next_button);
+            
+            series_box.append(&nav_box);
         }
-        cr.set_source_rgb(0.8, 0.8, 0.8);
-        cr.set_font_size(24.0);
-        cr.move_to(width as f64 / 2.0 - 150.0, height as f64 / 2.0);
-        cr.show_text("No image data").unwrap();
-    });
-    
-    projection1_box.append(&drawing1);
-    projection1_frame.set_child(Some(&projection1_box));
-    projections_container.append(&projection1_frame);
-    drawing_areas.borrow_mut().push(drawing1.clone());
-    
-    // Second projection (if available)
-    if study.series.len() > 1 {
-        let projection2_frame = Frame::new(None);
-        projection2_frame.add_css_class("card");
-        let projection2_box = Box::new(Orientation::Vertical, 5);
-        projection2_box.set_margin_top(10);
-        projection2_box.set_margin_bottom(10);
-        projection2_box.set_margin_start(10);
-        projection2_box.set_margin_end(10);
         
-        let projection2_label = Label::new(Some("Projection 2"));
-        projection2_label.add_css_class("title-3");
-        projection2_box.append(&projection2_label);
+        // Clone references for the closure
+        let current_study_clone = current_study.clone();
+        let series_image_indices_clone = series_image_indices.clone();
+        let series_index_clone = series_index;
         
-        let drawing2 = DrawingArea::new();
-        drawing2.set_size_request(400, 500);
-        drawing2.add_css_class("viewer");
-        
-        drawing2.set_draw_func(move |_, cr, width, height| {
-            info!("Projection 2 drawing area redraw: {}x{}", width, height);
+        drawing.set_draw_func(move |_, cr, width, height| {
+            info!("Series {} drawing area redraw: {}x{}", series_index_clone + 1, width, height);
             cr.set_source_rgb(0.0, 0.0, 0.0);
             cr.paint().unwrap();
-            if let Some(study) = current_study_clone2.borrow().as_ref() {
-                if study.series.len() > 1 {
-                    let series = &study.series[1];
+            
+            if let Some(study) = current_study_clone.borrow().as_ref() {
+                if series_index_clone < study.series.len() {
+                    let series = &study.series[series_index_clone];
                     if !series.instances.is_empty() {
-                        let instance = &series.instances[0];
-                        if let Some(image_data) = &instance.image_data {
-                            // Check if image data is valid (not just default 512x512)
-                            if image_data.width > 0 && image_data.height > 0 && 
-                               !(image_data.width == 512 && image_data.height == 512 && image_data.pixel_data.iter().all(|&p| p == 0)) {
-                                info!("Projection 2: {}x{} pixels", image_data.width, image_data.height);
-                                render_dicom_image(cr, image_data, width, height);
-                                return;
-                            } else {
-                                info!("Projection 2: Invalid or empty image data ({}x{})", image_data.width, image_data.height);
+                        // Get current image index for this series
+                        let current_image_index = series_image_indices_clone.borrow()[series_index_clone];
+                        if current_image_index < series.instances.len() {
+                            let instance = &series.instances[current_image_index];
+                            if let Some(image_data) = &instance.image_data {
+                                // Check if image data is valid
+                                if image_data.width > 0 && image_data.height > 0 && 
+                                   !(image_data.width == 512 && image_data.height == 512 && image_data.pixel_data.iter().all(|&p| p == 0)) {
+                                    info!("Series {} (image {}): {}x{} pixels", series_index_clone + 1, current_image_index + 1, image_data.width, image_data.height);
+                                    render_dicom_image(cr, image_data, width, height);
+                                    return;
+                                } else {
+                                    info!("Series {} (image {}): Invalid or empty image data ({}x{})", series_index_clone + 1, current_image_index + 1, image_data.width, image_data.height);
+                                }
                             }
                         }
                     }
                 }
             }
-            cr.set_source_rgb(0.8, 0.8, 0.8);
-            cr.set_font_size(24.0);
-            cr.move_to(width as f64 / 2.0 - 150.0, height as f64 / 2.0);
-            cr.show_text("No valid image data").unwrap();
-        });
-        
-        projection2_box.append(&drawing2);
-        projection2_frame.set_child(Some(&projection2_box));
-        projections_container.append(&projection2_frame);
-        drawing_areas.borrow_mut().push(drawing2.clone());
-    }
-    
-    // Third projection (if available)
-    if study.series.len() > 2 {
-        let projection3_frame = Frame::new(None);
-        projection3_frame.add_css_class("card");
-        let projection3_box = Box::new(Orientation::Vertical, 5);
-        projection3_box.set_margin_top(10);
-        projection3_box.set_margin_bottom(10);
-        projection3_box.set_margin_start(10);
-        projection3_box.set_margin_end(10);
-        
-        let projection3_label = Label::new(Some("Projection 3"));
-        projection3_label.add_css_class("title-3");
-        projection3_box.append(&projection3_label);
-        
-        let drawing3 = DrawingArea::new();
-        drawing3.set_size_request(400, 500);
-        drawing3.add_css_class("viewer");
-        
-        drawing3.set_draw_func(move |_, cr, width, height| {
-            info!("Projection 3 drawing area redraw: {}x{}", width, height);
-            cr.set_source_rgb(0.0, 0.0, 0.0);
-            cr.paint().unwrap();
-            if let Some(study) = current_study_clone3.borrow().as_ref() {
-                if study.series.len() > 2 {
-                    let series = &study.series[2];
-                    if !series.instances.is_empty() {
-                        let instance = &series.instances[0];
-                        if let Some(image_data) = &instance.image_data {
-                            info!("Projection 3: {}x{} pixels", image_data.width, image_data.height);
-                            render_dicom_image(cr, image_data, width, height);
-                            return;
-                        }
-                    }
-                }
-            }
+            
+            // Show "No image data" if no valid image
             cr.set_source_rgb(0.8, 0.8, 0.8);
             cr.set_font_size(24.0);
             cr.move_to(width as f64 / 2.0 - 150.0, height as f64 / 2.0);
             cr.show_text("No image data").unwrap();
         });
         
-        projection3_box.append(&drawing3);
-        projection3_frame.set_child(Some(&projection3_box));
-        projections_container.append(&projection3_frame);
-        drawing_areas.borrow_mut().push(drawing3.clone());
+        series_box.append(&drawing);
+        series_frame.set_child(Some(&series_box));
+        series_container.append(&series_frame);
+        drawing_areas.borrow_mut().push(drawing.clone());
     }
     
-    viewer_content.append(&projections_container);
+    viewer_content.append(&scrolled_window);
     main_box.append(&viewer_content);
 }
