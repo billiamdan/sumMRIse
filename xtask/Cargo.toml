@@ -1,0 +1,16 @@
+[package]
+name = "xtask"
+description = "Build automation for SumMRIse (bundling, icons, fixtures). Run with `cargo xtask <command>`."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+image.workspace = true
+summrise-testkit.workspace = true
+
+[lints]
+workspace = true

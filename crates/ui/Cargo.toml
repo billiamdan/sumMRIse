@@ -1,0 +1,30 @@
+[package]
+name = "summrise-ui"
+description = "egui user interface for SumMRIse (shared by macOS, Windows and Linux)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+eframe.workspace = true
+egui.workspace = true
+egui_extras.workspace = true
+egui_material_icons.workspace = true
+glam.workspace = true
+log.workspace = true
+rfd.workspace = true
+serde.workspace = true
+summrise-core.workspace = true
+summrise-dicom.workspace = true
+summrise-imaging.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+egui_kittest = { version = "0.37", features = ["eframe", "wgpu", "snapshot"] }
+summrise-testkit.workspace = true
+tempfile.workspace = true

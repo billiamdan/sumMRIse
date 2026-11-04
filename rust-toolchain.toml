@@ -1,0 +1,8 @@
+# Pinned toolchain for reproducible builds on every platform (local + CI).
+# rustup installs it automatically on the first `cargo` invocation in this repo;
+# it does not change your global default toolchain.
+[toolchain]
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]
+targets = ["aarch64-apple-darwin", "x86_64-apple-darwin"]
+profile = "minimal"

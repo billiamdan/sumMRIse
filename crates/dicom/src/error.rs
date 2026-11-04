@@ -1,24 +1,22 @@
-use thiserror::Error;
+use std::path::PathBuf;
 
-#[derive(Error, Debug)]
+/// Errors produced while importing DICOM media.
+#[derive(Debug, thiserror::Error)]
 pub enum DicomError {
-    #[error("DICOM parsing error: {0}")]
-    ParsingError(#[from] dicom::object::ReadError),
-    
-    #[error("IO error: {0}")]
-    IoError(#[from] std::io::Error),
-    
-    #[error("Invalid DICOM file: {0}")]
-    InvalidFile(String),
-    
-    #[error("Missing required tag: {0}")]
-    MissingTag(String),
-    
-    #[error("Unsupported transfer syntax: {0}")]
-    UnsupportedTransferSyntax(String),
-    
-    #[error("Image decoding error: {0}")]
-    ImageDecodingError(String),
+    #[error("cannot read {path}: {source}")]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("{path}: not a readable DICOM file ({reason})")]
+    Parse { path: PathBuf, reason: String },
+    #[error("no DICOM images were found in {0}")]
+    NothingFound(PathBuf),
+    #[error("the operation was cancelled")]
+    Cancelled,
+    #[error("none of the images in this series could be decoded: {0}")]
+    DecodeFailed(String),
 }
 
-pub type Result<T> = std::result::Result<T, DicomError>;
+pub type Result<T, E = DicomError> = std::result::Result<T, E>;

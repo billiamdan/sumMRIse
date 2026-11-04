@@ -1,17 +1,37 @@
 [package]
 name = "summrise-dicom"
-version = "0.1.0"
-edition = "2021"
+description = "DICOM media import for SumMRIse: DICOMDIR/folder discovery, header indexing, pixel decoding and metadata."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# JPEG-LS via the CharLS C++ library (needs CMake and a C++ toolchain).
+jpeg-ls = ["dicom-pixeldata/charls"]
+# JPEG XL via the pure-Rust jxl-oxide decoder.
+jpeg-xl = ["dicom-pixeldata/jxl-oxide"]
 
 [dependencies]
-dicom = "0.6"
-dicom-parser = "0.6"
-tokio = { version = "1.0", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-anyhow = "1.0"
-thiserror = "1.0"
-log = "0.4"
-uuid = { version = "1.0", features = ["v4"] }
-image = "0.24"
-walkdir = "2.4"
-summrise-core = { path = "../core" }
+dicom-core.workspace = true
+dicom-dictionary-std = { workspace = true, features = ["sop-class"] }
+dicom-encoding.workspace = true
+dicom-object.workspace = true
+dicom-pixeldata.workspace = true
+dicom-transfer-syntax-registry.workspace = true
+glam.workspace = true
+log.workspace = true
+rayon.workspace = true
+summrise-imaging.workspace = true
+thiserror.workspace = true
+walkdir.workspace = true
+
+[dev-dependencies]
+summrise-testkit.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

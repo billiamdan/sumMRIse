@@ -1,0 +1,18 @@
+[package]
+name = "summrise-imaging"
+description = "Pure image maths for SumMRIse: patient geometry, volumes, multiplanar reformatting and VOI windowing."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+glam.workspace = true
+rayon.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

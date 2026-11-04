@@ -1,54 +1,77 @@
-[package]
-name = "summrise"
-version = "0.1.0"
-edition = "2021"
-authors = ["billiamdan"]
-license = "MIT"
-description = "Cross-platform medical imaging viewer with AI analysis capabilities"
-
 [workspace]
-members = [
-    "crates/core",
-    "crates/dicom",
-    "crates/rendering",
-    "crates/llm",
-    "crates/gui-linux",
-    "crates/gui-macos",
-    "crates/gui-windows",
-]
+resolver = "3"
+members = ["apps/desktop", "crates/*", "xtask"]
+# `cargo build` / `cargo test` at the root skip the xtask helper.
+default-members = ["apps/desktop", "crates/*"]
 
-[dependencies]
-# Core dependencies
-tokio = { version = "1.0", features = ["full"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-anyhow = "1.0"
-thiserror = "1.0"
-log = "0.4"
-env_logger = "0.10"
-chrono = { version = "0.4", features = ["serde"] }
-toml = "0.8"
-dirs = "5.0"
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+authors = ["billiamdan"]
+repository = "https://github.com/billiamdan/sumMRIse"
+publish = false
 
-# GUI dependencies
-gtk4 = "0.7"
-gio = "0.18"
-glib = "0.18"
-cairo-rs = "0.18"
-
-# Re-export workspace crates
+[workspace.dependencies]
+# Internal crates
 summrise-core = { path = "crates/core" }
 summrise-dicom = { path = "crates/dicom" }
-summrise-gui-linux = { path = "crates/gui-linux" }
+summrise-imaging = { path = "crates/imaging" }
+summrise-testkit = { path = "crates/testkit" }
+summrise-ui = { path = "crates/ui" }
 
-[dev-dependencies]
-criterion = "0.5"
+# DICOM (pure Rust: dicom-rs)
+dicom-core = "0.10.1"
+dicom-dictionary-std = "0.10.1"
+dicom-encoding = "0.10.1"
+dicom-object = "0.10.1"
+# `native` = baseline/extended JPEG, RLE, deflate; `openjp2` = pure-Rust JPEG 2000.
+dicom-pixeldata = { version = "0.10.1", default-features = false, features = ["rayon", "native", "openjp2"] }
+dicom-transfer-syntax-registry = "0.10.1"
 
-[[bin]]
-name = "summrise"
-path = "src/main.rs"
+# UI
+eframe = { version = "0.37", features = ["persistence"] }
+egui = "0.37"
+egui_extras = "0.37"
+egui_material_icons = { version = "0.9", default-features = false, features = ["outline"] }
+rfd = "0.17"
+
+# General purpose
+anyhow = "1.0.104"
+env_logger = "0.11.11"
+glam = "0.34.2"
+image = { version = "0.25.10", default-features = false, features = ["png", "ico"] }
+log = "0.4.35"
+rayon = "1.12.0"
+serde = { version = "1.0.229", features = ["derive"] }
+tempfile = "3.27.0"
+thiserror = "2.0.21"
+walkdir = "2.5.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+unwrap_used = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
 
 [profile.release]
-lto = true
+lto = "thin"
 codegen-units = 1
-panic = "abort"
+strip = "debuginfo"
+
+# Image decoding, MPR resampling and egui are far too slow unoptimised; keep
+# dev builds snappy while still debuggable.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
