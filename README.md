@@ -1,128 +1,149 @@
 # SumMRIse
 
-A cross-platform medical imaging viewer with AI analysis capabilities, designed to help patients view and understand their MRI and CT scan data from CDs provided by medical clinics.
+A native desktop viewer for the **MRI and CT scans hospitals give patients on CDs, DVDs
+and USB sticks**. Open the disc, see every series in the correct anatomical
+orientation, adjust contrast with clinical presets, reformat volumes into axial, coronal
+and sagittal planes (with MIP), and read every acquisition parameter in plain language.
+
+Runs on **macOS** (Apple Silicon and Intel, macOS 11+), **Windows** and **Linux** from a
+single Rust code base. Everything happens on your computer — nothing is uploaded.
+
+> **SumMRIse is not a medical device.** It is intended for personal and educational
+> viewing and must not be used for diagnosis. Discuss your images with your doctor.
+
+![Viewer showing a synthetic CT phantom](docs/screenshots/viewer-ct.png)
+
+| Multiplanar reformatting (2 × 2) | Sagittal MR with reformats |
+| --- | --- |
+| ![MPR](docs/screenshots/mpr-quad.png) | ![MR](docs/screenshots/mr-sagittal.png) |
+
+*Screenshots use the synthetic phantom from `crates/testkit`; no real patient data.*
 
 ## Features
 
-- **Cross-platform Support**: Native GUI applications for Linux, macOS, and Windows
-- **DICOM Support**: Full support for DICOM medical imaging files
-- **3D Visualization**: Interactive 3D volume rendering with modern OpenGL
-- **2D Slice Viewer**: Precise slice navigation and analysis
-- **AI Analysis**: Integration with ChatGPT for second opinion analysis
-- **Modern UI**: Clean, intuitive interface built with native GUI frameworks
+- **Opens patient media the standard way** — reads the `DICOMDIR` index (PS3.10/12),
+  ignores the viewer software and autorun files on the disc, falls back to a folder
+  scan, resolves ISO 9660 file names, detects inserted discs automatically.
+- **Correct images** — dicom-rs 0.10 decoding of uncompressed, deflate, JPEG
+  (baseline/extended/lossless), JPEG 2000 and RLE data; Hounsfield units for CT;
+  MONOCHROME1/2 and colour; multi-frame and Enhanced multi-frame geometry.
+- **All projections** — acquired images in their own plane plus axial, coronal and
+  sagittal reformats in radiological orientation for any acquisition plane (also
+  oblique and gantry-tilted CT), linked crosshair, MIP/MinIP/average slabs.
+- **Contrast** — DICOM VOI functions (LINEAR, LINEAR_EXACT, SIGMOID), windows stored by
+  the scanner, 11 clinical CT presets, robust auto window, drag/numeric adjustment, invert.
+- **Metadata** — curated overview (patient, study, series, equipment, MR/CT acquisition
+  parameters with units, image geometry) and the complete searchable attribute tree.
+- **Private by default** — no network access, no image cache on disk, privacy mode for
+  screenshots, minimal recent-studies list.
+- **Modern, accessible UI** — dark/light themes, platform fonts, keyboard shortcuts,
+  screen-reader labels, trackpad gestures, drag and drop.
+
+## Download and build
+
+Prerequisite: [rustup](https://rustup.rs). The exact toolchain (Rust 1.99.1) is pinned
+in `rust-toolchain.toml` and installs itself on first use.
+
+```bash
+cargo run --release -p summrise                 # run the app
+cargo run --release -p summrise -- /Volumes/CD  # open a disc/folder directly
+```
+
+### macOS app bundle
+
+```bash
+cargo xtask bundle-macos --universal --dmg
+```
+
+Produces `dist/macos/SumMRIse.app` (universal arm64 + x86_64, ad-hoc signed, hardened
+runtime) and `dist/macos/SumMRIse-<version>-macos-universal.dmg`. Developer ID signing
+and notarization: see [packaging/macos/README.md](packaging/macos/README.md).
+
+### Windows and Linux
+
+```bash
+cargo build --release -p summrise
+```
+
+Linux needs the usual X11/Wayland development packages (Debian/Ubuntu:
+`libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev`).
+Desktop entry and AppStream metadata live in `packaging/linux`. CI builds a Windows zip
+and a Linux tarball; installers (MSI, AppImage, Flatpak) are planned — see the plan below.
+
+## Using SumMRIse
+
+| Action | Mouse / trackpad | Keyboard |
+| --- | --- | --- |
+| Next / previous image | scroll, two-finger swipe | ↑ ↓ ← →, Page Up/Down (±10), Home/End |
+| Contrast (window/level) | drag with *Contrast* tool, or right-drag | presets 1–9, A = auto, R = reset, I = invert |
+| Zoom | pinch, ⌘/Ctrl-scroll, *Zoom* tool | double-click = fit |
+| Pan | middle-drag, Shift-drag, *Pan* tool | |
+| Move crosshair (MPR) | click | |
+| Layouts | toolbar *Images / MPR / 2 × 2* | M toggles MPR |
+| Panels | | ⌘B browser, ⌘I inspector, O annotations, ⌘, settings, ⌘O open |
 
 ## Architecture
 
-The application is built with a modular architecture to support multiple platforms:
-
-```
-summrise/
+```text
+sumMRIse/
+├── apps/desktop/        summrise binary: window, logging, CLI argument
 ├── crates/
-│   ├── core/           # Core application logic and models
-│   ├── dicom/          # DICOM file parsing and processing
-│   ├── rendering/      # 3D/2D rendering engine (WGPU/OpenGL)
-│   ├── llm/            # LLM integration (ChatGPT API)
-│   ├── gui-linux/      # Linux GUI (GTK4)
-│   ├── gui-macos/      # macOS GUI (Cocoa/Swift)
-│   └── gui-windows/    # Windows GUI (WinUI/Win32)
-└── src/                # Main application entry point
+│   ├── imaging/         pure maths: LPS geometry, volumes, MPR, VOI windowing
+│   ├── dicom/           DICOM I/O (dicom-rs): DICOMDIR/scan, indexing, decoding, metadata
+│   ├── core/            UI-agnostic app layer: session, background jobs, view state, settings
+│   ├── ui/              egui/eframe interface (wgpu → Metal / DirectX 12 / Vulkan)
+│   └── testkit/         synthetic, PHI-free DICOM CDs for tests and QA
+├── xtask/               cargo xtask: icons, bundle-macos, fixtures, ci
+├── packaging/           macOS Info.plist & icns, Windows ico, Linux desktop/AppStream
+└── openspec/            specification-driven change plan (see below)
 ```
 
-## Requirements
+Dependencies point one way: `imaging ← dicom ← core ← ui ← apps/desktop`. Only `ui` and
+the binary know about egui, so the domain layers can be reused by another front-end
+(for example a native SwiftUI shell via FFI) without changes. Why one cross-platform UI
+instead of a different stack per platform, and why egui rather than Qt, GTK, Tauri or
+Slint, is documented in
+[openspec/changes/restructure-monorepo/design.md](openspec/changes/restructure-monorepo/design.md).
 
-### Linux
-- Rust 1.70+
-- GTK4 development libraries
-- OpenGL 3.3+ support
+## Development
 
-### Dependencies Installation
-
-#### Ubuntu/Debian
 ```bash
-sudo apt update
-sudo apt install build-essential libgtk-4-dev libgl1-mesa-dev
+cargo xtask ci                      # fmt check + clippy -D warnings + all tests
+cargo test --workspace              # unit, integration and offscreen UI tests
+cargo xtask fixtures /tmp/test-cd   # write a synthetic patient CD for manual testing
+cargo xtask icons                   # regenerate app icons
+SUMMRISE_SNAPSHOT_DIR=/tmp/shots cargo test -p summrise-ui --test smoke   # keep UI renders
 ```
 
-#### Fedora/RHEL
-```bash
-sudo dnf install gcc gtk4-devel mesa-libGL-devel
-```
+Never commit real imaging data — `.gitignore` blocks `DICOMDIR` and `*.dcm`; use the
+testkit fixtures instead. Licences and advisories are checked with `cargo deny check`.
 
-#### Arch Linux
-```bash
-sudo pacman -S base-devel gtk4 mesa
-```
+## Plan (OpenSpec)
 
-## Building
+Work is organised as [OpenSpec](https://github.com/Fission-AI/OpenSpec) change proposals
+in `openspec/changes/` (`openspec list`, `openspec show <change>`; in Claude Code use
+`/opsx:propose`, `/opsx:apply`, `/opsx:archive`).
 
-1. Clone the repository:
-```bash
-git clone https://github.com/billiamdan/sumMRIse.git
-cd sumMRIse
-```
+| # | Change | Status |
+| --- | --- | --- |
+| 1 | `restructure-monorepo` — workspace layout, toolchain, dependency updates, stack decision | done (Windows/Linux CI pending) |
+| 2 | `adopt-cross-platform-ui` — egui shell, design system, accessibility | done |
+| 3 | `dicom-media-import` — DICOMDIR-first discovery and indexing | done |
+| 4 | `image-decoding-and-volumes` — codecs, Hounsfield units, volume assembly | done |
+| 5 | `multiplanar-viewing` — orientation, navigation, MPR, MIP, overlays | done |
+| 6 | `contrast-windowing` — VOI functions, presets, interaction | done |
+| 7 | `metadata-inspector` — curated overview and full attribute tree | done |
+| 8 | `privacy-safeguards` — local-only, no PHI at rest or in logs | done |
+| 9 | `macos-distribution` — universal .app, signing, DMG, notarization | done (notarization and menu bar pending) |
+| 10 | `ci-quality-gates` — GitHub Actions on three OSes, cargo-deny, artefacts | configured, not yet run |
+| 11 | `windows-distribution` — exe resources, MSI, signing | planned |
+| 12 | `linux-distribution` — AppImage, Flatpak | planned |
 
-2. Build the application:
-```bash
-cargo build --release
-```
+Later ideas (not yet proposed): measurements and annotations, cine for dynamic series,
+3D volume rendering, export (PNG/de-identified DICOM), localisation, side-by-side study
+comparison, and — only with de-identification and explicit consent — AI explanations.
 
-3. Run the application:
-```bash
-cargo run --release
-```
+## Licence
 
-## Usage
-
-1. **Launch the Application**: Start SumMRIse from your applications menu or command line
-2. **Open DICOM Folder**: Click "Open Folder" and select the folder containing your DICOM files from the medical CD
-3. **View 3D Data**: Use the 3D viewer to explore your medical imaging data in three dimensions
-4. **Navigate Slices**: Use the 2D slice viewer to examine individual slices with precise controls
-5. **AI Analysis**: Configure your ChatGPT API key in settings to get AI-powered analysis of your scans
-
-## Configuration
-
-The application stores configuration in:
-- **Linux**: `~/.config/summrise/config.toml`
-- **macOS**: `~/Library/Application Support/summrise/config.toml`
-- **Windows**: `%APPDATA%/summrise/config.toml`
-
-### LLM Configuration
-
-To enable AI analysis, you'll need to:
-1. Obtain an OpenAI API key
-2. Open Settings in the application
-3. Enter your API key and preferred model (default: gpt-4)
-4. Save the configuration
-
-## Medical Disclaimer
-
-**IMPORTANT**: This application is designed for educational and informational purposes only. It is NOT a replacement for professional medical diagnosis or treatment. Always consult with qualified healthcare professionals for medical advice, diagnosis, and treatment decisions.
-
-The AI analysis feature provides a "second opinion" for educational purposes and should never be used as the sole basis for medical decisions.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit pull requests or open issues for bugs and feature requests.
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Roadmap
-
-- [ ] macOS GUI implementation
-- [ ] Windows GUI implementation
-- [ ] Advanced 3D rendering features
-- [ ] Measurement tools
-- [ ] Export functionality
-- [ ] Plugin system for additional analysis tools
-- [ ] Cloud storage integration
-- [ ] Multi-language support
-
-## Support
-
-For support, please open an issue on GitHub or contact the maintainers.
-
----
-
-**SumMRIse** - Making medical imaging accessible and understandable for everyone.
+MIT — see [LICENSE](LICENSE). Third-party crates are permissively licensed (checked by
+`cargo deny`); platform UI fonts are loaded from the operating system at run time.
