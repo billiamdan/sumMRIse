@@ -3,7 +3,7 @@
 - [x] 1.1 Remove `gui-linux`, `gui-macos`, `gui-windows`, `rendering`, `llm`, `src/`, `Cargo_simple.toml`, `build.sh`
 - [x] 1.2 Create `crates/{imaging,dicom,core,ui,testkit}`, `apps/desktop`, `xtask`, `packaging/`
 - [x] 1.3 Virtual root manifest: edition 2024, resolver 3, `[workspace.package]`, `[workspace.dependencies]`, `[workspace.lints]`, profiles
-- [x] 1.4 Pin toolchain in `rust-toolchain.toml` (1.99.1 + rustfmt, clippy, Apple targets)
+- [x] 1.4 Pin toolchain in `rust-toolchain.toml` (1.99.1 + rustfmt, clippy; host target only, xtask adds cross targets)
 
 ## 2. Dependencies
 

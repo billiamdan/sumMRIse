@@ -199,6 +199,10 @@ fn bundle_macos(args: &[String]) -> Result<()> {
     };
 
     for target in &targets {
+        // rust-toolchain.toml installs only the host target; add others on demand.
+        if let Err(e) = run(Command::new("rustup").current_dir(&root).args(["target", "add", target])) {
+            eprintln!("warning: could not add target {target} with rustup ({e}); trying the build anyway");
+        }
         run(Command::new(env!("CARGO")).current_dir(&root).env("MACOSX_DEPLOYMENT_TARGET", "11.0").args([
             "build",
             "--release",
@@ -254,6 +258,9 @@ fn bundle_macos(args: &[String]) -> Result<()> {
         let _ = fs::remove_dir_all(&staging);
         fs::create_dir_all(&staging)?;
         run(Command::new("ditto").arg(&app).arg(staging.join(format!("{APP_NAME}.app"))))?;
+        // bundle-macos only runs on macOS (checked above); the cfg keeps the
+        // workspace compiling on Windows.
+        #[cfg(unix)]
         std::os::unix::fs::symlink("/Applications", staging.join("Applications"))?;
         let _ = fs::remove_file(&dmg);
         // `diskutil image` replaces the deprecated `hdiutil create` on recent

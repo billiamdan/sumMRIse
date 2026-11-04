@@ -15,8 +15,8 @@ platforms could be built and shipped reproducibly from one repository.
   binary), `xtask` (build automation) and `packaging/{macos,windows,linux,icons}`.
 - **BREAKING** Remove dead code: `gui-linux`, `gui-macos`, `gui-windows`, `rendering`,
   `llm`, `Cargo_simple.toml`, `build.sh` (kept in git history).
-- Pin the toolchain (`rust-toolchain.toml`, Rust 1.99.1, Apple targets) and move to
-  edition 2024 with resolver 3.
+- Pin the toolchain (`rust-toolchain.toml`, Rust 1.99.1; cross targets are added on
+  demand by `cargo xtask`) and move to edition 2024 with resolver 3.
 - Centralise versions in `[workspace.dependencies]`, lints in `[workspace.lints]`
   (no `unsafe`, clippy `-D warnings`), build profiles (thin LTO for release, optimised
   dependencies in dev).

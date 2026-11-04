@@ -12,6 +12,10 @@ suite with `--locked` on macOS, Windows and Linux, and a formatting check.
 CI SHALL fail when a dependency has a disallowed licence, a known security advisory, a
 yanked version, or comes from an unknown registry or git source.
 
+#### Scenario: Unmaintained transitive dependency
+- **WHEN** a crate pulled in only through another dependency is declared unmaintained (e.g. `encoding` via dicom-rs)
+- **THEN** the check does not fail, and the crate is listed with its advisory ID and origin in `deny.toml`
+
 #### Scenario: GPL-only dependency
 - **WHEN** a pull request adds a crate licensed only under GPL-3.0
 - **THEN** the `supply-chain` job fails citing the licence

@@ -1,5 +1,5 @@
 # cargo-deny: supply-chain checks for a medical-imaging application.
-# Run with `cargo deny check` (CI runs it on every push).
+# Run with `cargo deny --all-features check` (CI runs it on every push).
 
 [graph]
 all-features = false
@@ -7,12 +7,20 @@ all-features = false
 [advisories]
 version = 2
 yanked = "deny"
+# Security vulnerabilities always fail. "Unmaintained" notices fail only for
+# crates the workspace depends on directly; transitive ones are tracked here and
+# upstream (re-check when bumping dicom-rs or egui):
+#   encoding         RUSTSEC-2021-0153  <- dicom-encoding (dicom-rs text decoding)
+#   ttf-parser       RUSTSEC-2026-0192  <- ab_glyph <- sctk-adwaita <- winit (Wayland decorations)
+#   zbus_names, zvariant, zvariant_derive
+#                    RUSTSEC-2026-0370..0372 <- zbus <- AccessKit AT-SPI / xdg portals (Linux)
+unmaintained = "workspace"
 
 [licenses]
 version = 2
 confidence-threshold = 0.9
-# Permissive licences only (plus file-level MPL and font licences). No GPL/LGPL:
-# every dual-licensed crate in the graph offers a permissive alternative.
+# Permissive licences plus the bundled egui font licences. No GPL/LGPL: every
+# dual-licensed crate in the graph offers a permissive alternative.
 allow = [
     "0BSD",
     "Apache-2.0",
@@ -24,8 +32,6 @@ allow = [
     "IJG",
     "ISC",
     "MIT",
-    "MPL-2.0",
-    "NCSA",
     "OFL-1.1",
     "Ubuntu-font-1.0",
     "Unicode-3.0",
@@ -36,6 +42,9 @@ allow = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Internal crates are path dependencies without a version requirement; they are
+# never published (`publish = false`), so path wildcards are safe.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"
