@@ -406,7 +406,9 @@ fn rescale(obj: &InMemDicomObject) -> Vec<Rescale> {
         if !per_frame.is_empty() {
             return per_frame;
         }
-        attrs::shared_group(obj).and_then(in_group).into_iter().collect()
+        // In the shared group the values are sometimes stored flat instead of in their own sequence.
+        let shared = attrs::shared_group(obj);
+        shared.and_then(in_group).or_else(|| shared.and_then(|group| attrs::float(group, tag))).into_iter().collect()
     };
     let slopes = values(tags::RESCALE_SLOPE);
     let intercepts = values(tags::RESCALE_INTERCEPT);
@@ -457,4 +459,76 @@ fn geometry(obj: &InMemDicomObject, rows: u32, cols: u32, frames: u32) -> (Optio
         .or_else(|| attrs::float_array::<2>(obj, tags::IMAGER_PIXEL_SPACING))
         .filter(|s| s[0] > 0.0 && s[1] > 0.0);
     (pixel_spacing, planes)
+}
+
+#[cfg(test)]
+mod tests {
+    use dicom_core::value::DataSetSequence;
+    use dicom_core::{DataElement, Length, PrimitiveValue, VR};
+
+    use super::*;
+
+    fn decimal(tag: Tag, value: &str) -> DataElement<InMemDicomObject> {
+        DataElement::new(tag, VR::DS, PrimitiveValue::from(value))
+    }
+
+    fn sequence(tag: Tag, items: Vec<InMemDicomObject>) -> DataElement<InMemDicomObject> {
+        DataElement::new(tag, VR::SQ, DataSetSequence::new(items, Length::UNDEFINED))
+    }
+
+    /// A functional group with a Pixel Value Transformation.
+    fn transformation(slope: &str, intercept: &str) -> InMemDicomObject {
+        let values = InMemDicomObject::from_element_iter([
+            decimal(tags::RESCALE_SLOPE, slope),
+            decimal(tags::RESCALE_INTERCEPT, intercept),
+        ]);
+        InMemDicomObject::from_element_iter([sequence(tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, vec![values])])
+    }
+
+    #[test]
+    fn rescale_values_are_found_where_the_pixel_decoder_looks() {
+        // Absent: stored values are modality values.
+        assert_eq!(rescale(&InMemDicomObject::new_empty()), vec![Rescale::IDENTITY]);
+        // Classic attributes; a missing slope is 1.
+        let classic = InMemDicomObject::from_element_iter([
+            decimal(tags::RESCALE_SLOPE, "2"),
+            decimal(tags::RESCALE_INTERCEPT, "-1024"),
+        ]);
+        assert_eq!(rescale(&classic), vec![Rescale { slope: 2.0, intercept: -1024.0 }]);
+        let intercept_only = InMemDicomObject::from_element_iter([decimal(tags::RESCALE_INTERCEPT, "-1024")]);
+        assert_eq!(rescale(&intercept_only), vec![Rescale { slope: 1.0, intercept: -1024.0 }]);
+
+        // Enhanced multi-frame: one transformation per frame …
+        let per_frame = InMemDicomObject::from_element_iter([sequence(
+            tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE,
+            vec![transformation("1", "0"), transformation("0.5", "-100")],
+        )]);
+        assert_eq!(
+            rescale(&per_frame),
+            vec![Rescale { slope: 1.0, intercept: 0.0 }, Rescale { slope: 0.5, intercept: -100.0 }]
+        );
+        // … or one shared by all frames …
+        let shared = InMemDicomObject::from_element_iter([sequence(
+            tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+            vec![transformation("1", "-1000")],
+        )]);
+        assert_eq!(rescale(&shared), vec![Rescale { slope: 1.0, intercept: -1000.0 }]);
+        // … which some files store flat in the shared group.
+        let flat = InMemDicomObject::from_element_iter([sequence(
+            tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE,
+            vec![InMemDicomObject::from_element_iter([
+                decimal(tags::RESCALE_SLOPE, "3"),
+                decimal(tags::RESCALE_INTERCEPT, "7"),
+            ])],
+        )]);
+        assert_eq!(rescale(&flat), vec![Rescale { slope: 3.0, intercept: 7.0 }]);
+
+        // The classic attributes win over the functional groups, as in the decoder.
+        let both = InMemDicomObject::from_element_iter([
+            decimal(tags::RESCALE_SLOPE, "2"),
+            decimal(tags::RESCALE_INTERCEPT, "5"),
+            sequence(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE, vec![transformation("9", "9")]),
+        ]);
+        assert_eq!(rescale(&both), vec![Rescale { slope: 2.0, intercept: 5.0 }]);
+    }
 }
