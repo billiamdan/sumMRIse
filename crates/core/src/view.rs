@@ -146,7 +146,7 @@ pub struct ViewState {
 impl ViewState {
     /// The state a series opens with, once its first image is decoded.
     pub fn new(series: &SeriesData) -> Self {
-        Self {
+        let mut state = Self {
             window: series.initial_window(),
             preset: Some(series.presets().first().map_or_else(|| "Auto".to_owned(), |p| p.name.to_string())),
             invert: series.monochrome1(),
@@ -155,7 +155,12 @@ impl ViewState {
             cursor: series.geometry().map_or(DVec3::ZERO, VolumeGeometry::center),
             slab: None,
             transforms: HashMap::new(),
-        }
+        };
+        // The crosshair starts on the plane of the image shown (the centre of the volume
+        // lies between two images when their number is even): reformats that appear
+        // later show the plane the user has been looking at, not one beside it.
+        state.set_slice(ViewKind::Stack, series, state.slice);
+        state
     }
 
     pub fn transform(&self, kind: ViewKind) -> ViewTransform {
@@ -169,6 +174,18 @@ impl ViewState {
     /// Resets zoom and pan of every view.
     pub fn reset_transforms(&mut self) {
         self.transforms.clear();
+    }
+
+    /// Whether the view is still as the series opened it: nothing the user
+    /// can set (contrast, inversion, position, slab, zoom, pan) was changed.
+    pub fn is_pristine(&self, series: &SeriesData) -> bool {
+        let fresh = Self::new(series);
+        self.window == fresh.window
+            && self.preset == fresh.preset
+            && self.invert == fresh.invert
+            && self.slice == fresh.slice
+            && self.slab == fresh.slab
+            && self.transforms.values().all(|transform| *transform == ViewTransform::default())
     }
 
     /// Resets contrast and geometry but keeps the current position.
@@ -353,8 +370,12 @@ mod tests {
         // Opens on the first decoded image with its stored window.
         assert_eq!((state.slice, state.window.center, state.window.width), (12, 40.0, 400.0));
         assert_eq!(state.preset.as_deref(), Some("Mediastinum"));
-        // The crosshair is already where the volume will be.
-        assert_eq!(Some(state.cursor), series.geometry().map(VolumeGeometry::center));
+        // The crosshair is already where the volume will be, on the plane of the image shown.
+        let center = series.geometry().map(VolumeGeometry::center).expect("planned geometry");
+        let shown = series.frames()[12].plane.expect("plane").position.z;
+        assert_eq!((state.cursor.x, state.cursor.y), (center.x, center.y));
+        assert!((state.cursor.z - shown).abs() < 1e-9, "crosshair at {} mm, image at {shown} mm", state.cursor.z);
+        assert_eq!(state.mpr_position(MprAxis::Axial), state.cursor.z);
         // The counter shows the final total; scrolling into unloaded images is allowed.
         assert_eq!(state.slice_count(ViewKind::Stack, &series), 24);
         state.scroll(ViewKind::Stack, &series, 100);
@@ -409,6 +430,28 @@ mod tests {
         assert!(state.preset.is_none());
         state.reset(&series);
         assert_eq!(state.window, w0);
+    }
+
+    #[test]
+    fn view_is_pristine_until_the_user_changes_something() {
+        let (_d, series) = ct();
+        let mut state = ViewState::new(&series);
+        assert!(state.is_pristine(&series));
+        // Contrast, position, zoom and pan each count; undoing them counts too.
+        state.drag_window(10.0, 0.0, &series);
+        assert!(!state.is_pristine(&series));
+        state.reset(&series);
+        assert!(state.is_pristine(&series));
+        state.scroll(ViewKind::Stack, &series, 1);
+        assert!(!state.is_pristine(&series));
+        state.scroll(ViewKind::Stack, &series, -1);
+        assert!(state.is_pristine(&series));
+        state.transform_mut(ViewKind::Stack).zoom_about(2.0, [0.0, 0.0]);
+        assert!(!state.is_pristine(&series));
+        *state.transform_mut(ViewKind::Stack) = ViewTransform::default();
+        assert!(state.is_pristine(&series), "a fitted view is as it opened");
+        state.invert = true;
+        assert!(!state.is_pristine(&series));
     }
 
     #[test]

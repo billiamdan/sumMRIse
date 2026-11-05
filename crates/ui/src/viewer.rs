@@ -89,6 +89,14 @@ impl Viewer {
                         for w in series.warnings() {
                             toasts.warn(w.clone());
                         }
+                        // The reformats are available from now on. A remembered reformat
+                        // layout takes over by itself only if the user has not started to
+                        // work with the acquired images; otherwise the display stays as
+                        // it is until they pick a layout (the saved default is kept).
+                        let in_use = self.views.get(&key).is_some_and(|view| !view.is_pristine(&series));
+                        if in_use && self.layout.needs_volume() && self.session.active_series == Some(key) {
+                            self.layout = Layout::Single;
+                        }
                     }
                 }
                 SessionEvent::SeriesFailed(_, e) => toasts.error(format!("Could not open series: {e}")),
@@ -232,6 +240,10 @@ impl Viewer {
                         })
                         .response
                         .labelled_by(preset_label.id);
+                    // The limits apply to what the user enters, never to the window that is
+                    // set: they follow the value range, which narrows from the header
+                    // estimate to the values present when loading completes, and a stored
+                    // or chosen window must not change by itself at that moment.
                     let (lo, hi) = series.value_range();
                     let span = f64::from(hi - lo).max(1.0);
                     let w_label = ui.label(RichText::new("W").small()).on_hover_text("Window width (contrast)");
@@ -239,6 +251,7 @@ impl Viewer {
                         .add(
                             DragValue::new(&mut state.window.width)
                                 .range(1.0..=span * 4.0)
+                                .clamp_existing_to_range(false)
                                 .speed(span / 500.0)
                                 .max_decimals(0),
                         )
@@ -252,6 +265,7 @@ impl Viewer {
                         .add(
                             DragValue::new(&mut state.window.center)
                                 .range(f64::from(lo) - span..=f64::from(hi) + span)
+                                .clamp_existing_to_range(false)
                                 .speed(span / 500.0)
                                 .max_decimals(0),
                         )
@@ -844,7 +858,7 @@ mod tests {
         assert!(f.is_enabled("MPR") && f.is_enabled("2 × 2"));
         f.harness.get_by_label("MPR").click();
         f.harness.run_steps(3);
-        assert!(f.shows("Axial 13 / 24") && f.shows("Coronal 25 / 48") && f.shows("Sagittal 25 / 48"));
+        assert!(f.shows("Axial 12 / 24") && f.shows("Coronal 25 / 48") && f.shows("Sagittal 25 / 48"));
     }
 
     #[test]
@@ -854,8 +868,57 @@ mod tests {
         f.slow.allow(3);
         f.run_until_loaded(3);
         assert!(f.shows("Image 13 / 24, Loading 3 / 24"), "acquired images while loading");
+        let viewed = f.series().frames()[f.view().slice].plane.expect("plane").position.z;
         f.run_until_complete();
-        assert!(f.shows("Axial 13 / 24"), "reformats once the volume exists");
+        // The reformats appear on the plane of the image that was being viewed, not beside it.
+        assert!(f.shows("Axial 12 / 24"), "reformats once the volume exists");
+        let axial = f.view().mpr_position(summrise_core::imaging::MprAxis::Axial);
+        assert!((axial - viewed).abs() < 1e-6, "axial reformat at {axial} mm, viewed image at {viewed} mm");
+        assert_eq!(f.view().slice, 12);
+    }
+
+    #[test]
+    fn remembered_reformat_layout_does_not_take_over_a_view_in_use() {
+        let mut f = open(SlowSource::default(), Settings { default_layout: Layout::Mpr, ..Settings::default() });
+        f.slow.allow(3);
+        f.run_until_loaded(3);
+        // The user starts reading the acquired images while the series loads.
+        f.press(Key::PageDown);
+        assert!(f.shows("Loading image 23 / 24, Loading 3 / 24"));
+        f.run_until_complete();
+        // Nothing changes under their hands: same view, same image; the reformats are on offer.
+        assert!(f.shows("Image 23 / 24"));
+        assert!(!f.shows("Axial 2 / 24"));
+        assert_eq!(f.view().slice, 22);
+        assert!(f.is_enabled("MPR"));
+        assert_eq!(f.harness.state().settings.default_layout, Layout::Mpr, "the saved preference is untouched");
+        // Asked for, the reformats open on the plane that was being viewed.
+        f.harness.get_by_label("MPR").click();
+        f.harness.run_steps(3);
+        assert!(f.shows("Axial 2 / 24"));
+    }
+
+    /// The W and L fields never rewrite a window by themselves, in particular
+    /// not when the value range narrows from the header estimate to the
+    /// values actually present as loading completes.
+    #[test]
+    fn wide_window_set_while_loading_is_not_clamped_at_completion() {
+        let mut f = open(SlowSource::default(), Settings::default());
+        f.slow.allow(3);
+        f.run_until_loaded(3);
+        // Inside the limits of the 12-bit estimate (-1024 to 3071 HU), outside those of the
+        // values present (-1000 to 700 HU).
+        let view = f.harness.state_mut().viewer.views.get_mut(&CT).expect("view");
+        view.window = summrise_core::imaging::Window::new(2500.0, 8000.0);
+        view.preset = Some("Wide".to_owned());
+        f.harness.step();
+        f.harness.step();
+        assert_eq!((f.view().window.width, f.view().window.center), (8000.0, 2500.0));
+
+        f.run_until_complete();
+        f.harness.step();
+        assert_eq!((f.view().window.width, f.view().window.center), (8000.0, 2500.0));
+        assert_eq!(f.view().preset.as_deref(), Some("Wide"));
     }
 
     /// Task 4.3 at the level of the viewer: what the user sets while a series
