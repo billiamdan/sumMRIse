@@ -1,5 +1,7 @@
 //! Pixel buffers, 2-D frames and 3-D volumes in patient space.
 
+use std::sync::Arc;
+
 use glam::{DMat3, DVec3};
 
 use crate::geometry::ImagePlane;
@@ -254,22 +256,29 @@ impl VolumeGeometry {
 }
 
 /// A regular grey-scale volume. Each slice is stored separately (and in its
-/// own compact type), avoiding one huge allocation while loading.
+/// own compact type), avoiding one huge allocation while loading. Slices are
+/// reference-counted so that a volume can be assembled over images that are
+/// already held elsewhere (the acquired stack) without copying them.
 #[derive(Debug, Clone)]
 pub struct Volume {
     pub geometry: VolumeGeometry,
-    pub slices: Vec<VoxelBuffer>,
+    pub slices: Vec<Arc<VoxelBuffer>>,
 }
 
 impl Volume {
     pub fn new(geometry: VolumeGeometry, slices: Vec<VoxelBuffer>) -> Option<Self> {
+        Self::from_shared(geometry, slices.into_iter().map(Arc::new).collect())
+    }
+
+    /// Like [`Self::new`], sharing the slices with their other owners.
+    pub fn from_shared(geometry: VolumeGeometry, slices: Vec<Arc<VoxelBuffer>>) -> Option<Self> {
         let per_slice = geometry.dims[0] * geometry.dims[1];
         (slices.len() == geometry.dims[2] && slices.iter().all(|s| s.len() == per_slice))
             .then_some(Self { geometry, slices })
     }
 
     pub fn byte_size(&self) -> usize {
-        self.slices.iter().map(VoxelBuffer::byte_size).sum()
+        self.slices.iter().map(|s| s.byte_size()).sum()
     }
 
     #[inline]

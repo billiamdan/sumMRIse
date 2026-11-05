@@ -1,12 +1,19 @@
 //! The interactive image viewport: display with correct physical aspect,
 //! mouse/trackpad interaction, radiological overlays and MPR crosshair.
+//!
+//! While a series loads, an image that is not decoded yet is shown as a
+//! placeholder at its own place, with its own number, position and
+//! annotations — never as a blank viewport and never as another image.
 
-use egui::{Align2, Color32, CursorIcon, Id, PointerButton, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
-use summrise_core::dicom::{LoadedSeries, Series, Study, format};
+use egui::{
+    Align2, Color32, CursorIcon, FontId, Id, PointerButton, Pos2, Rect, Role, Sense, Stroke, StrokeKind, Ui,
+    WidgetInfo, pos2, vec2,
+};
+use summrise_core::dicom::{Series, Study, format};
 use summrise_core::imaging::{DVec3, EdgeLabels};
-use summrise_core::{Settings, Tool, ViewKind, ViewState, ViewTransform};
+use summrise_core::{SeriesData, Settings, Tool, ViewKind, ViewState, ViewTransform};
 
-use crate::render::Rendered;
+use crate::render::{Picture, Rendered};
 use crate::theme::{self, VIEWPORT_BG};
 use crate::widgets::{overlay_block, overlay_text};
 
@@ -17,7 +24,7 @@ const OVERLAY_SIZE: f32 = 12.0;
 pub(crate) struct ViewportInput<'a> {
     pub id: Id,
     pub kind: ViewKind,
-    pub series: &'a LoadedSeries,
+    pub series: &'a SeriesData,
     pub meta: &'a Series,
     pub study: &'a Study,
     pub rendered: Option<&'a Rendered>,
@@ -50,11 +57,11 @@ pub(crate) fn show(ui: &mut Ui, rect: Rect, input: &ViewportInput<'_>, state: &m
     let accent = theme::palette(ui).accent;
 
     let Some(rendered) = input.rendered else {
-        let message = match (input.kind, &input.series.volume_issue) {
+        let message = match (input.kind, input.series.volume_issue()) {
             (ViewKind::Mpr(_), Some(reason)) => format!("Reformatting is not available:\n{reason}"),
             _ => "No image".to_owned(),
         };
-        painter.text(rect.center(), Align2::CENTER_CENTER, message, egui::FontId::proportional(13.0), Color32::GRAY);
+        painter.text(rect.center(), Align2::CENTER_CENTER, message, FontId::proportional(13.0), Color32::GRAY);
         return result;
     };
 
@@ -64,7 +71,19 @@ pub(crate) fn show(ui: &mut Ui, rect: Rect, input: &ViewportInput<'_>, state: &m
     let fit = (rect.width() / phys.x).min(rect.height() / phys.y).max(1e-3);
     let img_rect =
         Rect::from_center_size(rect.center() + vec2(transform.pan[0], transform.pan[1]), phys * fit * transform.zoom);
-    painter.image(rendered.texture.id(), img_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+    let description = describe(input, state, &rendered.picture);
+    match rendered.texture() {
+        Some(texture) => {
+            painter.image(texture.id(), img_rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+        }
+        None => draw_placeholder(ui, &painter, rect, img_rect, &rendered.picture, &description),
+    }
+    // What the viewport shows, for assistive technology (and UI tests).
+    let progress = loading_progress(input);
+    response.widget_info(|| {
+        let label = progress.as_ref().map_or_else(|| description.clone(), |p| format!("{description}, {p}"));
+        WidgetInfo::labeled(Role::Image, true, label)
+    });
 
     let (pw, ph) = displayed.pixel_size();
     let to_pixel = |pos: Pos2| {
@@ -116,7 +135,7 @@ pub(crate) fn show(ui: &mut Ui, rect: Rect, input: &ViewportInput<'_>, state: &m
             t.pan = [t.pan[0] + delta.x, t.pan[1] + delta.y];
             ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
         } else if response.dragged_by(PointerButton::Secondary) || (primary && input.tool == Tool::WindowLevel) {
-            if !input.series.is_color {
+            if !input.series.is_color() {
                 state.drag_window(f64::from(delta.x), f64::from(delta.y), input.series);
             }
         } else if primary && input.tool == Tool::Zoom {
@@ -172,7 +191,16 @@ pub(crate) fn show(ui: &mut Ui, rect: Rect, input: &ViewportInput<'_>, state: &m
 
     // ---- Overlays -----------------------------------------------------------
     if input.settings.show_overlays {
-        draw_overlays(&painter, rect, img_rect, input, state, rendered, fit);
+        draw_overlays(&painter, rect, img_rect, input, state, rendered, progress.as_deref());
+    } else if let Some(progress) = &progress {
+        // Loading progress is a status, not an annotation: it stays when annotations are hidden.
+        let corner = rect.left_bottom() + vec2(10.0, -10.0);
+        overlay_text(&painter, corner, Align2::LEFT_BOTTOM, progress, OVERLAY_SIZE, theme::OVERLAY_TEXT);
+    }
+    if progress.is_some() {
+        let done = input.series.loaded() as f32 / input.series.len().max(1) as f32;
+        let bar = Rect::from_min_size(rect.left_top(), vec2(rect.width() * done.clamp(0.0, 1.0), 2.0));
+        painter.rect_filled(bar, 0.0, accent);
     }
     if input.multi_view {
         let color = theme::view_color(input.kind);
@@ -191,6 +219,50 @@ pub(crate) fn show(ui: &mut Ui, rect: Rect, input: &ViewportInput<'_>, state: &m
     result
 }
 
+/// "Loading 300 / 600" while the series of the acquired view still loads.
+fn loading_progress(input: &ViewportInput<'_>) -> Option<String> {
+    let series = input.series;
+    (input.kind == ViewKind::Stack && !series.is_complete())
+        .then(|| format!("Loading {} / {}", series.loaded(), series.len()))
+}
+
+/// What the viewport shows, in words: the image's number, or what stands in
+/// for an image that is not there.
+fn describe(input: &ViewportInput<'_>, state: &ViewState, picture: &Picture) -> String {
+    let number = state.slice_index(input.kind, input.series) + 1;
+    let count = state.slice_count(input.kind, input.series);
+    match (picture, input.kind) {
+        (Picture::Loading, _) => format!("Loading image {number} / {count}"),
+        (Picture::Failed(_), _) => format!("Image {number} could not be decoded"),
+        (Picture::Image, ViewKind::Stack) => format!("Image {number} / {count}"),
+        (Picture::Image, ViewKind::Mpr(axis)) => format!("{} {number} / {count}", axis.label()),
+    }
+}
+
+/// Stands in for an image that is not decoded (yet), at the place and with
+/// the size the image has, so that annotations, zoom and pan stay put.
+fn draw_placeholder(ui: &Ui, painter: &egui::Painter, rect: Rect, img_rect: Rect, picture: &Picture, title: &str) {
+    let p = theme::palette(ui);
+    painter.rect_filled(img_rect, 0.0, Color32::from_gray(13));
+    painter.rect_stroke(img_rect, 0.0, Stroke::new(1.0, Color32::from_gray(34)), StrokeKind::Inside);
+    let visible = img_rect.intersect(rect);
+    let center = if visible.is_positive() { visible.center() } else { rect.center() };
+    match picture {
+        Picture::Failed(reason) => {
+            overlay_text(painter, center, Align2::CENTER_BOTTOM, title, 14.0, theme::DARK.warn);
+            let width = (visible.width() - 24.0).clamp(120.0, 420.0);
+            let galley = painter.layout(reason.clone(), FontId::proportional(11.5), theme::DARK.text_weak, width);
+            painter.galley(pos2(center.x - galley.size().x / 2.0, center.y + 6.0), galley, theme::DARK.text_weak);
+        }
+        Picture::Loading | Picture::Image => {
+            egui::Spinner::new()
+                .color(p.accent)
+                .paint_at(ui, Rect::from_center_size(center - vec2(0.0, 20.0), vec2(24.0, 24.0)));
+            overlay_text(painter, center + vec2(0.0, 2.0), Align2::CENTER_TOP, title, 14.0, theme::OVERLAY_TEXT);
+        }
+    }
+}
+
 fn draw_overlays(
     painter: &egui::Painter,
     rect: Rect,
@@ -198,7 +270,7 @@ fn draw_overlays(
     input: &ViewportInput<'_>,
     state: &ViewState,
     rendered: &Rendered,
-    fit: f32,
+    progress: Option<&str>,
 ) {
     let m = 10.0;
     let top = if input.multi_view { 28.0 } else { m };
@@ -245,14 +317,15 @@ fn draw_overlays(
         overlay_block(painter, rect.right_top() + vec2(-m, top), Align2::RIGHT_TOP, &lines, OVERLAY_SIZE);
     }
 
-    // Bottom-left: position.
+    // Bottom-left: loading progress and position.
     let index = state.slice_index(input.kind, series);
     let count = state.slice_count(input.kind, series);
     let mut lines = Vec::new();
+    lines.extend(progress.map(str::to_owned));
     match input.kind {
         ViewKind::Stack => {
             lines.push(format!("Image {} / {count}", index + 1));
-            if let Some(info) = series.frames.get(index) {
+            if let Some(info) = series.frames().get(index) {
                 if let Some(n) = info.instance_number {
                     lines.push(format!(
                         "Instance {n}{}",
@@ -278,8 +351,8 @@ fn draw_overlays(
 
     // Bottom-right: contrast and zoom.
     let mut lines = Vec::new();
-    if !series.is_color {
-        let units = series.units.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+    if !series.is_color() {
+        let units = series.units().map(|u| format!(" {u}")).unwrap_or_default();
         lines.push(format!("W {:.0}  L {:.0}{units}", state.window.width, state.window.center));
         lines.push(state.preset.clone().unwrap_or_else(|| "Custom window".into()));
     }
@@ -319,7 +392,6 @@ fn draw_overlays(
     if let Some(mm_per_px) = rendered.displayed.mm_per_pixel_x() {
         let (pw, _) = rendered.displayed.pixel_size();
         let points_per_mm = img_rect.width() / (pw as f64 * mm_per_px) as f32;
-        let _ = fit;
         let max_len = (rect.width() * 0.25).clamp(40.0, 160.0);
         if let Some(&len) = [1.0f32, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0]
             .iter()

@@ -1,13 +1,14 @@
-//! Turns decoded series + viewing state into GPU textures, re-rendering only
-//! when an input (slice, window, slab, inversion…) actually changed.
+//! Turns a series + viewing state into GPU textures, re-rendering only when
+//! an input (slice, window, slab, inversion…) actually changed — or when the
+//! displayed image arrives while the series is still loading.
 
 use std::collections::HashMap;
 
 use egui::{ColorImage, Context, TextureHandle, TextureOptions, Vec2, vec2};
-use summrise_core::dicom::{FrameRef, LoadedSeries};
+use summrise_core::dicom::FrameRef;
 use summrise_core::imaging::window::{gray_to_rgba, rgb_to_rgba};
 use summrise_core::imaging::{DVec3, ImagePlane, MprAxis, MprImage, SlabMode, VoiFunction, reslice};
-use summrise_core::{SeriesKey, ViewKind, ViewState};
+use summrise_core::{ImageSlot, SeriesData, SeriesKey, ViewKind, ViewState};
 
 /// Largest reformatted image edge (pixels).
 const MPR_MAX_DIM: usize = 768;
@@ -15,10 +16,33 @@ const MPR_MAX_DIM: usize = 768;
 #[derive(Debug, Clone, PartialEq)]
 struct RenderKey {
     position: u64,
+    /// What the displayed slot holds; changes when its image is decoded.
+    picture: Picture,
     window: (u64, u64, VoiFunction),
     invert: bool,
     slab: Option<(SlabMode, u64)>,
     smooth: bool,
+}
+
+/// What a viewport shows at the place of the image.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Picture {
+    /// The image itself.
+    Image,
+    /// A placeholder: the image is not decoded yet.
+    Loading,
+    /// A placeholder: the image could not be decoded, and why.
+    Failed(String),
+}
+
+impl Picture {
+    fn of(slot: ImageSlot<'_>) -> Self {
+        match slot {
+            ImageSlot::Ready(_) => Self::Image,
+            ImageSlot::Pending => Self::Loading,
+            ImageSlot::Failed(reason) => Self::Failed(reason.to_owned()),
+        }
+    }
 }
 
 /// Geometry of what is currently displayed in a viewport.
@@ -80,7 +104,7 @@ impl Displayed {
         }
     }
 
-    pub(crate) fn value_at(&self, series: &LoadedSeries, x: usize, y: usize) -> Option<f32> {
+    pub(crate) fn value_at(&self, series: &SeriesData, x: usize, y: usize) -> Option<f32> {
         match self {
             Self::Frame { index, .. } => match series.frame(*index)? {
                 FrameRef::Gray { width, height, data } => {
@@ -95,8 +119,21 @@ impl Displayed {
 
 pub(crate) struct Rendered {
     key: RenderKey,
-    pub texture: TextureHandle,
+    /// The last image rendered for this view. It is only what the view shows
+    /// while `picture` is [`Picture::Image`]: a placeholder is never drawn
+    /// with the pixels of another image.
+    texture: Option<TextureHandle>,
+    pub picture: Picture,
+    /// Geometry of the displayed image, known from the headers even while
+    /// its pixels are missing.
     pub displayed: Displayed,
+}
+
+impl Rendered {
+    /// The texture to draw, unless a placeholder stands in for the image.
+    pub(crate) fn texture(&self) -> Option<&TextureHandle> {
+        self.texture.as_ref().filter(|_| self.picture == Picture::Image)
+    }
 }
 
 #[derive(Default)]
@@ -120,16 +157,20 @@ impl RenderCache {
         ctx: &Context,
         key: SeriesKey,
         kind: ViewKind,
-        series: &LoadedSeries,
+        series: &SeriesData,
         state: &ViewState,
         smooth: bool,
     ) {
-        let position = match kind {
-            ViewKind::Stack => state.slice_index(kind, series) as u64,
-            ViewKind::Mpr(axis) => state.mpr_position(axis).to_bits(),
+        let (position, picture) = match kind {
+            ViewKind::Stack => {
+                let index = state.slice_index(kind, series);
+                (index as u64, Picture::of(series.image(index)))
+            }
+            ViewKind::Mpr(axis) => (state.mpr_position(axis).to_bits(), Picture::Image),
         };
         let render_key = RenderKey {
             position,
+            picture,
             window: (state.window.center.to_bits(), state.window.width.to_bits(), state.window.function),
             invert: state.invert,
             slab: match kind {
@@ -149,37 +190,50 @@ impl RenderCache {
             return;
         };
         let options = if smooth { TextureOptions::LINEAR } else { TextureOptions::NEAREST };
+        let load = |image| ctx.load_texture(format!("view-{}-{}-{kind:?}", key.study, key.series), image, options);
+        let picture = render_key.picture.clone();
         match self.entries.get_mut(&(key, kind)) {
             Some(r) => {
-                r.texture.set(image, options);
+                // A placeholder leaves the old texture allocated but undrawn (see `Rendered::texture`).
+                if let Some(image) = image {
+                    match &mut r.texture {
+                        Some(texture) => texture.set(image, options),
+                        None => r.texture = Some(load(image)),
+                    }
+                }
                 r.key = render_key;
+                r.picture = picture;
                 r.displayed = displayed;
             }
             None => {
-                let texture = ctx.load_texture(format!("view-{}-{}-{kind:?}", key.study, key.series), image, options);
-                self.entries.insert((key, kind), Rendered { key: render_key, texture, displayed });
+                let texture = image.map(load);
+                self.entries.insert((key, kind), Rendered { key: render_key, texture, picture, displayed });
             }
         }
     }
 }
 
-fn render_frame(series: &LoadedSeries, state: &ViewState) -> Option<(ColorImage, Displayed)> {
+/// The acquired image at the current position: its pixels if they are
+/// decoded, and in any case its geometry, which is known from the headers.
+fn render_frame(series: &SeriesData, state: &ViewState) -> Option<(Option<ColorImage>, Displayed)> {
     let index = state.slice_index(ViewKind::Stack, series);
-    let frame = series.frame(index)?;
-    let info = series.frames.get(index)?;
-    let (width, height) = frame.size();
-    let rgba = match frame {
-        FrameRef::Gray { data, .. } => gray_to_rgba(data.len(), |i| data.get(i), &state.window, state.invert),
-        FrameRef::Rgb { data, .. } => rgb_to_rgba(data, state.invert),
-    };
-    let image = ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &rgba);
+    let info = series.frames().get(index)?;
+    let frame = series.frame(index);
+    let (width, height) = frame.map_or((info.width, info.height), |f| f.size());
+    let image = frame.map(|frame| {
+        let rgba = match frame {
+            FrameRef::Gray { data, .. } => gray_to_rgba(data.len(), |i| data.get(i), &state.window, state.invert),
+            FrameRef::Rgb { data, .. } => rgb_to_rgba(data, state.invert),
+        };
+        ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &rgba)
+    });
     Some((image, Displayed::Frame { index, width, height, plane: info.plane, spacing: info.pixel_spacing }))
 }
 
-fn render_mpr(series: &LoadedSeries, state: &ViewState, axis: MprAxis) -> Option<(ColorImage, Displayed)> {
+fn render_mpr(series: &SeriesData, state: &ViewState, axis: MprAxis) -> Option<(Option<ColorImage>, Displayed)> {
     let volume = series.volume()?;
     let mpr = reslice(volume, axis, state.mpr_position(axis), state.slab, MPR_MAX_DIM);
     let rgba = gray_to_rgba(mpr.values.len(), |i| mpr.values[i], &state.window, state.invert);
     let image = ColorImage::from_rgba_unmultiplied([mpr.width, mpr.height], &rgba);
-    Some((image, Displayed::Mpr(Box::new(mpr))))
+    Some((Some(image), Displayed::Mpr(Box::new(mpr))))
 }
