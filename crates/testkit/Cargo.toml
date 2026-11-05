@@ -1,0 +1,20 @@
+[package]
+name = "summrise-testkit"
+description = "Synthetic, PHI-free DICOM fixtures (CT/MR phantoms, DICOMDIR) for tests and manual QA."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+dicom-core.workspace = true
+dicom-dictionary-std.workspace = true
+dicom-object.workspace = true
+dicom-pixeldata.workspace = true
+dicom-transfer-syntax-registry.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

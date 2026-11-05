@@ -1,0 +1,10 @@
+# Pinned toolchain for reproducible builds on every platform (local + CI).
+# rustup installs it automatically on the first `cargo` invocation in this repo;
+# it does not change your global default toolchain.
+#
+# Only the host target is installed. Extra targets (e.g. x86_64-apple-darwin for
+# universal macOS builds) are added on demand by `cargo xtask bundle-macos`.
+[toolchain]
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

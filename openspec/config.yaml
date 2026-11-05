@@ -1,0 +1,54 @@
+schema: spec-driven
+
+# Project context — injected into every OpenSpec artifact instruction.
+context: |
+  Product: SumMRIse — a native desktop viewer for MRI and CT studies that hospitals
+  hand to patients on CDs/DVDs/USB sticks (DICOM PS3.10 media with a DICOMDIR).
+  Users are patients, relatives and students, not radiologists. It is NOT a medical
+  device and must never present itself as diagnostic. All processing is local.
+
+  Platforms: macOS (primary, Apple Silicon + Intel, macOS 11+), Windows 10+, Linux
+  (X11/Wayland). One code base, one UI; only packaging/OS integration is per platform.
+
+  Tech stack (Rust 2024 edition, toolchain pinned in rust-toolchain.toml):
+  - Cargo workspace monorepo:
+      crates/imaging  – pure maths: patient geometry (LPS), volumes, MPR, VOI windowing
+      crates/dicom    – DICOM I/O on dicom-rs 0.10: DICOMDIR/folder discovery, header
+                        indexing, pixel decoding (JPEG, JPEG 2000, RLE, deflate), metadata
+      crates/core     – UI-agnostic application layer: session, background jobs,
+                        view state, settings, removable-media detection
+      crates/ui       – egui 0.37 / eframe (wgpu → Metal/DX12/Vulkan) user interface
+      crates/testkit  – synthetic, PHI-free DICOM fixtures
+      apps/desktop    – `summrise` binary (window setup, logging, CLI path argument)
+      xtask           – build automation (icons, macOS .app/.dmg, fixtures, ci)
+      packaging/      – per-platform metadata (Info.plist, .desktop, AppStream, .ico)
+  - Layering: imaging ← dicom ← core ← ui ← apps/desktop. Lower layers never depend on
+    higher ones; only `ui` and `apps/desktop` may depend on egui/eframe.
+
+  Domain rules:
+  - DICOM patient coordinates are LPS (+X left, +Y posterior, +Z superior).
+  - Display follows radiological convention: patient right on screen left; anterior
+    (axial/sagittal) or superior (coronal/sagittal) at the top.
+  - Grey values are modality values after the Modality LUT (Hounsfield units for CT).
+  - VOI windowing follows PS3.3 C.11.2.1.2 (LINEAR, LINEAR_EXACT, SIGMOID).
+  - Patient-identifying data (names, IDs, birth dates) must never be written to logs
+    above debug level, caches, telemetry or recent-file lists.
+
+  Conventions: thiserror in libraries, anyhow only in binaries; `log` facade; no
+  unsafe code; clippy `-D warnings`; rustfmt (max width 120); tests use the testkit
+  fixtures, never real patient data; Cargo.lock is committed.
+
+rules:
+  proposal:
+    - State the user-visible outcome first; keep implementation detail for design.md.
+    - Mention patient-safety or privacy impact explicitly when the change touches
+      image display, measurements, metadata or persistence.
+  specs:
+    - Requirements describe observable behaviour of the application or a crate API.
+    - Every requirement touching image orientation, contrast or geometry needs a
+      scenario with concrete values (e.g. HU, mm, orientation letters).
+  design:
+    - Record alternatives considered and why they were rejected.
+  tasks:
+    - Each task must be verifiable by a test, a command or a visible UI result.
+    - Mark platform tasks that cannot be verified on the current machine explicitly.

@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+# Third-party actions are pinned to commit SHAs (version in the trailing comment).
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  check:
+    name: Lint & test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Linux system libraries (windowing + software Vulkan for UI tests)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev \
+            libxrandr-dev libxi-dev libgl1-mesa-dev mesa-vulkan-drivers
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: Format
+        if: runner.os == 'macOS'
+        run: cargo fmt --all --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Tests
+        run: cargo test --workspace --locked
+
+  supply-chain:
+    name: Licences & advisories
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+
+  package:
+    name: Package (${{ matrix.name }})
+    needs: check
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-universal, os: macos-latest }
+          - { name: windows-x64, os: windows-latest }
+          - { name: linux-x64, os: ubuntu-22.04 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev
+      - name: Toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      # macOS: universal .app + .dmg. Signing/notarization run only when the
+      # repository secrets are configured (see packaging/macos/README.md).
+      - name: Import signing certificate
+        if: runner.os == 'macOS' && env.MACOS_CERT_P12 != ''
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          echo "$MACOS_CERT_P12" | base64 --decode > cert.p12
+          security create-keychain -p ci build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p ci build.keychain
+          security import cert.p12 -k build.keychain -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci build.keychain
+          rm cert.p12
+      - name: Bundle macOS app
+        if: runner.os == 'macOS'
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+        run: |
+          if [ -n "$MACOS_SIGNING_IDENTITY" ]; then
+            cargo xtask bundle-macos --universal --dmg --sign "$MACOS_SIGNING_IDENTITY"
+          else
+            cargo xtask bundle-macos --universal --dmg
+          fi
+
+      - name: Build Windows executable
+        if: runner.os == 'Windows'
+        run: |
+          cargo build --release --locked -p summrise
+          New-Item -ItemType Directory -Force dist/windows | Out-Null
+          Copy-Item target/release/summrise.exe dist/windows/SumMRIse.exe
+          Compress-Archive -Path dist/windows/SumMRIse.exe, LICENSE -DestinationPath dist/SumMRIse-windows-x64.zip -Force
+
+      - name: Build Linux tarball
+        if: runner.os == 'Linux'
+        run: |
+          cargo build --release --locked -p summrise
+          mkdir -p dist/linux/summrise
+          cp target/release/summrise LICENSE dist/linux/summrise/
+          cp packaging/linux/com.summrise.Viewer.desktop packaging/linux/com.summrise.Viewer.metainfo.xml dist/linux/summrise/
+          cp packaging/icons/icon-256.png dist/linux/summrise/com.summrise.Viewer.png
+          tar -C dist/linux -czf dist/SumMRIse-linux-x64.tar.gz summrise
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SumMRIse-${{ matrix.name }}
+          path: |
+            dist/macos/*.dmg
+            dist/*.zip
+            dist/*.tar.gz
+          if-no-files-found: error

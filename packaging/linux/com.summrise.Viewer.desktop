@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=SumMRIse
+GenericName=Medical Image Viewer
+Comment=View MRI and CT scans from hospital CDs (DICOM)
+Exec=summrise %f
+Icon=com.summrise.Viewer
+Terminal=false
+Categories=Graphics;Viewer;MedicalSoftware;Science;
+Keywords=DICOM;MRI;CT;radiology;scan;
+MimeType=application/dicom;
+StartupWMClass=com.summrise.Viewer
