@@ -674,6 +674,30 @@ mod tests {
     }
 
     #[test]
+    fn series_left_during_its_only_image_is_still_finished() {
+        let (_dir, index) = phantom(&PhantomOptions::small());
+        let slow = SlowSource::new();
+        let mut session = Session::with_source(index, 1 << 30, None, slow.clone());
+        let mut events = Vec::new();
+        wait(&mut session, &mut events, "the first read of the CT", |_| slow.started() == 1);
+        // The user opens the one-image dose report and goes back to the CT before the image is there.
+        let report = SeriesKey { study: 0, series: 3 };
+        session.select_series(report);
+        wait(&mut session, &mut events, "the read of the report", |_| slow.started() == 2);
+        session.select_series(CT);
+        slow.allow_all();
+        wait(&mut session, &mut events, "both series", |s| s.loaded(CT).is_some() && s.loaded(report).is_some());
+        // The report was not displayed any more, but nothing was left to hold back: it is
+        // complete, not "paused at 1 / 1".
+        assert!(matches!(session.state(report), Some(SeriesState::Ready(_))));
+        let of_report: Vec<_> = events
+            .iter()
+            .filter(|e| matches!(e, SessionEvent::SeriesOpened(k) | SessionEvent::SeriesReady(k) if *k == report))
+            .collect();
+        assert_eq!(of_report, [&SessionEvent::SeriesOpened(report), &SessionEvent::SeriesReady(report)]);
+    }
+
+    #[test]
     fn evicts_least_recently_used_series() {
         let (_dir, index) = phantom(&PhantomOptions::small());
         let mut session = Session::new(index, 1, None);

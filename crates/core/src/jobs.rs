@@ -219,7 +219,7 @@ impl Drop for Unload {
     }
 }
 
-/// Images read in one go before the loader looks again at where the viewer
+/// Files read in one go before the loader looks again at where the viewer
 /// is. Runs keep reads mostly sequential on optical media.
 const RUN_LENGTH: usize = 8;
 
@@ -235,32 +235,40 @@ struct Schedule {
     slots_of: Vec<Vec<usize>>,
     /// Displayed images whose file has been handed out.
     requested: Vec<bool>,
+    /// Number of displayed images whose file has not been handed out.
+    waiting: usize,
     run: Option<Run>,
 }
 
-/// A run of consecutive images, leading away from the displayed one.
+/// A run of consecutive files, leading away from the displayed image.
 #[derive(Debug, Clone, Copy)]
 struct Run {
+    /// The image the run goes on with.
     next: Option<usize>,
     forward: bool,
+    /// Files the run may still take.
     left: usize,
 }
 
 impl Run {
-    /// The run that goes on from the image next to `slot`.
-    fn after(slot: usize, forward: bool) -> Self {
-        Self { next: step(slot, forward), forward, left: RUN_LENGTH - 1 }
+    /// A run that begins with the file about to be handed out.
+    fn start(forward: bool) -> Self {
+        Self { next: None, forward, left: RUN_LENGTH - 1 }
     }
 
     /// The next image of the run if it still needs its file, and the rest of the run.
     fn continued(self, requested: &[bool]) -> Option<(usize, Self)> {
         let slot = self.next.filter(|&slot| self.left > 0 && requested.get(slot) == Some(&false))?;
-        Some((slot, Self { next: step(slot, self.forward), left: self.left - 1, ..self }))
+        Some((slot, Self { left: self.left - 1, ..self }))
     }
-}
 
-fn step(slot: usize, forward: bool) -> Option<usize> {
-    if forward { slot.checked_add(1) } else { slot.checked_sub(1) }
+    /// The run after a file with the images `slots` was handed out: it goes
+    /// on beyond the far end of that file, whose frames all come with it.
+    fn beyond(self, slots: &[usize]) -> Self {
+        let far = if self.forward { slots.iter().copied().max() } else { slots.iter().copied().min() };
+        let next = far.and_then(|slot| if self.forward { slot.checked_add(1) } else { slot.checked_sub(1) });
+        Self { next, ..self }
+    }
 }
 
 impl Schedule {
@@ -270,7 +278,12 @@ impl Schedule {
         for (slot, &instance) in instance_of.iter().enumerate() {
             slots_of[instance].push(slot);
         }
-        Self { requested: vec![false; instance_of.len()], instance_of, slots_of, run: None }
+        Self { requested: vec![false; instance_of.len()], waiting: instance_of.len(), instance_of, slots_of, run: None }
+    }
+
+    /// Whether every file has been handed out.
+    fn is_done(&self) -> bool {
+        self.waiting == 0
     }
 
     /// The file to read next while image `displayed` is on screen, or `None`
@@ -280,21 +293,21 @@ impl Schedule {
         // The displayed image goes first: a run is dropped as soon as the
         // viewer moves to an image that still waits for its file.
         let run = self.run.take().filter(|_| self.requested.get(displayed) != Some(&false));
-        let slot = match run.and_then(|run| run.continued(&self.requested)) {
-            Some((slot, rest)) => {
-                self.run = Some(rest);
-                slot
-            }
+        let (slot, run) = match run.and_then(|run| run.continued(&self.requested)) {
+            Some(continued) => continued,
             None => {
                 let slot = self.nearest(displayed)?;
-                self.run = Some(Run::after(slot, slot >= displayed));
-                slot
+                (slot, Run::start(slot >= displayed))
             }
         };
         let instance = self.instance_of[slot];
-        for &of_same_file in &self.slots_of[instance] {
-            self.requested[of_same_file] = true;
+        let slots = &self.slots_of[instance];
+        for &of_same_file in slots {
+            if !std::mem::replace(&mut self.requested[of_same_file], true) {
+                self.waiting -= 1;
+            }
         }
+        self.run = Some(run.beyond(slots));
         Some(instance)
     }
 
@@ -444,7 +457,10 @@ fn coordinate(shared: &Arc<Shared>, series: &Arc<Series>, source: &Arc<dyn Image
     let data = &shared.data;
     let workers = decoders.map_or(1, Decoders::threads);
     let mut schedule = Schedule::new(data.frames());
-    loop {
+    // Once every file is handed out there is nothing a pause could hold back:
+    // the files in flight are finished and the series is completed, also when
+    // the user has moved on to another series in the meantime.
+    while !schedule.is_done() {
         // Wait until the series is wanted and the decoders can take another file.
         let displayed = {
             let mut control = shared.control();
@@ -720,6 +736,14 @@ mod tests {
     }
 
     #[test]
+    fn schedule_keeps_its_runs_across_multi_frame_files() {
+        // Eight files of two frames each; the viewer is on the first frame of the fifth file.
+        let files: Vec<usize> = (0..8).flat_map(|file| [file, file]).collect();
+        let mut schedule = Schedule::new(&images(&files));
+        assert_eq!(take(&mut schedule, 8, 100), [4, 5, 6, 7, 3, 2, 1, 0], "sequential, as for single frames");
+    }
+
+    #[test]
     fn schedule_copes_with_empty_series_and_stale_positions() {
         assert_eq!(Schedule::new(&[]).next(0), None);
         // A displayed index beyond the series counts as its last image.
@@ -805,6 +829,24 @@ mod tests {
         eventually("the whole series", || data.is_complete());
         assert_eq!(data.loaded(), 24);
         woken(3);
+    }
+
+    #[test]
+    fn series_left_during_its_last_file_is_still_completed() {
+        let (_dir, index) = phantom(&PhantomOptions::small());
+        // The dose report: a single image.
+        let series = Arc::new(index.studies[0].series[3].clone());
+        let data = Arc::new(SeriesData::new(plan_series(&series)));
+        let slow = SlowSource::new();
+        let loader = SeriesLoader::spawn(series, data.clone(), slow.clone(), Decoders::new(2).map(Arc::new), 0, None);
+        eventually("the read of its only file", || slow.started() == 1);
+        // The user moves on while that file is being read.
+        loader.pause();
+        slow.allow_all();
+        // Nothing is left to hold back: the series is finished, not left "paused at 1 / 1".
+        eventually("the series to be finished", || data.is_complete());
+        assert_eq!(data.loaded(), 1);
+        assert!(data.frame(0).is_some() && data.failure().is_none());
     }
 
     #[test]
