@@ -17,6 +17,9 @@ pub enum DicomError {
     Cancelled,
     #[error("none of the images in this series could be decoded: {0}")]
     DecodeFailed(String),
+    /// One image could not be decoded; the text is the decoder's reason.
+    #[error("{0}")]
+    Image(String),
 }
 
 pub type Result<T, E = DicomError> = std::result::Result<T, E>;

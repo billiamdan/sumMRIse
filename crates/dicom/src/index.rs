@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 
+use dicom_core::Tag;
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, OpenFileOptions};
 use log::{debug, warn};
@@ -165,6 +166,53 @@ pub struct InstanceHeader {
     /// projection images (X-ray, secondary capture…).
     pub frame_planes: Vec<Option<ImagePlane>>,
     pub image_type: Vec<String>,
+    /// Bits Stored (0028,0101).
+    pub bits_stored: u16,
+    /// Pixel Representation (0028,0103) is 1: samples are two's complement.
+    pub signed: bool,
+    /// Modality LUT (never empty): one entry for the whole file, or one per
+    /// frame when the frames are rescaled individually.
+    pub rescale: Vec<Rescale>,
+    /// Rescale Type (0028,1054), e.g. "HU".
+    pub rescale_type: Option<String>,
+}
+
+/// Linear Modality LUT (PS3.3 C.11.1): value = stored value × slope + intercept.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Rescale {
+    pub slope: f64,
+    pub intercept: f64,
+}
+
+impl Rescale {
+    pub const IDENTITY: Self = Self { slope: 1.0, intercept: 0.0 };
+
+    pub fn apply(&self, stored: f64) -> f64 {
+        stored * self.slope + self.intercept
+    }
+}
+
+impl InstanceHeader {
+    /// Range of modality values this image can hold, from Bits Stored, Pixel
+    /// Representation and the rescale values. Known before any pixel data is
+    /// read; the values actually present usually span less. `None` for
+    /// colour images.
+    pub fn value_range_estimate(&self) -> Option<(f64, f64)> {
+        if self.samples_per_pixel != 1 {
+            return None;
+        }
+        let bits = i32::from(self.bits_stored.clamp(1, 32));
+        let (lo, hi) = if self.signed {
+            (-(2f64.powi(bits - 1)), 2f64.powi(bits - 1) - 1.0)
+        } else {
+            (0.0, 2f64.powi(bits) - 1.0)
+        };
+        self.rescale
+            .iter()
+            .flat_map(|r| [r.apply(lo), r.apply(hi)])
+            .filter(|v| v.is_finite())
+            .fold(None, |range, v| Some(range.map_or((v, v), |(a, b): (f64, f64)| (a.min(v), b.max(v)))))
+    }
 }
 
 /// Discovers and indexes all images below `root`.
@@ -331,9 +379,41 @@ fn read_header(path: &Path) -> std::result::Result<HeaderRecord, String> {
             pixel_spacing,
             frame_planes,
             image_type: attrs::texts(obj, tags::IMAGE_TYPE),
+            bits_stored: attrs::uint(obj, tags::BITS_STORED)
+                .filter(|&bits| bits > 0)
+                .or_else(|| attrs::uint(obj, tags::BITS_ALLOCATED))
+                .map_or(16, |bits| bits.min(32) as u16),
+            signed: attrs::uint(obj, tags::PIXEL_REPRESENTATION) == Some(1),
+            rescale: rescale(obj),
+            rescale_type: attrs::text(obj, tags::RESCALE_TYPE),
         }
     });
     Ok(HeaderRecord { study_uid, study, series_uid, series, instance })
+}
+
+/// Rescale Slope/Intercept from the classic attributes, else from the
+/// per-frame or shared functional groups of Enhanced multi-frame objects
+/// (the order the pixel decoder uses); identity when absent.
+fn rescale(obj: &InMemDicomObject) -> Vec<Rescale> {
+    let values = |tag: Tag| -> Vec<f64> {
+        let in_group = |group: &InMemDicomObject| {
+            attrs::functional(group, tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE).and_then(|m| attrs::float(m, tag))
+        };
+        if let Some(value) = attrs::float(obj, tag) {
+            return vec![value];
+        }
+        let per_frame: Vec<f64> = attrs::per_frame_groups(obj).iter().filter_map(in_group).collect();
+        if !per_frame.is_empty() {
+            return per_frame;
+        }
+        attrs::shared_group(obj).and_then(in_group).into_iter().collect()
+    };
+    let slopes = values(tags::RESCALE_SLOPE);
+    let intercepts = values(tags::RESCALE_INTERCEPT);
+    let pick = |values: &[f64], i: usize, default: f64| values.get(i).or(values.first()).copied().unwrap_or(default);
+    (0..slopes.len().max(intercepts.len()).max(1))
+        .map(|i| Rescale { slope: pick(&slopes, i, 1.0), intercept: pick(&intercepts, i, 0.0) })
+        .collect()
 }
 
 /// Pixel spacing and per-frame geometry, from classic attributes or the
