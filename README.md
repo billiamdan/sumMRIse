@@ -133,7 +133,18 @@ integration.
 `multiplanar-viewing`, `contrast-windowing`, `metadata-inspector`, `privacy-safeguards`,
 `macos-distribution`, `ci-quality-gates`.
 
-**Planned:**
+**Planned — viewing features** (from a comparison with professional viewers; suggested
+order as listed, `series-comparison` before `measurement-tools`):
+
+| Change | Scope |
+| --- | --- |
+| `progressive-loading` | Show images while a series loads; load around the image being viewed |
+| `report-viewer` | Structured reports, PDF and text documents, dose reports |
+| `series-comparison` | Side-by-side layouts, synchronised scrolling, cross-reference lines, compare studies |
+| `measurement-tools` | Length, angle and region statistics, presented as approximate |
+| `export-and-share` | Save and copy views, export a series as images, private by default |
+
+**Planned — releases and platforms:**
 
 | Change | Scope |
 | --- | --- |
@@ -144,10 +155,10 @@ integration.
 | `windows-distribution` | Executable resources, MSI installer, Authenticode signing; re-enable the Windows CI check (paused to save CI time) |
 | `linux-distribution` | AppImage and Flatpak |
 
-Later ideas (not yet proposed): measurements and annotations, cine for dynamic series,
-3D volume rendering, export (PNG/de-identified DICOM and the attribute list),
-localisation, side-by-side study comparison, and — only with de-identification and
-explicit consent — AI explanations.
+Later ideas (not yet proposed): cine and multi-phase series, oblique reformats, 3D
+volume rendering, opening ZIP and ISO downloads, de-identified DICOM export, a
+plain-language guide to series and parameters, translations, PET uptake values, and —
+only with de-identification and explicit consent — AI explanations.
 
 ## Licence
 
