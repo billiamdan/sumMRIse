@@ -132,9 +132,14 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
                     }
                     ui.label(RichText::new(line.join(" · ")).small().color(p.text_weak));
                     let dims = series.dimensions().map(|(w, h)| format!(" · {w}×{h}")).unwrap_or_default();
-                    ui.label(
-                        RichText::new(format!("{} images{dims}", series.frame_count())).small().color(p.text_weak),
-                    );
+                    // While a series loads (or waits, partly loaded), the count shows how far it is.
+                    let loading = match session.state(key) {
+                        Some(SeriesState::Loading(loading)) => Some((loading.data.loaded(), loading.is_paused())),
+                        _ => None,
+                    };
+                    let total = series.frame_count();
+                    let count = loading.map_or_else(|| total.to_string(), |(loaded, _)| format!("{loaded} / {total}"));
+                    ui.label(RichText::new(format!("{count} images{dims}")).small().color(p.text_weak));
                     let unsupported = series.unsupported_transfer_syntaxes();
                     if !unsupported.is_empty() {
                         ui.label(
@@ -149,13 +154,19 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
                         .on_hover_text("This compression is not supported by this build");
                     }
                     match session.state(key) {
-                        Some(SeriesState::Loading(job)) => {
-                            let snap = job.progress();
+                        Some(SeriesState::Loading(_)) => {
+                            let (loaded, paused) = loading.unwrap_or_default();
+                            let hint = if paused {
+                                format!("Paused at {loaded} / {total} — select the series to continue loading")
+                            } else {
+                                format!("Loading {loaded} / {total}")
+                            };
                             ui.add(
-                                ProgressBar::new(snap.fraction().unwrap_or(0.0))
+                                ProgressBar::new(loaded as f32 / total.max(1) as f32)
                                     .desired_height(4.0)
                                     .desired_width(ui.available_width() - 8.0),
-                            );
+                            )
+                            .on_hover_text(hint);
                         }
                         Some(SeriesState::Failed(e)) => {
                             ui.label(

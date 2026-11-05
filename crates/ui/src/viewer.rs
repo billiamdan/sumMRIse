@@ -13,10 +13,10 @@ use egui_material_icons::icons::{
     ICON_LEFT_PANEL_OPEN, ICON_PAN_TOOL, ICON_RESTART_ALT, ICON_RIGHT_PANEL_CLOSE, ICON_RIGHT_PANEL_OPEN,
     ICON_SETTINGS, ICON_VISIBILITY, ICON_VISIBILITY_OFF, ICON_WARNING, ICON_ZOOM_IN,
 };
-use summrise_core::dicom::{DiscoverySource, LoadedSeries, format};
+use summrise_core::dicom::{DiscoverySource, format};
 use summrise_core::imaging::{PresetSource, SlabMode};
 use summrise_core::{
-    Layout, SeriesKey, SeriesState, Session, SessionEvent, Settings, Tool, ViewKind, ViewState, Waker,
+    Layout, SeriesData, SeriesKey, SeriesState, Session, SessionEvent, Settings, Tool, ViewKind, ViewState, Waker,
 };
 
 use crate::app::{Action, Toasts};
@@ -61,9 +61,10 @@ impl Viewer {
         self.session.study().title()
     }
 
-    fn active_series(&self) -> Option<(SeriesKey, Arc<LoadedSeries>)> {
+    /// The displayed series, from the moment its first image is decoded.
+    fn active_series(&self) -> Option<(SeriesKey, Arc<SeriesData>)> {
         let key = self.session.active_series?;
-        Some((key, self.session.loaded(key)?))
+        Some((key, self.session.data(key).filter(|series| series.is_viewable())?))
     }
 
     pub(crate) fn show(
@@ -76,10 +77,16 @@ impl Viewer {
     ) {
         for event in self.session.poll() {
             match event {
+                // The window, zoom and position a series opens with are fixed here, by its
+                // first image; images arriving later never touch them.
+                SessionEvent::SeriesOpened(key) => {
+                    if let Some(series) = self.session.data(key) {
+                        self.views.entry(key).or_insert_with(|| ViewState::new(&series));
+                    }
+                }
                 SessionEvent::SeriesReady(key) => {
                     if let Some(series) = self.session.loaded(key) {
-                        self.views.entry(key).or_insert_with(|| ViewState::new(&series));
-                        for w in &series.warnings {
+                        for w in series.warnings() {
                             toasts.warn(w.clone());
                         }
                     }
@@ -103,9 +110,10 @@ impl Viewer {
         }
 
         let p = theme::palette(ui);
+        let reformat_blocker = reformat_blocker(self.session.active_series.and_then(|key| self.session.state(key)));
         Panel::top("toolbar")
             .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(10, 6)))
-            .show(ui, |ui| self.toolbar(ui, settings, actions, active.as_ref(), has_volume));
+            .show(ui, |ui| self.toolbar(ui, settings, actions, active.as_ref(), has_volume, &reformat_blocker));
         Panel::bottom("status")
             .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(10, 3)))
             .show(ui, |ui| self.status_bar(ui, active.as_ref()));
@@ -121,7 +129,7 @@ impl Viewer {
             let display = self.display_rows(active.as_ref());
             let path = active.as_ref().and_then(|(key, series)| {
                 let state = self.views.get(key)?;
-                let info = series.frames.get(state.slice)?;
+                let info = series.frames().get(state.slice)?;
                 Some(self.session.series(*key)?.instances.get(info.instance)?.path.clone())
             });
             Panel::right("inspector")
@@ -141,8 +149,9 @@ impl Viewer {
         ui: &mut Ui,
         settings: &mut Settings,
         actions: &mut Vec<Action>,
-        active: Option<&(SeriesKey, Arc<LoadedSeries>)>,
+        active: Option<&(SeriesKey, Arc<SeriesData>)>,
         has_volume: bool,
+        reformat_blocker: &str,
     ) {
         ui.horizontal(|ui| {
             let browser_icon = if settings.show_browser { ICON_LEFT_PANEL_CLOSE } else { ICON_LEFT_PANEL_OPEN };
@@ -152,15 +161,12 @@ impl Viewer {
             ui.separator();
             for l in Layout::ALL {
                 let enabled = !l.needs_volume() || has_volume;
-                let reason = active
-                    .and_then(|(_, s)| s.volume_issue.as_ref().map(ToString::to_string))
-                    .unwrap_or_else(|| "Needs a stack of at least 3 parallel slices".into());
                 let resp = ui
                     .add_enabled(
                         enabled,
                         egui::Button::selectable(self.layout == l && (enabled || l == Layout::Single), l.label()),
                     )
-                    .on_disabled_hover_text(format!("Multiplanar reformatting unavailable: {reason}"));
+                    .on_disabled_hover_text(reformat_blocker);
                 if resp.clicked() {
                     self.layout = l;
                     settings.default_layout = l;
@@ -191,7 +197,7 @@ impl Viewer {
             if let Some((key, series)) = active
                 && let Some(state) = self.views.get_mut(key)
             {
-                if !series.is_color {
+                if !series.is_color() {
                     let presets = ViewState::presets(series);
                     let preset_label = ui.label(RichText::new("Window").small());
                     ComboBox::from_id_salt("preset")
@@ -226,7 +232,7 @@ impl Viewer {
                         })
                         .response
                         .labelled_by(preset_label.id);
-                    let (lo, hi) = series.value_range;
+                    let (lo, hi) = series.value_range();
                     let span = f64::from(hi - lo).max(1.0);
                     let w_label = ui.label(RichText::new("W").small()).on_hover_text("Window width (contrast)");
                     if ui
@@ -321,7 +327,7 @@ impl Viewer {
         &mut self,
         ui: &mut Ui,
         settings: &Settings,
-        active: Option<&(SeriesKey, Arc<LoadedSeries>)>,
+        active: Option<&(SeriesKey, Arc<SeriesData>)>,
         layout: Layout,
     ) {
         let rect = ui.max_rect();
@@ -363,31 +369,38 @@ impl Viewer {
                 self.active_view = kind;
             }
         }
+        // Loading concentrates on the images around the one on screen.
+        let displayed = state.slice_index(ViewKind::Stack, &series);
+        self.session.set_displayed(key, displayed);
     }
 
+    /// Shown until the first image of the selected series is decoded.
     fn placeholder(&self, ui: &mut Ui, rect: Rect) {
         let p = theme::palette(ui);
-        let text = match self.session.active_series.and_then(|k| self.session.state(k)) {
-            Some(SeriesState::Loading(job)) => {
-                let s = job.progress();
+        let active = self.session.active_series;
+        let (text, busy) = match active.and_then(|key| self.session.state(key)) {
+            Some(SeriesState::Loading(loading)) => {
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
-                format!("{} {}/{}…", s.stage, s.done, s.total)
+                let series = &loading.data;
+                // The image the series opens on, or the one it was left on.
+                let shown = active
+                    .and_then(|key| self.views.get(&key))
+                    .map_or(series.initial_index(), |view| view.slice_index(ViewKind::Stack, series));
+                (format!("Loading image {} / {}", shown + 1, series.len()), true)
             }
-            Some(SeriesState::Failed(e)) => format!("This series could not be displayed.\n{e}"),
-            _ => "Select a series".to_owned(),
+            Some(SeriesState::Failed(e)) => (format!("This series could not be displayed.\n{e}"), false),
+            _ => ("Select a series".to_owned(), false),
         };
         let center = rect.center();
-        ui.put(Rect::from_center_size(center - vec2(0.0, 24.0), vec2(32.0, 32.0)), egui::Spinner::new().size(28.0));
-        ui.painter().text(
-            center + vec2(0.0, 14.0),
-            egui::Align2::CENTER_TOP,
-            text,
-            egui::FontId::proportional(14.0),
-            p.text_weak,
-        );
+        if busy {
+            let spinner = Rect::from_center_size(center - vec2(0.0, 24.0), vec2(32.0, 32.0));
+            ui.put(spinner, egui::Spinner::new().size(28.0));
+        }
+        let message = Rect::from_center_size(center + vec2(0.0, 24.0), vec2((rect.width() - 40.0).max(120.0), 48.0));
+        ui.put(message, egui::Label::new(RichText::new(text).size(14.0).color(p.text_weak)).selectable(false));
     }
 
-    fn status_bar(&self, ui: &mut Ui, active: Option<&(SeriesKey, Arc<LoadedSeries>)>) {
+    fn status_bar(&self, ui: &mut Ui, active: Option<&(SeriesKey, Arc<SeriesData>)>) {
         let p = theme::palette(ui);
         ui.horizontal(|ui| {
             match (&self.hover, active) {
@@ -405,11 +418,7 @@ impl Viewer {
                         ));
                     }
                     if let Some(v) = h.value {
-                        parts.push(format!(
-                            "{} {}",
-                            format::number(f64::from(v), 1),
-                            series.units.as_deref().unwrap_or("")
-                        ));
+                        parts.push(format!("{} {}", format::number(f64::from(v), 1), series.units().unwrap_or("")));
                     }
                     ui.label(RichText::new(parts.join("   ·   ")).small().monospace().color(p.text));
                 }
@@ -440,9 +449,9 @@ impl Viewer {
                     warn.on_hover_text(index.warnings.join("\n"));
                 }
                 if let Some((_, series)) = active
-                    && let Some(issue) = &series.volume_issue
+                    && let Some(issue) = series.volume_issue()
                     && series.len() > 2
-                    && !series.is_color
+                    && !series.is_color()
                 {
                     ui.label(RichText::new(format!("{} MPR off", icon(ICON_INFO))).small().color(p.text_weak))
                         .on_hover_text(issue.to_string());
@@ -451,15 +460,19 @@ impl Viewer {
         });
     }
 
-    fn display_rows(&self, active: Option<&(SeriesKey, Arc<LoadedSeries>)>) -> Vec<(String, String)> {
+    fn display_rows(&self, active: Option<&(SeriesKey, Arc<SeriesData>)>) -> Vec<(String, String)> {
         let Some((key, series)) = active else { return Vec::new() };
         let Some(state) = self.views.get(key) else {
             return Vec::new();
         };
+        let complete = series.is_complete();
         let mut rows = Vec::new();
         rows.push(("Image".into(), format!("{} of {}", state.slice + 1, series.len())));
-        if !series.is_color {
-            let units = series.units.as_deref().map(|u| format!(" {u}")).unwrap_or_default();
+        if !complete {
+            rows.push(("Loading".into(), format!("{} of {} images", series.loaded(), series.len())));
+        }
+        if !series.is_color() {
+            let units = series.units().map(|u| format!(" {u}")).unwrap_or_default();
             rows.push((
                 "Window".into(),
                 format!(
@@ -469,7 +482,11 @@ impl Viewer {
                     state.preset.as_deref().unwrap_or("custom")
                 ),
             ));
-            rows.push(("Value range".into(), format!("{} … {}{units}", series.value_range.0, series.value_range.1)));
+            // The values present are only known once every image is decoded.
+            if complete {
+                let (lo, hi) = series.value_range();
+                rows.push(("Value range".into(), format!("{lo} … {hi}{units}")));
+            }
         }
         if let Some(v) = series.volume() {
             let s = v.geometry.spacing();
@@ -482,8 +499,10 @@ impl Viewer {
             if tilt > 0.1 {
                 rows.push(("Gantry tilt".into(), format!("{tilt:.1}° (corrected in reformats)")));
             }
-        } else if let Some(issue) = &series.volume_issue {
+        } else if let Some(issue) = series.volume_issue() {
             rows.push(("Reformatting".into(), format!("Unavailable — {issue}")));
+        } else if !complete {
+            rows.push(("Reformatting".into(), "Available when all images are loaded".into()));
         }
         rows.push(("Memory".into(), format_bytes(series.byte_size())));
         rows
@@ -493,7 +512,7 @@ impl Viewer {
         &mut self,
         ui: &mut Ui,
         key: SeriesKey,
-        series: &LoadedSeries,
+        series: &SeriesData,
         settings: &mut Settings,
         has_volume: bool,
     ) {
@@ -551,6 +570,20 @@ impl Viewer {
     }
 }
 
+/// Why the reformat layouts are disabled, as their tooltip: the loading
+/// progress while a stack that will form a volume is still loading, else the
+/// reason the images cannot be reformatted.
+fn reformat_blocker(state: Option<&SeriesState>) -> String {
+    let series = state.and_then(SeriesState::data);
+    match (state, series.and_then(|s| s.volume_issue())) {
+        (_, Some(issue)) => format!("Multiplanar reformatting unavailable: {issue}"),
+        (Some(SeriesState::Loading(loading)), None) => {
+            format!("Loading {} / {}", loading.data.loaded(), loading.data.len())
+        }
+        _ => "Multiplanar reformatting unavailable: Needs a stack of at least 3 parallel slices".to_owned(),
+    }
+}
+
 fn format_bytes(bytes: usize) -> String {
     match bytes {
         b if b >= 1 << 30 => format!("{:.1} GB", b as f64 / f64::from(1u32 << 30)),
@@ -582,5 +615,325 @@ fn grid(rect: Rect, n: usize) -> Vec<Rect> {
             vec![left, cell(right, 1, 2, 0), cell(right, 1, 2, 1)]
         }
         _ => (0..n).map(|i| cell(rect, 2, n.div_ceil(2), i)).collect(),
+    }
+}
+
+/// The viewer while a series loads, driven frame by frame with an image
+/// source that the tests let through one file at a time. Set
+/// `SUMMRISE_SNAPSHOT_DIR` to keep renderings of the loading states.
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::{Duration, Instant};
+
+    use egui_kittest::Harness;
+    use egui_kittest::kittest::{NodeT, Queryable};
+    use summrise_core::dicom::{DecodedInstance, DicomError, InstanceHeader, Progress, scan};
+    use summrise_core::{DicomFiles, ImageSource};
+    use summrise_testkit::{PhantomOptions, write_phantom_study};
+
+    use super::*;
+
+    const CT: SeriesKey = SeriesKey { study: 0, series: 0 };
+
+    /// An artificially slow image source: every read waits until the test
+    /// lets it through.
+    #[derive(Default)]
+    struct SlowSource {
+        allowed: AtomicUsize,
+        started: AtomicUsize,
+        /// Instance number of a CT image that cannot be decoded.
+        corrupt: Option<i32>,
+    }
+
+    impl SlowSource {
+        fn allow(&self, n: usize) {
+            self.allowed.fetch_add(n, Ordering::SeqCst);
+        }
+
+        fn allow_all(&self) {
+            self.allowed.store(usize::MAX, Ordering::SeqCst);
+        }
+
+        fn started(&self) -> usize {
+            self.started.load(Ordering::SeqCst)
+        }
+    }
+
+    impl ImageSource for SlowSource {
+        fn read(&self, header: &InstanceHeader) -> Result<Vec<u8>, DicomError> {
+            let turn = self.started.fetch_add(1, Ordering::SeqCst);
+            while turn >= self.allowed.load(Ordering::SeqCst) {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            DicomFiles.read(header)
+        }
+
+        fn decode(&self, header: &InstanceHeader, bytes: Vec<u8>) -> Result<DecodedInstance, DicomError> {
+            let ct = header.path.parent().is_some_and(|folder| folder.ends_with("SE000001"));
+            if ct && self.corrupt.is_some() && header.instance_number == self.corrupt {
+                return Err(DicomError::Image("corrupt pixel data".to_owned()));
+            }
+            DicomFiles.decode(header, bytes)
+        }
+    }
+
+    /// Everything `Viewer::show` needs.
+    struct App {
+        viewer: Viewer,
+        settings: Settings,
+        waker: Waker,
+        actions: Vec<Action>,
+        toasts: Toasts,
+    }
+
+    /// The viewer on the synthetic CD (the 24-image CT is selected).
+    struct Fixture {
+        harness: Harness<'static, App>,
+        slow: Arc<SlowSource>,
+        _dir: tempfile::TempDir,
+    }
+
+    fn snapshot_dir() -> Option<PathBuf> {
+        std::env::var_os("SUMMRISE_SNAPSHOT_DIR").map(PathBuf::from)
+    }
+
+    fn open(slow: SlowSource, settings: Settings) -> Fixture {
+        let dir = tempfile::tempdir().expect("tempdir");
+        write_phantom_study(dir.path(), &PhantomOptions::small()).expect("fixture");
+        let index = scan(dir.path(), &Progress::new()).expect("scan");
+        let slow = Arc::new(slow);
+        let session = Session::with_source(index, settings.memory_budget_bytes(), None, slow.clone());
+        let app = App {
+            viewer: Viewer::new(session, &settings),
+            settings,
+            waker: Arc::new(|| {}),
+            actions: Vec::new(),
+            toasts: Toasts::default(),
+        };
+        let mut builder = Harness::builder().with_size([1280.0, 800.0]).with_context_setup(theme::install);
+        if snapshot_dir().is_some() {
+            builder = builder.wgpu();
+        }
+        let harness = builder.build_ui_state(
+            |ui, app: &mut App| app.viewer.show(ui, &mut app.settings, &app.waker, &mut app.actions, &mut app.toasts),
+            app,
+        );
+        Fixture { harness, slow, _dir: dir }
+    }
+
+    impl Fixture {
+        /// Runs UI frames until `done`.
+        fn run_until(&mut self, what: &str, done: impl Fn(&Self) -> bool) {
+            let start = Instant::now();
+            loop {
+                self.harness.step();
+                if done(self) {
+                    return;
+                }
+                assert!(start.elapsed() < Duration::from_secs(30), "timed out waiting for {what}");
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+
+        /// Runs UI frames until exactly `loaded` images are in and the loader waits for the test.
+        fn run_until_loaded(&mut self, loaded: usize) {
+            self.run_until("images", |f| f.series().loaded() == loaded && f.slow.started() == loaded + 1);
+            self.harness.step();
+        }
+
+        fn run_until_complete(&mut self) {
+            self.slow.allow_all();
+            self.run_until("the whole series", |f| f.viewer().session.loaded(CT).is_some());
+            self.harness.step();
+        }
+
+        fn viewer(&self) -> &Viewer {
+            &self.harness.state().viewer
+        }
+
+        fn series(&self) -> Arc<SeriesData> {
+            self.viewer().session.data(CT).expect("the CT is selected")
+        }
+
+        fn view(&self) -> &ViewState {
+            self.viewer().views.get(&CT).expect("the CT is on screen")
+        }
+
+        /// Whether something on screen is labelled exactly `label`.
+        fn shows(&self, label: &str) -> bool {
+            self.harness.query_all_by_label(label).next().is_some()
+        }
+
+        fn is_enabled(&self, button: &str) -> bool {
+            !self.harness.get_by_label(button).accesskit_node().is_disabled()
+        }
+
+        fn press(&mut self, key: Key) {
+            self.harness.key_press(key);
+            self.harness.step();
+            self.harness.step();
+        }
+
+        fn snapshot(&mut self, name: &str) {
+            if let Some(dir) = snapshot_dir() {
+                let image = self.harness.render().expect("wgpu render");
+                std::fs::create_dir_all(&dir).expect("snapshot dir");
+                image.save(dir.join(format!("{name}.png"))).expect("save png");
+            }
+        }
+    }
+
+    /// Task 3.1 — an image that is not loaded shows as a placeholder with
+    /// its number, and gives way to the image as soon as it is decoded.
+    #[test]
+    fn unloaded_images_show_a_placeholder_until_they_arrive() {
+        let mut f = open(SlowSource::default(), Settings::default());
+        // Nothing decoded yet: the image the series opens on is announced, not a blank viewport.
+        f.harness.step();
+        assert!(f.shows("Loading image 13 / 24"));
+        f.snapshot("loading-1-before-first-image");
+
+        // One image is decoded: it is on screen, with the progress.
+        f.slow.allow(1);
+        f.run_until_loaded(1);
+        assert!(f.shows("Image 13 / 24, Loading 1 / 24"));
+        f.snapshot("loading-2-first-image");
+
+        // The user goes to the last image, which is not loaded: a placeholder with its number.
+        f.press(Key::End);
+        assert!(f.shows("Loading image 24 / 24, Loading 1 / 24"));
+        assert!(!f.shows("Image 13 / 24, Loading 1 / 24"), "never another image in its place");
+        assert_eq!(f.view().slice, 23);
+        f.snapshot("loading-3-placeholder");
+
+        // The read in progress finishes, then the displayed image is read: it replaces the placeholder.
+        f.slow.allow(2);
+        f.run_until_loaded(3);
+        assert!(f.series().frame(23).is_some(), "the displayed image was loaded next");
+        assert!(f.shows("Image 24 / 24, Loading 3 / 24"));
+
+        // The rest arrives; the user is still where they were.
+        f.run_until_complete();
+        assert!(f.shows("Image 24 / 24"));
+        assert_eq!(f.view().slice, 23);
+        f.snapshot("loading-4-complete");
+    }
+
+    /// Task 3.2 — the reformat layouts are disabled with "Loading n / N"
+    /// until the series is complete and enabled by themselves afterwards.
+    #[test]
+    fn reformat_layouts_are_enabled_when_the_series_is_complete() {
+        let mut f = open(SlowSource::default(), Settings::default());
+        f.slow.allow(5);
+        f.run_until_loaded(5);
+        assert!(f.is_enabled("Images") && !f.is_enabled("MPR") && !f.is_enabled("2 × 2"));
+        assert_eq!(reformat_blocker(f.viewer().session.state(CT)), "Loading 5 / 24");
+        // The reason is the tooltip of the disabled button.
+        f.harness.get_by_label("MPR").hover();
+        f.harness.run_steps(8);
+        assert!(f.shows("Loading 5 / 24"), "tooltip of the disabled MPR button");
+        f.snapshot("loading-5-reformat-tooltip");
+        // M (toggle MPR) does nothing yet.
+        f.press(Key::M);
+        assert!(f.shows("Image 13 / 24, Loading 5 / 24"));
+
+        // The last image arrives: the layouts are available without selecting the series again.
+        f.run_until_complete();
+        assert!(f.is_enabled("MPR") && f.is_enabled("2 × 2"));
+        f.harness.get_by_label("MPR").click();
+        f.harness.run_steps(3);
+        assert!(f.shows("Axial 13 / 24") && f.shows("Coronal 25 / 48") && f.shows("Sagittal 25 / 48"));
+    }
+
+    #[test]
+    fn remembered_reformat_layout_applies_when_loading_completes() {
+        // The user had the MPR layout on last time.
+        let mut f = open(SlowSource::default(), Settings { default_layout: Layout::Mpr, ..Settings::default() });
+        f.slow.allow(3);
+        f.run_until_loaded(3);
+        assert!(f.shows("Image 13 / 24, Loading 3 / 24"), "acquired images while loading");
+        f.run_until_complete();
+        assert!(f.shows("Axial 13 / 24"), "reformats once the volume exists");
+    }
+
+    /// Task 4.3 at the level of the viewer: what the user sets while a series
+    /// loads — W 1500 / L −600, position, zoom — is unchanged at completion.
+    #[test]
+    fn window_position_and_zoom_set_while_loading_are_kept() {
+        let mut f = open(SlowSource::default(), Settings::default());
+        f.slow.allow(3);
+        f.run_until_loaded(3);
+        assert!(f.shows("W 400 / L 40 HU (Mediastinum)"), "opens with the first image's stored window");
+
+        // The user picks the second window (lung), pages down and zooms in.
+        f.press(Key::Num2);
+        f.press(Key::PageDown);
+        let viewer = &mut f.harness.state_mut().viewer;
+        viewer.views.get_mut(&CT).expect("view").transform_mut(ViewKind::Stack).zoom_about(2.0, [30.0, -20.0]);
+        f.harness.step();
+        assert!(f.shows("W 1500 / L -600 HU (Lung)"));
+        let (window, slice, transform) = (f.view().window, f.view().slice, f.view().transform(ViewKind::Stack));
+        assert_eq!((window.width, window.center, slice, transform.zoom), (1500.0, -600.0, 22, 2.0));
+
+        // The remaining images arrive.
+        f.run_until_complete();
+        assert!(f.shows("W 1500 / L -600 HU (Lung)"));
+        assert_eq!(f.view().window, window);
+        assert_eq!(f.view().slice, slice);
+        assert_eq!(f.view().transform(ViewKind::Stack), transform);
+        assert_eq!(f.view().preset.as_deref(), Some("Lung"));
+    }
+
+    /// Task 3.3 — inspector and read-outs work with a partly loaded series.
+    #[test]
+    fn inspector_describes_a_partly_loaded_series() {
+        let mut f = open(SlowSource::default(), Settings::default());
+        f.slow.allow(4);
+        f.run_until_loaded(4);
+        let active = (CT, f.series());
+        let rows = f.viewer().display_rows(Some(&active));
+        let row = |label: &str| rows.iter().find(|(l, _)| l == label).map(|(_, value)| value.as_str());
+        assert_eq!(row("Image"), Some("13 of 24"));
+        assert_eq!(row("Loading"), Some("4 of 24 images"));
+        assert_eq!(row("Window"), Some("W 400 / L 40 HU (Mediastinum)"));
+        assert_eq!(row("Value range"), None, "not known before every image is decoded");
+        assert_eq!(row("Reformatting"), Some("Available when all images are loaded"));
+        assert_eq!(row("Volume"), None);
+        assert_eq!(row("Memory"), Some("18 KB"), "four 48 × 48 images of 16 bits");
+        // The metadata of the displayed image is read from its file as usual.
+        f.run_until("metadata", |f| f.shows("CT CHEST 2.5mm (synthetic)") && f.shows("SYNTHETIC PHANTOM"));
+        // The browser shows how far the series is.
+        assert!(f.harness.query_all_by_label_contains("4 / 24 images").next().is_some());
+
+        f.run_until_complete();
+        let rows = f.viewer().display_rows(Some(&active));
+        let row = |label: &str| rows.iter().find(|(l, _)| l == label).map(|(_, value)| value.as_str());
+        assert_eq!(row("Loading"), None);
+        assert_eq!(row("Value range"), Some("-1000 … 700 HU"));
+        assert_eq!(row("Volume"), Some("48 × 48 × 24 voxels"));
+        assert_eq!(row("Reformatting"), None);
+        assert!(f.harness.query_all_by_label_contains("24 images").next().is_some());
+    }
+
+    /// Task 3.1 — an image that failed to decode says so at its position.
+    #[test]
+    fn undecodable_image_says_so_at_its_position() {
+        let mut f = open(SlowSource { corrupt: Some(17), ..SlowSource::default() }, Settings::default());
+        f.run_until_complete();
+        // Image 17 cannot be decoded; its neighbours display normally.
+        f.press(Key::ArrowDown);
+        f.press(Key::ArrowDown);
+        f.press(Key::ArrowDown);
+        assert!(f.shows("Image 16 / 24"));
+        f.press(Key::ArrowDown);
+        assert!(f.shows("Image 17 could not be decoded"));
+        f.snapshot("loading-6-failed-image");
+        f.press(Key::ArrowDown);
+        assert!(f.shows("Image 18 / 24"));
+        // A hole in the stack: no reformats, and the reason says why.
+        assert!(!f.is_enabled("MPR"));
+        assert!(reformat_blocker(f.viewer().session.state(CT)).contains("not evenly spaced"));
     }
 }
