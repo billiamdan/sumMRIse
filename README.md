@@ -120,28 +120,34 @@ testkit fixtures instead. Licences and advisories are checked with `cargo deny c
 
 ## Plan (OpenSpec)
 
-Work is organised as [OpenSpec](https://github.com/Fission-AI/OpenSpec) change proposals
-in `openspec/changes/` (`openspec list`, `openspec show <change>`; in Claude Code use
-`/opsx:propose`, `/opsx:apply`, `/opsx:archive`).
+Work is organised as [OpenSpec](https://github.com/Fission-AI/OpenSpec) changes
+(`openspec list`, `openspec show <change>`; in Claude Code use `/opsx:propose`,
+`/opsx:apply`, `/opsx:archive`). Shipped changes are archived in
+`openspec/changes/archive/`, and their requirements form the baseline specifications in
+`openspec/specs/`: build system, application shell, DICOM import, image decoding, image
+viewing, contrast windowing, metadata inspector, privacy, macOS packaging and continuous
+integration.
 
-| # | Change | Status |
-| --- | --- | --- |
-| 1 | `restructure-monorepo` — workspace layout, toolchain, dependency updates, stack decision | done (Windows/Linux CI pending) |
-| 2 | `adopt-cross-platform-ui` — egui shell, design system, accessibility | done |
-| 3 | `dicom-media-import` — DICOMDIR-first discovery and indexing | done |
-| 4 | `image-decoding-and-volumes` — codecs, Hounsfield units, volume assembly | done |
-| 5 | `multiplanar-viewing` — orientation, navigation, MPR, MIP, overlays | done |
-| 6 | `contrast-windowing` — VOI functions, presets, interaction | done |
-| 7 | `metadata-inspector` — curated overview and full attribute tree | done |
-| 8 | `privacy-safeguards` — local-only, no PHI at rest or in logs | done |
-| 9 | `macos-distribution` — universal .app, signing, DMG, notarization | done (notarization and menu bar pending) |
-| 10 | `ci-quality-gates` — GitHub Actions on three OSes, cargo-deny, artefacts | configured, not yet run |
-| 11 | `windows-distribution` — exe resources, MSI, signing | planned |
-| 12 | `linux-distribution` — AppImage, Flatpak | planned |
+**Shipped** (PR #1, archived 2026-11-05): `restructure-monorepo`,
+`adopt-cross-platform-ui`, `dicom-media-import`, `image-decoding-and-volumes`,
+`multiplanar-viewing`, `contrast-windowing`, `metadata-inspector`, `privacy-safeguards`,
+`macos-distribution`, `ci-quality-gates`.
+
+**Planned:**
+
+| Change | Scope |
+| --- | --- |
+| `signed-releases` | Developer ID signing and notarization, Intel check, tagged GitHub Releases with checksums, no-network dependency gate |
+| `macos-integration` | Native menu bar; open folders from the Dock and Finder ("Open With") |
+| `jpeg-ls-support` | JPEG-LS decoding (CharLS) in release builds |
+| `field-validation` | Real vendor CDs, screen readers, usability sessions, log privacy review |
+| `windows-distribution` | Executable resources, MSI installer, Authenticode signing; re-enable the Windows CI check (paused to save CI time) |
+| `linux-distribution` | AppImage and Flatpak |
 
 Later ideas (not yet proposed): measurements and annotations, cine for dynamic series,
-3D volume rendering, export (PNG/de-identified DICOM), localisation, side-by-side study
-comparison, and — only with de-identification and explicit consent — AI explanations.
+3D volume rendering, export (PNG/de-identified DICOM and the attribute list),
+localisation, side-by-side study comparison, and — only with de-identification and
+explicit consent — AI explanations.
 
 ## Licence
 
