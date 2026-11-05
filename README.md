@@ -141,7 +141,7 @@ integration.
 | `macos-integration` | Native menu bar; open folders from the Dock and Finder ("Open With") |
 | `jpeg-ls-support` | JPEG-LS decoding (CharLS) in release builds |
 | `field-validation` | Real vendor CDs, screen readers, usability sessions, log privacy review |
-| `windows-distribution` | Executable resources, MSI installer, Authenticode signing |
+| `windows-distribution` | Executable resources, MSI installer, Authenticode signing; re-enable the Windows CI check (paused to save CI time) |
 | `linux-distribution` | AppImage and Flatpak |
 
 Later ideas (not yet proposed): measurements and annotations, cine for dynamic series,

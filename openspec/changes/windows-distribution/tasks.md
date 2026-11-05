@@ -15,3 +15,7 @@
 - [ ] 3.1 Launch on Windows 10 and 11; DX12 and WARP rendering
 - [ ] 3.2 Open a patient CD from the optical drive; drive-letter media detection
 - [ ] 3.3 Settings persisted in `%APPDATA%\SumMRIse`
+
+## 4. CI
+
+- [ ] 4.1 Re-enable the Windows lint & test job (paused on 2026-11-05 to save CI time; last green in CI run 41940267145)

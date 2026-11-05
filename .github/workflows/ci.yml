@@ -25,7 +25,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-24.04]
+        # windows-latest is temporarily paused to save CI time (it last passed in run
+        # 41940267145). Re-add it here to re-enable; tracked in the OpenSpec change
+        # `windows-distribution`. Windows packaging still runs on pushes to main.
+        os: [macos-latest, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
