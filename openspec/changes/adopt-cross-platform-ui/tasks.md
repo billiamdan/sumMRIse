@@ -25,5 +25,7 @@
 
 - [x] 4.1 `egui_kittest` offscreen smoke test (welcome, CT, MPR, 2×2, attributes, MR, colour image)
 - [x] 4.2 Accessibility check passes (labels for preset combo, W/L fields, slab controls)
+- [x] 4.2a Platform shortcut labels via `widgets::shortcut`/`command_key` (⌘ only on macOS; Windows CI caught a hard-coded ⌘)
+- [x] 4.2b Glyph test: every non-ASCII character in UI text renders with egui's bundled fonts; ⌘ only from the helpers
 - [x] 4.3 Manual run of the bundled macOS app against the synthetic CD
 - [ ] 4.4 Manual check with a screen reader (VoiceOver) — not yet done

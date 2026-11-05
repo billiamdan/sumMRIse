@@ -62,3 +62,21 @@ reader (AccessKit), including icon-only buttons, combo boxes and numeric fields.
 #### Scenario: Automated accessibility check
 - **WHEN** the offscreen UI smoke test renders the viewer
 - **THEN** no widget without an accessible name is reported
+
+### Requirement: Platform conventions in UI text
+Shortcut hints SHALL follow the platform convention (⌘ on macOS, "Ctrl+" on Windows and
+Linux), and all other non-ASCII characters in UI text SHALL be renderable with the fonts
+bundled in the application, independent of installed system fonts.
+
+#### Scenario: Shortcut hint on Windows
+- **WHEN** the user hovers the inspector toggle on Windows
+- **THEN** the tooltip reads "Image information (Ctrl+I)"
+
+#### Scenario: Shortcut hint on macOS
+- **WHEN** the user hovers the same toggle on macOS
+- **THEN** the tooltip reads "Image information (⌘I)"
+
+#### Scenario: Minimal system fonts
+- **WHEN** the platform UI font is unavailable and only egui's bundled fonts are present
+- **THEN** every label and tooltip renders without missing-glyph boxes
+

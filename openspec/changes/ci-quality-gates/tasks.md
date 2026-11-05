@@ -12,6 +12,6 @@
 ## 2. Not verifiable on this machine
 
 - [ ] 2.1 First green run on GitHub Actions (push the branch)
-- [ ] 2.2 Confirm the offscreen UI test renders on Windows (WARP) and Linux (lavapipe) runners
+- [ ] 2.2 Confirm the offscreen UI test renders on Windows (WARP) and Linux (lavapipe) runners — Linux and macOS confirmed; Windows rendered the welcome screen, full test pending the glyph fix
 - [x] 2.3 Pin third-party actions to commit SHAs (checkout v7.0.1, rust-cache v2.9.3, cargo-deny-action v2.1.1, upload-artifact v7.0.2; Node 24)
 - [ ] 2.4 Publish tagged builds to GitHub Releases with checksums

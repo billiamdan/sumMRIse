@@ -8,7 +8,7 @@ use summrise_core::RecentStudies;
 
 use crate::app::Action;
 use crate::theme;
-use crate::widgets::{card, icon, paint_logo, primary_button, section_title};
+use crate::widgets::{card, icon, paint_logo, primary_button, section_title, shortcut};
 
 pub(crate) fn show(ui: &mut Ui, recent: &RecentStudies, media: &[PathBuf], actions: &mut Vec<Action>) {
     let p = theme::palette(ui);
@@ -28,7 +28,7 @@ pub(crate) fn show(ui: &mut Ui, recent: &RecentStudies, media: &[PathBuf], actio
             );
             ui.add_space(22.0);
             if primary_button(ui, &format!("{}  Open folder or disc…", icon(ICON_FOLDER_OPEN)), vec2(280.0, 42.0))
-                .on_hover_text(format!("{}+O", if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" }))
+                .on_hover_text(shortcut("O"))
                 .clicked()
             {
                 actions.push(Action::OpenDialog);

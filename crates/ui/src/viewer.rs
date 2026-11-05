@@ -25,7 +25,7 @@ use crate::inspector::Inspector;
 use crate::render::RenderCache;
 use crate::theme;
 use crate::viewport::{self, Hover, ViewportInput};
-use crate::widgets::icon;
+use crate::widgets::{command_key, icon, shortcut};
 
 pub(crate) struct Viewer {
     pub session: Session,
@@ -146,7 +146,7 @@ impl Viewer {
     ) {
         ui.horizontal(|ui| {
             let browser_icon = if settings.show_browser { ICON_LEFT_PANEL_CLOSE } else { ICON_LEFT_PANEL_OPEN };
-            if ui.button(icon(browser_icon)).on_hover_text("Series browser (⌘B)").clicked() {
+            if ui.button(icon(browser_icon)).on_hover_text(format!("Series browser ({})", shortcut("B"))).clicked() {
                 settings.show_browser = !settings.show_browser;
             }
             ui.separator();
@@ -171,9 +171,12 @@ impl Viewer {
                 [(Tool::WindowLevel, ICON_CONTRAST), (Tool::Pan, ICON_PAN_TOOL), (Tool::Zoom, ICON_ZOOM_IN)]
             {
                 let hint = match tool {
-                    Tool::WindowLevel => "Contrast: drag ↔ width, ↕ level (also right-drag)",
-                    Tool::Pan => "Pan: drag (also middle-drag or Shift-drag)",
-                    Tool::Zoom => "Zoom: drag ↕ (also pinch or ⌘-scroll)",
+                    Tool::WindowLevel => {
+                        "Contrast: drag left/right for width, up/down for level (or right-drag with any tool)"
+                            .to_owned()
+                    }
+                    Tool::Pan => "Pan: drag (also middle-drag or Shift-drag)".to_owned(),
+                    Tool::Zoom => format!("Zoom: drag up/down (also pinch or {}-scroll)", command_key()),
                 };
                 if ui
                     .add(egui::Button::selectable(self.tool == tool, format!("{} {}", icon(ic), tool.label())))
@@ -283,7 +286,11 @@ impl Viewer {
             ui.with_layout(ELayout::right_to_left(Align::Center), |ui| {
                 let inspector_icon =
                     if settings.show_inspector { ICON_RIGHT_PANEL_CLOSE } else { ICON_RIGHT_PANEL_OPEN };
-                if ui.button(icon(inspector_icon)).on_hover_text("Image information (⌘I)").clicked() {
+                if ui
+                    .button(icon(inspector_icon))
+                    .on_hover_text(format!("Image information ({})", shortcut("I")))
+                    .clicked()
+                {
                     settings.show_inspector = !settings.show_inspector;
                 }
                 if ui.button(icon(ICON_SETTINGS)).on_hover_text("Settings").clicked() {
@@ -301,7 +308,7 @@ impl Viewer {
                 }
                 if ui
                     .button(format!("{} Open", icon(ICON_FOLDER_OPEN)))
-                    .on_hover_text("Open another folder or disc (⌘O)")
+                    .on_hover_text(format!("Open another folder or disc ({})", shortcut("O")))
                     .clicked()
                 {
                     actions.push(Action::OpenDialog);
@@ -408,9 +415,10 @@ impl Viewer {
                 }
                 _ => {
                     ui.label(
-                        RichText::new(
-                            "Scroll: change image · Drag: contrast · Pinch/⌘-scroll: zoom · Double-click: fit",
-                        )
+                        RichText::new(format!(
+                            "Scroll: change image · Drag: contrast · Pinch/{}-scroll: zoom · Double-click: fit",
+                            command_key()
+                        ))
                         .small()
                         .color(p.text_weak),
                     );

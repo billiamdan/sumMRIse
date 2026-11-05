@@ -355,7 +355,7 @@ pub fn summarize(obj: &InMemDicomObject, transfer_syntax: &str) -> Vec<SummarySe
             let col = DVec3::new(o[3], o[4], o[5]);
             let plane = AnatomicalPlane::from_normal(row.cross(col));
             format!(
-                "{plane} — rows → {}, columns → {}",
+                "{plane} (rows toward {}, columns toward {})",
                 summrise_imaging::orientation_label(row),
                 summrise_imaging::orientation_label(col)
             )

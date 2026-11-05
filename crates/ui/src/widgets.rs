@@ -8,6 +8,17 @@ use egui_material_icons::MaterialIcon;
 
 use crate::theme;
 
+/// Name of the primary shortcut modifier: "⌘" on macOS, "Ctrl" elsewhere.
+/// (⌘ is only shown on macOS, whose UI font has the glyph.)
+pub(crate) fn command_key() -> &'static str {
+    if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" }
+}
+
+/// Platform shortcut label: "⌘B" on macOS, "Ctrl+B" on Windows and Linux.
+pub(crate) fn shortcut(key: &str) -> String {
+    if cfg!(target_os = "macos") { format!("⌘{key}") } else { format!("Ctrl+{key}") }
+}
+
 /// Icon codepoint for inline use in labels (`format!("{} Open", icon(...))`).
 pub(crate) fn icon(icon: MaterialIcon) -> &'static str {
     icon.codepoint
