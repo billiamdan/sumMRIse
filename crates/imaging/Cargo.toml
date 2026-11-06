@@ -12,7 +12,11 @@ publish.workspace = true
 glam.workspace = true
 rayon.workspace = true
 serde.workspace = true
+summrise-i18n.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+summrise-testkit.workspace = true
 
 [lints]
 workspace = true

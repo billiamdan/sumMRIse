@@ -25,9 +25,11 @@ dicom-transfer-syntax-registry.workspace = true
 glam.workspace = true
 log.workspace = true
 rayon.workspace = true
+summrise-i18n.workspace = true
 summrise-imaging.workspace = true
 thiserror.workspace = true
 walkdir.workspace = true
+zip.workspace = true
 
 [dev-dependencies]
 summrise-testkit.workspace = true

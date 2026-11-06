@@ -7,8 +7,10 @@ use std::collections::HashMap;
 use egui::{ColorImage, Context, TextureHandle, TextureOptions, Vec2, vec2};
 use summrise_core::dicom::FrameRef;
 use summrise_core::imaging::window::{gray_to_rgba, rgb_to_rgba};
-use summrise_core::imaging::{DVec3, ImagePlane, MprAxis, MprImage, SlabMode, VoiFunction, reslice};
+use summrise_core::imaging::{DVec3, ImagePlane, MprAxis, MprImage, PlaneBasis, SlabMode, VoiFunction, reslice_plane};
 use summrise_core::{ImageSlot, SeriesData, SeriesKey, ViewKind, ViewState};
+
+use crate::fidelity;
 
 /// Largest reformatted image edge (pixels).
 const MPR_MAX_DIM: usize = 768;
@@ -16,12 +18,22 @@ const MPR_MAX_DIM: usize = 768;
 #[derive(Debug, Clone, PartialEq)]
 struct RenderKey {
     position: u64,
+    /// The stack shown, whose volume the reformats show.
+    stack: usize,
+    /// Orientation of a reformat plane; changes when the planes are tilted.
+    plane: Option<PlaneBasis>,
     /// What the displayed slot holds; changes when its image is decoded.
     picture: Picture,
     window: (u64, u64, VoiFunction),
     invert: bool,
     slab: Option<(SlabMode, u64)>,
     smooth: bool,
+    /// Acquired images: the contrast table shown instead of the window, and
+    /// whether scanner graphics are drawn (display-fidelity).
+    contrast_table: Option<usize>,
+    graphics: bool,
+    /// Colour map, and a PET drawn over the picture (see `pet`).
+    look: crate::pet::Look,
 }
 
 /// What a viewport shows at the place of the image.
@@ -104,6 +116,14 @@ impl Displayed {
         }
     }
 
+    /// Millimetres per pixel vertically, when known.
+    pub(crate) fn mm_per_pixel_y(&self) -> Option<f64> {
+        match self {
+            Self::Frame { spacing, .. } => spacing.map(|s| s[0]),
+            Self::Mpr(m) => Some(m.spacing),
+        }
+    }
+
     pub(crate) fn value_at(&self, series: &SeriesData, x: usize, y: usize) -> Option<f32> {
         match self {
             Self::Frame { index, .. } => match series.frame(*index)? {
@@ -151,7 +171,9 @@ impl RenderCache {
         self.entries.get(&(series, kind))
     }
 
-    /// Ensures an up-to-date texture exists for this view.
+    /// Ensures an up-to-date texture exists for this view. `overlay` is the
+    /// series a PET overlay of the view is drawn from, once it is ready.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn update(
         &mut self,
         ctx: &Context,
@@ -160,31 +182,41 @@ impl RenderCache {
         series: &SeriesData,
         state: &ViewState,
         smooth: bool,
+        overlay: Option<crate::pet::Overlay<'_>>,
     ) {
         let (position, picture) = match kind {
             ViewKind::Stack => {
-                let index = state.slice_index(kind, series);
+                let index = state.slot_index(series);
                 (index as u64, Picture::of(series.image(index)))
             }
             ViewKind::Mpr(axis) => (state.mpr_position(axis).to_bits(), Picture::Image),
+            // Drawn by `volume_view`.
+            ViewKind::Volume => return,
         };
         let render_key = RenderKey {
             position,
+            stack: state.stack(),
+            plane: if let ViewKind::Mpr(axis) = kind { Some(state.plane_basis(axis)) } else { None },
             picture,
             window: (state.window.center.to_bits(), state.window.width.to_bits(), state.window.function),
             invert: state.invert,
             slab: match kind {
                 ViewKind::Mpr(_) => state.slab.map(|s| (s.mode, s.thickness_mm.to_bits())),
                 ViewKind::Stack => None,
+                ViewKind::Volume => None,
             },
             smooth,
+            contrast_table: state.lut.filter(|_| kind == ViewKind::Stack),
+            graphics: kind == ViewKind::Stack && state.show_graphics,
+            look: crate::pet::Look::of(state, overlay),
         };
         if self.entries.get(&(key, kind)).is_some_and(|r| r.key == render_key) {
             return;
         }
         let Some((image, displayed)) = (match kind {
-            ViewKind::Stack => render_frame(series, state),
-            ViewKind::Mpr(axis) => render_mpr(series, state, axis),
+            ViewKind::Stack => render_frame(series, state, overlay),
+            ViewKind::Mpr(axis) => render_mpr(series, state, axis, overlay),
+            ViewKind::Volume => None,
         }) else {
             self.entries.remove(&(key, kind));
             return;
@@ -215,25 +247,38 @@ impl RenderCache {
 
 /// The acquired image at the current position: its pixels if they are
 /// decoded, and in any case its geometry, which is known from the headers.
-fn render_frame(series: &SeriesData, state: &ViewState) -> Option<(Option<ColorImage>, Displayed)> {
-    let index = state.slice_index(ViewKind::Stack, series);
+pub(crate) fn render_frame(
+    series: &SeriesData,
+    state: &ViewState,
+    overlay: Option<crate::pet::Overlay<'_>>,
+) -> Option<(Option<ColorImage>, Displayed)> {
+    let index = state.slot_index(series);
     let info = series.frames().get(index)?;
     let frame = series.frame(index);
     let (width, height) = frame.map_or((info.width, info.height), |f| f.size());
     let image = frame.map(|frame| {
-        let rgba = match frame {
-            FrameRef::Gray { data, .. } => gray_to_rgba(data.len(), |i| data.get(i), &state.window, state.invert),
+        let mut rgba = match frame {
+            FrameRef::Gray { data, .. } => fidelity::grey_rgba(series, index, data, state),
             FrameRef::Rgb { data, .. } => rgb_to_rgba(data, state.invert),
         };
+        // The colour map and a PET over the picture, then the scanner graphics over both.
+        crate::pet::compose_frame(&mut rgba, frame, info.plane.as_ref(), state, overlay);
+        fidelity::draw_graphics(&mut rgba, (width, height), series, index, state);
         ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &rgba)
     });
     Some((image, Displayed::Frame { index, width, height, plane: info.plane, spacing: info.pixel_spacing }))
 }
 
-fn render_mpr(series: &SeriesData, state: &ViewState, axis: MprAxis) -> Option<(Option<ColorImage>, Displayed)> {
-    let volume = series.volume()?;
-    let mpr = reslice(volume, axis, state.mpr_position(axis), state.slab, MPR_MAX_DIM);
-    let rgba = gray_to_rgba(mpr.values.len(), |i| mpr.values[i], &state.window, state.invert);
+fn render_mpr(
+    series: &SeriesData,
+    state: &ViewState,
+    axis: MprAxis,
+    overlay: Option<crate::pet::Overlay<'_>>,
+) -> Option<(Option<ColorImage>, Displayed)> {
+    let volume = series.stack_volume(state.stack())?;
+    let mpr = reslice_plane(volume, &state.plane_basis(axis), state.mpr_position(axis), state.slab, MPR_MAX_DIM);
+    let mut rgba = gray_to_rgba(mpr.values.len(), |i| mpr.values[i], &state.window, state.invert);
+    crate::pet::compose_reformat(&mut rgba, &mpr, state, overlay);
     let image = ColorImage::from_rgba_unmultiplied([mpr.width, mpr.height], &rgba);
     Some((Some(image), Displayed::Mpr(Box::new(mpr))))
 }

@@ -7,10 +7,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use rayon::prelude::*;
-use summrise_dicom::{Series, Study, StudyIndex, Thumbnail};
+use summrise_dicom::{Media, Series, Stacks, Study, StudyIndex, Thumbnail};
 
 use crate::jobs::{Decoders, DicomFiles, ImageSource, SeriesLoader, Stream, Waker};
 use crate::series::SeriesData;
+
+mod overlay;
+pub use overlay::{OverlayProblem, OverlayStatus};
 
 /// Identifies a series within a [`StudyIndex`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -88,6 +91,13 @@ pub struct Session {
     /// Threads that decode the files the loaders read.
     decoders: Option<Arc<Decoders>>,
     waker: Option<Waker>,
+    /// How each series splits into stacks, from its headers: `[study][series]`.
+    stacks: Vec<Vec<Option<Stacks>>>,
+    /// The series drawn over the displayed one (a PET over a CT or MR): it
+    /// keeps loading and is never evicted while it is (see `overlay`).
+    overlay: Option<SeriesKey>,
+    /// Why the overlay is not loaded, when the headers already rule it out.
+    overlay_problem: Option<OverlayProblem>,
 }
 
 impl Session {
@@ -105,6 +115,8 @@ impl Session {
     ) -> Self {
         let index = Arc::new(index);
         let thumbnail_stream = Some(Self::spawn_thumbnails(index.clone(), waker.clone()));
+        let stacks =
+            index.studies.iter().map(|s| s.series.iter().map(summrise_dicom::series_stacks).collect()).collect();
         let mut session = Self {
             index,
             active_study: 0,
@@ -118,6 +130,9 @@ impl Session {
             source,
             decoders: decoders(),
             waker,
+            stacks,
+            overlay: None,
+            overlay_problem: None,
         };
         if let Some(key) = session.default_series(0) {
             session.select_series(key);
@@ -141,7 +156,7 @@ impl Session {
                     return;
                 }
                 let series = &index.studies[key.study].series[key.series];
-                let result = summrise_dicom::thumbnail(series, THUMBNAIL_SIZE).map_err(|e| e.to_string());
+                let result = summrise_dicom::thumbnail(&index.media, series, THUMBNAIL_SIZE).map_err(|e| e.to_string());
                 emit((*key, result));
             });
         })
@@ -153,6 +168,12 @@ impl Session {
 
     pub fn root(&self) -> &Path {
         &self.index.root
+    }
+
+    /// Where the files of the open studies are read from: the folder, or the
+    /// archive or disc image that was opened.
+    pub fn media(&self) -> &Media {
+        &self.index.media
     }
 
     pub fn studies(&self) -> &[Study] {
@@ -170,6 +191,13 @@ impl Session {
     pub fn active(&self) -> Option<(SeriesKey, &Series)> {
         let key = self.active_series?;
         Some((key, self.series(key)?))
+    }
+
+    /// How series `key` is split into stacks (from its headers, as the series
+    /// will be planned), before any of its images is loaded; `None` when it
+    /// is not split.
+    pub fn stacks(&self, key: SeriesKey) -> Option<&Stacks> {
+        self.stacks.get(key.study)?.get(key.series)?.as_ref()
     }
 
     /// The series shown when a study is opened: the largest cross-sectional
@@ -211,28 +239,34 @@ impl Session {
         match self.series.get(&key) {
             Some(SeriesState::Loading(loading)) => loading.loader.resume(),
             Some(SeriesState::Ready(_)) => {}
-            None | Some(SeriesState::Failed(_)) => {
-                let series = Arc::new(self.index.studies[key.study].series[key.series].clone());
-                // Order, positions and total are fixed here, before any pixel data is read.
-                let data = Arc::new(SeriesData::new(summrise_dicom::plan_series(&series)));
-                let displayed = self
-                    .displayed
-                    .get(&key)
-                    .copied()
-                    .filter(|&index| index < data.len())
-                    .unwrap_or_else(|| data.initial_index());
-                let loader = SeriesLoader::spawn(
-                    series,
-                    data.clone(),
-                    self.source.clone(),
-                    self.decoders.clone(),
-                    displayed,
-                    self.waker.clone(),
-                );
-                self.series.insert(key, SeriesState::Loading(LoadingSeries { data, loader, announced: false }));
-            }
+            None | Some(SeriesState::Failed(_)) => self.start_loading(key),
         }
         self.touch(key);
+    }
+
+    /// Plans series `key` and starts loading it, around the image last
+    /// displayed (for the displayed series and for the overlay).
+    fn start_loading(&mut self, key: SeriesKey) {
+        let Some(series) = self.series(key) else { return };
+        let series = Arc::new(series.clone());
+        // Order, positions and total are fixed here, before any pixel data is read.
+        let data = Arc::new(SeriesData::new(summrise_dicom::plan_series(&series)));
+        let displayed = self
+            .displayed
+            .get(&key)
+            .copied()
+            .filter(|&index| index < data.len())
+            .unwrap_or_else(|| data.initial_index());
+        let loader = SeriesLoader::spawn(
+            series,
+            self.index.media.clone(),
+            data.clone(),
+            self.source.clone(),
+            self.decoders.clone(),
+            displayed,
+            self.waker.clone(),
+        );
+        self.series.insert(key, SeriesState::Loading(LoadingSeries { data, loader, announced: false }));
     }
 
     pub fn state(&self, key: SeriesKey) -> Option<&SeriesState> {
@@ -326,16 +360,18 @@ impl Session {
 
     /// Evicts the least recently used series beyond the memory budget —
     /// complete or partly loaded, but always as a whole and never the one
-    /// displayed. An evicted series is loaded again when it is re-selected.
+    /// displayed, nor the one drawn over it. An evicted series is loaded again
+    /// when it is re-selected.
     fn enforce_budget(&mut self) {
         let size = |s: &SeriesState| s.data().map_or(0, |data| data.byte_size());
         let mut total: usize = self.series.values().map(size).sum();
         while total > self.budget_bytes {
+            let in_use = |k: &SeriesKey| Some(*k) == self.active_series || Some(*k) == self.overlay;
             let Some(victim) = self
                 .recently_used
                 .iter()
                 .copied()
-                .find(|k| Some(*k) != self.active_series && self.series.get(k).is_some_and(|s| s.data().is_some()))
+                .find(|k| !in_use(k) && self.series.get(k).is_some_and(|s| s.data().is_some()))
             else {
                 break;
             };
@@ -576,8 +612,11 @@ mod tests {
     #[test]
     fn final_state_equals_non_progressive_loading_for_every_synthetic_series() {
         let (_dir, index) = phantom(&PhantomOptions::small());
-        let reference: Vec<LoadedSeries> =
-            index.studies[0].series.iter().map(|s| load_series(s, &Progress::new()).expect("decode")).collect();
+        let reference: Vec<LoadedSeries> = index.studies[0]
+            .series
+            .iter()
+            .map(|s| load_series(&index.media, s, &Progress::new()).expect("decode"))
+            .collect();
         assert_eq!(reference.len(), 4, "CT, MR, localizer, colour");
         let mut session = Session::new(index, 1 << 30, None);
         let mut events = Vec::new();
@@ -629,7 +668,7 @@ mod tests {
         let data = session.loaded(CT).expect("complete");
         assert!(matches!(data.image(16), ImageSlot::Failed("corrupt pixel data")));
         assert_eq!(decoded(&data), (0..24).filter(|&i| i != 16).collect::<Vec<_>>(), "the others display normally");
-        assert_eq!(data.warnings(), ["1 image(s) could not be decoded: corrupt pixel data"]);
+        assert_eq!(data.warnings(), ["1 image could not be decoded: corrupt pixel data"]);
         assert!(data.volume().is_none());
         assert!(matches!(data.volume_issue(), Some(VolumeError::IrregularSpacing { .. })));
         assert_eq!(events, [SessionEvent::SeriesOpened(CT), SessionEvent::SeriesReady(CT)]);

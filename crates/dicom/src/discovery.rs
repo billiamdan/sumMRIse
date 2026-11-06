@@ -4,6 +4,9 @@
 //! lists every image file. When one is present it is authoritative (the
 //! disc's viewer software, autorun files etc. are never touched). Otherwise
 //! the folder is scanned and files are recognised by the `DICM` magic.
+//!
+//! A ZIP archive or a disc image of such a disc is searched in the same way,
+//! in memory (see [`crate::media`]).
 
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -12,10 +15,12 @@ use std::path::{Path, PathBuf};
 
 use dicom_dictionary_std::tags;
 use log::{debug, warn};
+use summrise_i18n::{tr, tr_n};
 use walkdir::WalkDir;
 
 use crate::attrs;
 use crate::error::{DicomError, Result};
+use crate::media::{ArchiveProblem, Media};
 use crate::progress::Progress;
 
 /// How the file list was obtained.
@@ -34,6 +39,12 @@ pub struct Discovery {
     pub files: Vec<PathBuf>,
     pub source: DiscoverySource,
     pub warnings: Vec<String>,
+    /// Where the files are read from. For an archive or a disc image,
+    /// `files` are paths inside it.
+    pub media: Media,
+    /// Why an archive may hold images that are not among `files`: the reason
+    /// to give if nothing can be opened.
+    pub(crate) blocker: Option<ArchiveProblem>,
 }
 
 /// File extensions that are never DICOM (viewer software, documents…).
@@ -46,36 +57,91 @@ const SKIP_EXTENSIONS: &[&str] = &[
 
 const DICOMDIR_SEARCH_DEPTH: usize = 3;
 
-/// Lists the DICOM files to index below `root` (or `root` itself if it is a file).
+/// Lists the DICOM files to index below `root` (or `root` itself if it is a
+/// file). A ZIP archive or an ISO 9660 disc image is searched like the folder
+/// it was made from, without being unpacked.
 pub fn discover(root: &Path, progress: &Progress) -> Result<Discovery> {
     let meta = fs::metadata(root).map_err(|source| DicomError::Io { path: root.to_owned(), source })?;
     if meta.is_file() {
         if is_dicomdir_name(root) {
-            return discover_from_dicomdirs(&[root.to_path_buf()], progress)
-                .map(|d| d.unwrap_or_else(|| empty(DiscoverySource::FolderScan)));
+            return discover_from_dicomdirs(&Media::folder(), &[root.to_path_buf()], progress).map(|d| match d {
+                FromDicomdirs::Found(found) => found,
+                FromDicomdirs::Unusable(warnings) => Discovery { warnings, ..empty(DiscoverySource::FolderScan) },
+            });
         }
-        return Ok(Discovery { files: vec![root.to_owned()], source: DiscoverySource::SingleFile, warnings: vec![] });
+        if let Some(archive) = Media::open_archive(root)? {
+            // The root of an archive is the empty path.
+            return discover_in(archive, Path::new(""), progress);
+        }
+        return Ok(Discovery { files: vec![root.to_owned()], ..empty(DiscoverySource::SingleFile) });
     }
+    discover_in(Media::folder(), root, progress)
+}
 
-    progress.begin("Looking for DICOMDIR", 0);
-    let dicomdirs: Vec<PathBuf> = WalkDir::new(root)
-        .max_depth(DICOMDIR_SEARCH_DEPTH)
-        .into_iter()
-        .filter_entry(|e| e.depth() == 0 || !is_hidden(e.path()))
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.file_type().is_file() && is_dicomdir_name(e.path()))
-        .map(walkdir::DirEntry::into_path)
-        .collect();
-    if !dicomdirs.is_empty()
-        && let Some(found) = discover_from_dicomdirs(&dicomdirs, progress)?
-    {
-        return Ok(found);
+/// Searches a folder, or an archive from its root: DICOMDIR first, a scan as
+/// the fallback.
+fn discover_in(media: Media, root: &Path, progress: &Progress) -> Result<Discovery> {
+    progress.begin(tr!("Looking for DICOMDIR"), 0);
+    let dicomdirs: Vec<PathBuf> =
+        files_below(&media, root, DICOMDIR_SEARCH_DEPTH).filter(|path| is_dicomdir_name(path)).collect();
+    let from_dicomdirs = if dicomdirs.is_empty() {
+        FromDicomdirs::Unusable(Vec::new())
+    } else {
+        discover_from_dicomdirs(&media, &dicomdirs, progress)?
+    };
+    // Why files that are wanted cannot be read from the archive.
+    let mut skipped = Vec::new();
+    let mut discovery = match from_dicomdirs {
+        FromDicomdirs::Found(mut found) => {
+            if let Some(archive) = media.archive() {
+                found.files.retain(|file| match archive.problem(file) {
+                    Some(problem) => {
+                        skipped.push(problem.clone());
+                        false
+                    }
+                    None => true,
+                });
+            }
+            found
+        }
+        FromDicomdirs::Unusable(reasons) => {
+            let mut scanned = scan_folder(&media, root, progress, &mut skipped)?;
+            // Say why the DICOMDIR was not used, before what the scan found.
+            scanned.warnings.splice(0..0, reasons);
+            scanned
+        }
+    };
+    if let Some(archive) = media.archive() {
+        let report = archive.report(&skipped);
+        discovery.warnings.extend(report.warnings);
+        discovery.blocker = report.blocker;
     }
-    scan_folder(root, progress)
+    discovery.media = media;
+    Ok(discovery)
+}
+
+/// The files below `root`, at most `max_depth` levels down and without hidden
+/// entries: of a folder, or of an archive (whose root is the empty path).
+fn files_below<'a>(media: &'a Media, root: &Path, max_depth: usize) -> Box<dyn Iterator<Item = PathBuf> + 'a> {
+    match media.archive() {
+        Some(archive) => Box::new(
+            archive.files().filter(move |entry| entry.depth() <= max_depth).map(|entry| entry.path().to_path_buf()),
+        ),
+        None => Box::new(
+            WalkDir::new(root)
+                .max_depth(max_depth)
+                .follow_links(false)
+                .into_iter()
+                .filter_entry(|e| e.depth() == 0 || !is_hidden(e.path()))
+                .filter_map(std::result::Result::ok)
+                .filter(|e| e.file_type().is_file())
+                .map(walkdir::DirEntry::into_path),
+        ),
+    }
 }
 
 fn empty(source: DiscoverySource) -> Discovery {
-    Discovery { files: Vec::new(), source, warnings: Vec::new() }
+    Discovery { files: Vec::new(), source, warnings: Vec::new(), media: Media::folder(), blocker: None }
 }
 
 fn is_dicomdir_name(path: &Path) -> bool {
@@ -88,31 +154,50 @@ fn is_hidden(path: &Path) -> bool {
     path.file_name().is_some_and(|n| n.to_string_lossy().starts_with('.') && n != ".")
 }
 
-/// Uses DICOMDIR indexes. Returns `None` when they are unusable so the
-/// caller falls back to a folder scan.
-fn discover_from_dicomdirs(dicomdirs: &[PathBuf], progress: &Progress) -> Result<Option<Discovery>> {
+/// What the DICOMDIR indexes of a disc gave.
+enum FromDicomdirs {
+    /// The files they list.
+    Found(Discovery),
+    /// They are unusable and the folder must be scanned instead; the warnings
+    /// say why, for the user.
+    Unusable(Vec<String>),
+}
+
+/// Uses DICOMDIR indexes, or says why they are unusable so that the caller
+/// falls back to a folder scan.
+fn discover_from_dicomdirs(media: &Media, dicomdirs: &[PathBuf], progress: &Progress) -> Result<FromDicomdirs> {
     let mut files = Vec::new();
     let mut seen = HashSet::new();
     let mut warnings = Vec::new();
     let mut used = Vec::new();
     for dicomdir in dicomdirs {
-        progress.begin("Reading DICOMDIR", 0);
-        match referenced_files(dicomdir) {
+        progress.begin(tr!("Reading DICOMDIR"), 0);
+        // The names of the entries of an archive can identify the patient: the
+        // log names the archive instead.
+        let logged = media.archive_file().unwrap_or(dicomdir);
+        match referenced_files(media, dicomdir) {
             Ok((resolved, missing)) => {
                 let total = resolved.len() + missing;
                 if total == 0 {
-                    warnings.push(format!("{} lists no images", dicomdir.display()));
+                    warnings.push(tr!("{path} lists no images", path = media.display_path(dicomdir).display()));
                     continue;
                 }
                 if missing * 10 > total {
-                    warn!("DICOMDIR {} references {missing}/{total} missing files", dicomdir.display());
-                    warnings.push(format!(
-                        "DICOMDIR references {missing} of {total} files that are missing; the folder was scanned instead"
+                    warn!("DICOMDIR {} references {missing}/{total} missing files", logged.display());
+                    warnings.push(tr_n!(
+                        "{n} of the {total} files that DICOMDIR lists is missing; the folder was scanned instead",
+                        "{n} of the {total} files that DICOMDIR lists are missing; the folder was scanned instead",
+                        missing,
+                        total = total
                     ));
-                    return Ok(None);
+                    return Ok(FromDicomdirs::Unusable(warnings));
                 }
                 if missing > 0 {
-                    warnings.push(format!("{missing} files listed in DICOMDIR are missing"));
+                    warnings.push(tr_n!(
+                        "{n} file listed in DICOMDIR is missing",
+                        "{n} files listed in DICOMDIR are missing",
+                        missing
+                    ));
                 }
                 for f in resolved {
                     if seen.insert(f.clone()) {
@@ -122,23 +207,29 @@ fn discover_from_dicomdirs(dicomdirs: &[PathBuf], progress: &Progress) -> Result
                 used.push(dicomdir.clone());
             }
             Err(e) => {
-                warn!("ignoring unreadable DICOMDIR {}: {e}", dicomdir.display());
-                warnings.push(format!("DICOMDIR could not be read ({e}); the folder was scanned instead"));
-                return Ok(None);
+                if media.archive().is_some() {
+                    warn!("ignoring an unreadable DICOMDIR in {}", logged.display());
+                    debug!("unreadable DICOMDIR: {e}");
+                } else {
+                    warn!("ignoring unreadable DICOMDIR {}: {e}", dicomdir.display());
+                }
+                warnings.push(tr!("DICOMDIR could not be read ({reason}); the folder was scanned instead", reason = e));
+                return Ok(FromDicomdirs::Unusable(warnings));
             }
         }
     }
     if files.is_empty() {
-        return Ok(None);
+        return Ok(FromDicomdirs::Unusable(warnings));
     }
-    Ok(Some(Discovery { files, source: DiscoverySource::Dicomdir(used), warnings }))
+    Ok(FromDicomdirs::Found(Discovery { files, warnings, ..empty(DiscoverySource::Dicomdir(used)) }))
 }
 
 /// Parses a DICOMDIR and resolves its Referenced File IDs relative to the
 /// DICOMDIR's folder. Returns (existing files, number of missing files).
-pub fn referenced_files(dicomdir: &Path) -> Result<(Vec<PathBuf>, usize)> {
-    let obj = dicom_object::open_file(dicomdir)
-        .map_err(|e| DicomError::Parse { path: dicomdir.to_owned(), reason: e.to_string() })?;
+pub fn referenced_files(media: &Media, dicomdir: &Path) -> Result<(Vec<PathBuf>, usize)> {
+    let obj = media
+        .open_object(dicomdir, None)
+        .map_err(|reason| DicomError::Parse { path: media.display_path(dicomdir), reason })?;
     let base = dicomdir.parent().unwrap_or(Path::new("."));
     let records = obj.get(tags::DIRECTORY_RECORD_SEQUENCE).and_then(|e| e.items()).unwrap_or(&[]);
     let mut resolver = CaseInsensitiveResolver::default();
@@ -159,7 +250,7 @@ pub fn referenced_files(dicomdir: &Path) -> Result<(Vec<PathBuf>, usize)> {
             debug!("skipping DICOMDIR record type {kind}");
             continue;
         }
-        match resolver.resolve(base, &components) {
+        match resolver.resolve(media, base, &components) {
             Some(path) => found.push(path),
             None => missing += 1,
         }
@@ -175,7 +266,11 @@ struct CaseInsensitiveResolver {
 }
 
 impl CaseInsensitiveResolver {
-    fn resolve(&mut self, base: &Path, components: &[String]) -> Option<PathBuf> {
+    fn resolve(&mut self, media: &Media, base: &Path, components: &[String]) -> Option<PathBuf> {
+        // An archive has its directory in memory, with the names normalised in the same way.
+        if let Some(archive) = media.archive() {
+            return archive.resolve(base, components);
+        }
         let direct: PathBuf = components.iter().fold(base.to_path_buf(), |p, c| p.join(c));
         if direct.is_file() {
             return Some(direct);
@@ -197,37 +292,51 @@ impl CaseInsensitiveResolver {
     }
 }
 
-fn normalise_name(name: &str) -> String {
+pub(crate) fn normalise_name(name: &str) -> String {
     name.trim().trim_end_matches(";1").trim_end_matches('.').to_ascii_lowercase()
 }
 
 /// Recursive scan recognising DICOM Part 10 files by their `DICM` magic.
-fn scan_folder(root: &Path, progress: &Progress) -> Result<Discovery> {
-    progress.begin("Scanning folder", 0);
+/// Why files of an archive that might be images cannot be read is noted in
+/// `skipped`.
+fn scan_folder(
+    media: &Media,
+    root: &Path,
+    progress: &Progress,
+    skipped: &mut Vec<ArchiveProblem>,
+) -> Result<Discovery> {
+    progress.begin(if media.archive().is_some() { tr!("Scanning the archive") } else { tr!("Scanning folder") }, 0);
     let mut files = Vec::new();
-    for entry in WalkDir::new(root)
-        .follow_links(false)
-        .into_iter()
-        .filter_entry(|e| e.depth() == 0 || !is_hidden(e.path()))
-        .filter_map(std::result::Result::ok)
-    {
+    for path in files_below(media, root, usize::MAX) {
         if progress.is_cancelled() {
             return Err(DicomError::Cancelled);
         }
-        if !entry.file_type().is_file() || is_dicomdir_name(entry.path()) {
+        if is_dicomdir_name(&path) {
             continue;
         }
-        let path = entry.path();
         let skip = path
             .extension()
             .map(|e| e.to_string_lossy().to_ascii_lowercase())
             .is_some_and(|ext| SKIP_EXTENSIONS.contains(&ext.as_str()));
-        if !skip && has_dicm_magic(path) {
-            files.push(path.to_path_buf());
+        if skip {
+            continue;
+        }
+        let is_dicom = match media.archive() {
+            None => has_dicm_magic(&path),
+            Some(archive) => match archive.problem(&path) {
+                Some(problem) => {
+                    skipped.push(problem.clone());
+                    false
+                }
+                None => archive.has_dicm_magic(&path),
+            },
+        };
+        if is_dicom {
+            files.push(path);
             progress.advance();
         }
     }
-    Ok(Discovery { files, source: DiscoverySource::FolderScan, warnings: Vec::new() })
+    Ok(Discovery { files, ..empty(DiscoverySource::FolderScan) })
 }
 
 /// Checks for the 128-byte preamble followed by `DICM` (PS3.10 7.1).

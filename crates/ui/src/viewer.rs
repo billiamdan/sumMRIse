@@ -5,27 +5,34 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use egui::{
-    Align, Color32, ComboBox, DragValue, Frame, Key, Layout as ELayout, Margin, Modifiers, Panel, Rect, RichText,
-    Slider, Ui, vec2,
+    Align, Color32, ComboBox, DragValue, Frame, Key, Label, Layout as ELayout, Margin, Modifiers, Panel, Rect,
+    RichText, Slider, Ui, vec2,
 };
 use egui_material_icons::icons::{
     ICON_BADGE, ICON_CLOSE, ICON_CONTRAST, ICON_FOLDER_OPEN, ICON_INFO, ICON_INVERT_COLORS, ICON_LEFT_PANEL_CLOSE,
     ICON_LEFT_PANEL_OPEN, ICON_PAN_TOOL, ICON_RESTART_ALT, ICON_RIGHT_PANEL_CLOSE, ICON_RIGHT_PANEL_OPEN,
     ICON_SETTINGS, ICON_VISIBILITY, ICON_VISIBILITY_OFF, ICON_WARNING, ICON_ZOOM_IN,
 };
-use summrise_core::dicom::{DiscoverySource, format};
+use summrise_core::dicom::{DiscoverySource, MediaKind, format};
 use summrise_core::imaging::{PresetSource, SlabMode};
 use summrise_core::{
-    Layout, SeriesData, SeriesKey, SeriesState, Session, SessionEvent, Settings, Tool, ViewKind, ViewState, Waker,
+    ContrastChoice, DisplayOrientation, Layout, SeriesData, SeriesKey, SeriesState, Session, SessionEvent, Settings,
+    Tool, ViewKind, ViewState, Waker,
 };
+use summrise_i18n::{tr, tr_ctx, tr_n};
 
 use crate::app::{Action, Toasts};
 use crate::browser::{self, ThumbnailTextures};
+use crate::cine::{self, Cine};
+use crate::fidelity;
+use crate::guide::{self, PresetHint as _};
 use crate::inspector::Inspector;
+use crate::orient;
 use crate::render::RenderCache;
 use crate::theme;
 use crate::viewport::{self, Hover, ViewportInput};
-use crate::widgets::{command_key, icon, shortcut};
+use crate::volume_view::{self, VolumeView};
+use crate::widgets::{command_key, icon, keep_together, shortcut};
 
 pub(crate) struct Viewer {
     pub session: Session,
@@ -34,10 +41,15 @@ pub(crate) struct Viewer {
     tool: Tool,
     active_view: ViewKind,
     renders: RenderCache,
+    volume_view: VolumeView,
     thumbs: ThumbnailTextures,
     inspector: Inspector,
     hover: Option<(ViewKind, Hover)>,
     slab_thickness: f64,
+    /// Playback of images or stacks as a loop (never saved).
+    cine: Cine,
+    /// A CT or MR asked for under a PET, until its view exists (see `pet`).
+    fusion_pending: crate::pet::Pending,
 }
 
 impl Viewer {
@@ -49,10 +61,13 @@ impl Viewer {
             tool: Tool::WindowLevel,
             active_view: ViewKind::Stack,
             renders: RenderCache::default(),
+            volume_view: VolumeView::default(),
             thumbs: ThumbnailTextures::default(),
             inspector: Inspector::default(),
             hover: None,
             slab_thickness: 10.0,
+            cine: Cine::default(),
+            fusion_pending: None,
         }
     }
 
@@ -99,7 +114,7 @@ impl Viewer {
                         }
                     }
                 }
-                SessionEvent::SeriesFailed(_, e) => toasts.error(format!("Could not open series: {e}")),
+                SessionEvent::SeriesFailed(_, e) => toasts.error(tr!("Could not open series: {reason}", reason = e)),
                 SessionEvent::ThumbnailReady(_) => {}
             }
         }
@@ -107,6 +122,7 @@ impl Viewer {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(60));
         }
         self.renders.retain_series(self.session.active_series);
+        self.volume_view.retain_series(self.session.active_series);
         let active = self.active_series();
         let has_volume = active.as_ref().is_some_and(|(_, s)| s.volume().is_some_and(|v| v.geometry.dims[2] >= 3));
         let layout = if has_volume { self.layout } else { Layout::Single };
@@ -116,6 +132,20 @@ impl Viewer {
         if let Some((key, series)) = &active {
             self.handle_keys(ui, *key, series, settings, has_volume);
         }
+        // The window of the stack shown and playback follow the UI clock.
+        match active.as_ref().and_then(|(key, series)| Some((*key, series, self.views.get_mut(key)?))) {
+            Some((key, series, state)) => {
+                state.settle_stack_window(series);
+                let rate = self.session.series(key).map_or(cine::DEFAULT_RATE, |meta| self.cine.rate(key, meta));
+                let now = ui.input(|i| i.time);
+                if let Some(due) = self.cine.tick(now, key, layout.views(), series, state, rate) {
+                    ui.ctx().request_repaint_after(due);
+                }
+            }
+            None => self.cine.stop(),
+        }
+        // The PET drawn over the series shown, which the session keeps loaded.
+        let overlay = crate::pet::sync(&mut self.session, &mut self.views, &mut self.fusion_pending);
 
         let p = theme::palette(ui);
         let reformat_blocker = reformat_blocker(self.session.active_series.and_then(|key| self.session.state(key)));
@@ -137,8 +167,19 @@ impl Viewer {
             let display = self.display_rows(active.as_ref());
             let path = active.as_ref().and_then(|(key, series)| {
                 let state = self.views.get(key)?;
-                let info = series.frames().get(state.slice)?;
+                let info = series.frames().get(state.slot_index(series))?;
                 Some(self.session.series(*key)?.instances.get(info.instance)?.path.clone())
+            });
+            let camera = self.session.active_series.and_then(|key| self.volume_view.shown_axes(key, self.active_view));
+            // The guide describes the picture as it is on screen: turned and mirrored like the view.
+            let orientation = active
+                .as_ref()
+                .and_then(|(key, _)| self.views.get(key))
+                .map_or(DisplayOrientation::STANDARD, |state| state.transform(self.active_view).orientation);
+            let scene = guide::Scene::of(settings, &self.session, &self.renders, self.active_view, orientation)
+                .map(|scene| scene.with_camera(camera));
+            let uptake = active.as_ref().and_then(|(key, series)| {
+                summrise_core::pet::uptake_section(self.session.series(*key)?, series, settings.hide_patient_details)
             });
             Panel::right("inspector")
                 .resizable(true)
@@ -146,10 +187,22 @@ impl Viewer {
                 .size_range(260.0..=640.0)
                 .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(10, 6)))
                 .show(ui, |ui| {
-                    self.inspector.show(ui, waker, path.as_deref(), &display, settings.hide_patient_details)
+                    let hide_patient = settings.hide_patient_details;
+                    let file = path.as_deref().map(|path| (self.session.media(), path));
+                    self.inspector.show(ui, waker, file, &display, hide_patient, scene.as_ref(), uptake.as_ref())
                 });
         }
-        egui::CentralPanel::no_frame().show(ui, |ui| self.viewports(ui, settings, active.as_ref(), layout));
+        // Under the images: the stack control and playback.
+        if let Some((key, series)) = active.as_ref().filter(|(_, series)| series.len() > 1)
+            && let (Some(state), Some(meta)) = (self.views.get_mut(key), self.session.series(*key))
+        {
+            let (cine, view, now) = (&mut self.cine, self.active_view, ui.input(|i| i.time));
+            Panel::bottom("playback")
+                .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(10, 4)))
+                .show(ui, |ui| cine::bar(ui, cine, *key, meta, series, state, view, now));
+        }
+        let overlay = overlay.as_ref().map(|(key, data)| crate::pet::Overlay { key: *key, data });
+        egui::CentralPanel::no_frame().show(ui, |ui| self.viewports(ui, settings, active.as_ref(), layout, overlay));
     }
 
     fn toolbar(
@@ -161,180 +214,230 @@ impl Viewer {
         has_volume: bool,
         reformat_blocker: &str,
     ) {
-        ui.horizontal(|ui| {
-            let browser_icon = if settings.show_browser { ICON_LEFT_PANEL_CLOSE } else { ICON_LEFT_PANEL_OPEN };
-            if ui.button(icon(browser_icon)).on_hover_text(format!("Series browser ({})", shortcut("B"))).clicked() {
-                settings.show_browser = !settings.show_browser;
+        // The group on the right (open, close, privacy, annotations, settings,
+        // inspector) keeps its place at the right edge; the controls on the left
+        // get the rest of the width and wrap onto another row in a narrow window,
+        // so nothing overlaps. Both stay in reading order for the keyboard. The
+        // right group's width is the one measured in the previous frame.
+        let right_id = egui::Id::unique("toolbar right group");
+        let right_width = ui.ctx().data(|d| d.get_temp::<f32>(right_id)).unwrap_or(RIGHT_GROUP_WIDTH);
+        let mut show_over = None;
+        ui.horizontal_top(|ui| {
+            let left_width = (ui.available_width() - right_width - ui.spacing().item_spacing.x).max(0.0);
+            let row = vec2(left_width, ui.spacing().interact_size.y);
+            let wrapping = ELayout::left_to_right(Align::Center).with_main_wrap(true);
+            ui.allocate_ui_with_layout(row, wrapping, |ui| {
+                show_over = self.toolbar_controls(ui, settings, active, has_volume, reformat_blocker);
+            });
+            // One row high, so that its separator does not reach down the rows on the left.
+            let row = vec2(ui.available_width(), ui.spacing().interact_size.y);
+            let right_to_left = ELayout::right_to_left(Align::Center);
+            let right = ui.allocate_ui_with_layout(row, right_to_left, |ui| toolbar_right(ui, settings, actions));
+            let measured = right.response.rect.width();
+            if (measured - right_width).abs() > 0.5 {
+                ui.ctx().data_mut(|d| d.insert_temp(right_id, measured));
+                ui.ctx().request_discard("toolbar layout");
             }
-            ui.separator();
-            for l in Layout::ALL {
-                let enabled = !l.needs_volume() || has_volume;
-                let resp = ui
-                    .add_enabled(
-                        enabled,
-                        egui::Button::selectable(self.layout == l && (enabled || l == Layout::Single), l.label()),
-                    )
-                    .on_disabled_hover_text(reformat_blocker);
-                if resp.clicked() {
-                    self.layout = l;
-                    settings.default_layout = l;
-                }
-            }
-            ui.separator();
-            for (tool, ic) in
-                [(Tool::WindowLevel, ICON_CONTRAST), (Tool::Pan, ICON_PAN_TOOL), (Tool::Zoom, ICON_ZOOM_IN)]
-            {
-                let hint = match tool {
-                    Tool::WindowLevel => {
-                        "Contrast: drag left/right for width, up/down for level (or right-drag with any tool)"
-                            .to_owned()
-                    }
-                    Tool::Pan => "Pan: drag (also middle-drag or Shift-drag)".to_owned(),
-                    Tool::Zoom => format!("Zoom: drag up/down (also pinch or {}-scroll)", command_key()),
-                };
-                if ui
-                    .add(egui::Button::selectable(self.tool == tool, format!("{} {}", icon(ic), tool.label())))
-                    .on_hover_text(hint)
-                    .clicked()
-                {
-                    self.tool = tool;
-                }
-            }
-            ui.separator();
+        });
+        if let Some(request) = show_over {
+            crate::pet::show_over(&mut self.session, &mut self.fusion_pending, request);
+        }
+    }
 
-            if let Some((key, series)) = active
-                && let Some(state) = self.views.get_mut(key)
+    /// The controls on the left of the toolbar: panels, layouts, tools and the
+    /// display of the series shown. Returns the CT or MR the user asked to see
+    /// a PET over, if any.
+    fn toolbar_controls(
+        &mut self,
+        ui: &mut Ui,
+        settings: &mut Settings,
+        active: Option<&(SeriesKey, Arc<SeriesData>)>,
+        has_volume: bool,
+        reformat_blocker: &str,
+    ) -> Option<(SeriesKey, summrise_core::pet::Fusion)> {
+        let mut show_over = None;
+        let browser_icon = if settings.show_browser { ICON_LEFT_PANEL_CLOSE } else { ICON_LEFT_PANEL_OPEN };
+        let browser_hint = tr!("Series browser ({shortcut})", shortcut = shortcut("B"));
+        if ui.button(icon(browser_icon)).on_hover_text(browser_hint).clicked() {
+            settings.show_browser = !settings.show_browser;
+        }
+        ui.separator();
+        for l in Layout::ALL {
+            let enabled = !l.needs_volume() || has_volume;
+            let resp = ui
+                .add_enabled(
+                    enabled,
+                    egui::Button::selectable(self.layout == l && (enabled || l == Layout::Single), l.label()),
+                )
+                .on_disabled_hover_text(reformat_blocker);
+            if resp.clicked() {
+                self.layout = l;
+                settings.default_layout = l;
+            }
+        }
+        ui.separator();
+        for (tool, ic) in [(Tool::WindowLevel, ICON_CONTRAST), (Tool::Pan, ICON_PAN_TOOL), (Tool::Zoom, ICON_ZOOM_IN)] {
+            let hint = match tool {
+                Tool::WindowLevel => {
+                    tr!("Contrast: drag left/right for width, up/down for level (or right-drag with any tool)")
+                        .to_owned()
+                }
+                Tool::Pan => tr!("Pan: drag (also middle-drag or Shift-drag)").to_owned(),
+                Tool::Zoom => tr!("Zoom: drag up/down (also pinch or {key}-scroll)", key = command_key()),
+            };
+            if ui
+                .add(egui::Button::selectable(self.tool == tool, format!("{} {}", icon(ic), tool.label())))
+                .on_hover_text(hint)
+                .clicked()
             {
-                if !series.is_color() {
-                    let presets = ViewState::presets(series);
-                    let preset_label = ui.label(RichText::new("Window").small());
+                self.tool = tool;
+            }
+        }
+        ui.separator();
+
+        if let Some((key, series)) = active
+            && let Some(state) = self.views.get_mut(key)
+        {
+            if !series.is_color() {
+                // Windows and the contrast tables stored in the images (display-fidelity D4).
+                let choices = ViewState::contrast_choices(series, state.stack());
+                keep_together(ui, "window", |ui| {
+                    // Translators: the contrast window (its width and level), not a window of the screen.
+                    let preset_label = ui.label(RichText::new(tr_ctx!("contrast control", "Window")).small());
                     ComboBox::from_id_salt("preset")
-                        .selected_text(state.preset.clone().unwrap_or_else(|| "Custom".into()))
-                        .width(130.0)
+                        // Translators: a contrast window set by hand.
+                        .selected_text(
+                            state.contrast_label(series).map_or_else(|| tr!("Custom").to_owned(), str::to_owned),
+                        )
+                        .width(112.0)
                         .show_ui(ui, |ui| {
                             let mut last = None;
-                            for (i, preset) in presets.iter().enumerate() {
-                                if last.is_some() && last != Some(preset.source) {
+                            for (i, choice) in choices.iter().enumerate() {
+                                let source = match choice {
+                                    ContrastChoice::Window(preset) => Some(preset.source),
+                                    ContrastChoice::Table { .. } => None,
+                                };
+                                if last.is_some() && last != Some(source) {
                                     ui.separator();
                                 }
-                                last = Some(preset.source);
-                                let hint = match preset.source {
-                                    PresetSource::Dicom => "Stored in the images",
-                                    PresetSource::Clinical => "Standard CT window",
-                                    PresetSource::Auto => "From image statistics",
-                                    PresetSource::FullRange => "All values",
-                                };
+                                last = Some(source);
                                 let label = if i < 9 {
-                                    format!("{}   {}", preset.name, i + 1)
+                                    format!("{}   {}", choice.label(), i + 1)
                                 } else {
-                                    preset.name.to_string()
+                                    choice.label().to_owned()
                                 };
-                                if ui
-                                    .selectable_label(state.preset.as_deref() == Some(&preset.name), label)
-                                    .on_hover_text(hint)
-                                    .clicked()
-                                {
-                                    state.apply_preset(preset);
+                                let entry = ui.selectable_label(state.is_chosen(choice), label);
+                                let entry = match choice {
+                                    ContrastChoice::Window(preset) => {
+                                        let hint = match preset.source {
+                                            PresetSource::Dicom => tr!("Stored in the images"),
+                                            PresetSource::Clinical if summrise_core::pet::is_suv(series.units()) => {
+                                                summrise_i18n::tr!("Standard PET window")
+                                            }
+                                            PresetSource::Clinical => tr!("Standard CT window"),
+                                            PresetSource::Auto => tr!("From image statistics"),
+                                            PresetSource::FullRange => tr!("All values"),
+                                        };
+                                        entry.preset_hint(hint, settings.show_explanations, preset, series.units())
+                                    }
+                                    ContrastChoice::Table { .. } => {
+                                        fidelity::table_hint(entry, settings.show_explanations)
+                                    }
+                                };
+                                if entry.clicked() {
+                                    state.choose_contrast(choice);
                                 }
                             }
                         })
                         .response
                         .labelled_by(preset_label.id);
-                    // The limits apply to what the user enters, never to the window that is
-                    // set: they follow the value range, which narrows from the header
-                    // estimate to the values present when loading completes, and a stored
-                    // or chosen window must not change by itself at that moment.
-                    let (lo, hi) = series.value_range();
-                    let span = f64::from(hi - lo).max(1.0);
-                    let w_label = ui.label(RichText::new("W").small()).on_hover_text("Window width (contrast)");
+                });
+                // The limits apply to what the user enters, never to the window that is
+                // set: they follow the value range, which narrows from the header
+                // estimate to the values present when loading completes, and a stored
+                // or chosen window must not change by itself at that moment.
+                let (lo, hi) = series.stack_value_range(state.stack());
+                let span = f64::from(hi - lo).max(1.0);
+                // Uptake values (SUV) need decimals.
+                let decimals = summrise_core::pet::decimals(series.units());
+                keep_together(ui, "width", |ui| {
+                    // Translators: short label of the window width field (contrast), as on scanner annotations.
+                    let w_label = ui
+                        .label(RichText::new(tr_ctx!("window width", "W")).small())
+                        .on_hover_text(tr!("Window width (contrast)"));
                     if ui
                         .add(
                             DragValue::new(&mut state.window.width)
                                 .range(1.0..=span * 4.0)
                                 .clamp_existing_to_range(false)
                                 .speed(span / 500.0)
-                                .max_decimals(0),
+                                .max_decimals(decimals),
                         )
                         .labelled_by(w_label.id)
                         .changed()
                     {
-                        state.preset = None;
+                        (state.preset, state.lut) = (None, None);
                     }
-                    let l_label = ui.label(RichText::new("L").small()).on_hover_text("Window level (brightness)");
+                });
+                keep_together(ui, "level", |ui| {
+                    // Translators: short label of the window level field (brightness); not L for the patient's left.
+                    let l_label = ui
+                        .label(RichText::new(tr_ctx!("window level", "L")).small())
+                        .on_hover_text(tr!("Window level (brightness)"));
                     if ui
                         .add(
                             DragValue::new(&mut state.window.center)
                                 .range(f64::from(lo) - span..=f64::from(hi) + span)
                                 .clamp_existing_to_range(false)
                                 .speed(span / 500.0)
-                                .max_decimals(0),
+                                .max_decimals(decimals),
                         )
                         .labelled_by(l_label.id)
                         .changed()
                     {
-                        state.preset = None;
+                        (state.preset, state.lut) = (None, None);
                     }
-                }
-                ui.toggle_value(&mut state.invert, icon(ICON_INVERT_COLORS)).on_hover_text("Invert grey scale (I)");
-                if ui.button(icon(ICON_RESTART_ALT)).on_hover_text("Reset contrast, zoom and pan (R)").clicked() {
-                    state.reset(series);
-                }
-                if layout_has_mpr(self.layout) && has_volume {
-                    ui.separator();
+                });
+            }
+            ui.toggle_value(&mut state.invert, icon(ICON_INVERT_COLORS)).on_hover_text(tr!("Invert grey scale (I)"));
+            let reset_hint = summrise_i18n::tr!("Reset contrast, zoom, pan, rotation and tilted planes (R)");
+            if ui.button(icon(ICON_RESTART_ALT)).on_hover_text(reset_hint).clicked() {
+                state.reset(series);
+            }
+            let views = if has_volume { self.layout } else { Layout::Single }.views();
+            orient::menu(ui, state, &mut self.active_view, views);
+            volume_view::toolbar(ui, state, series, views);
+            show_over = crate::pet::menu(ui, &self.session, *key, series, state);
+            if layout_has_mpr(self.layout) && has_volume {
+                // No separator: in a narrow window it would be left alone at the end of a row.
+                let slab_thickness = &mut self.slab_thickness;
+                let mode = keep_together(ui, "slab", |ui| {
                     let mut mode = state.slab.map(|s| s.mode);
-                    let slab_label = ui.label(RichText::new("Slab").small());
+                    // Translators: a thick slab of the reformats, shown as one projection.
+                    let slab_label = ui.label(RichText::new(tr!("Slab")).small());
                     ComboBox::from_id_salt("slab")
-                        .selected_text(mode.map_or("Thin slice", SlabMode::label))
-                        .width(96.0)
+                        .selected_text(mode.map_or(tr!("Thin slice"), SlabMode::label))
+                        .width(80.0)
                         .show_ui(ui, |ui| {
-                            ui.selectable_value(&mut mode, None, "Thin slice");
+                            ui.selectable_value(&mut mode, None, tr!("Thin slice"));
                             for m in SlabMode::ALL {
                                 ui.selectable_value(&mut mode, Some(m), m.label());
                             }
                         })
                         .response
                         .labelled_by(slab_label.id)
-                        .on_hover_text("Thick-slab projection for reformatted views");
+                        .on_hover_text(tr!("Thick-slab projection for reformatted views"));
                     if mode.is_some() {
-                        ui.add(Slider::new(&mut self.slab_thickness, 2.0..=100.0).suffix(" mm").max_decimals(0))
+                        ui.spacing_mut().slider_width = 80.0;
+                        ui.add(Slider::new(slab_thickness, 2.0..=100.0).suffix(" mm").max_decimals(0))
                             .labelled_by(slab_label.id);
                     }
-                    state.set_slab(mode, self.slab_thickness);
-                }
+                    mode
+                });
+                state.set_slab(mode, self.slab_thickness);
             }
-
-            ui.with_layout(ELayout::right_to_left(Align::Center), |ui| {
-                let inspector_icon =
-                    if settings.show_inspector { ICON_RIGHT_PANEL_CLOSE } else { ICON_RIGHT_PANEL_OPEN };
-                if ui
-                    .button(icon(inspector_icon))
-                    .on_hover_text(format!("Image information ({})", shortcut("I")))
-                    .clicked()
-                {
-                    settings.show_inspector = !settings.show_inspector;
-                }
-                if ui.button(icon(ICON_SETTINGS)).on_hover_text("Settings").clicked() {
-                    actions.push(Action::ShowSettings);
-                }
-                let overlay_icon = if settings.show_overlays { ICON_VISIBILITY } else { ICON_VISIBILITY_OFF };
-                if ui.button(icon(overlay_icon)).on_hover_text("Show/hide annotations (O)").clicked() {
-                    settings.show_overlays = !settings.show_overlays;
-                }
-                ui.toggle_value(&mut settings.hide_patient_details, icon(ICON_BADGE))
-                    .on_hover_text("Privacy: hide patient name, ID and birth date");
-                ui.separator();
-                if ui.button(icon(ICON_CLOSE)).on_hover_text("Close study").clicked() {
-                    actions.push(Action::CloseStudy);
-                }
-                if ui
-                    .button(format!("{} Open", icon(ICON_FOLDER_OPEN)))
-                    .on_hover_text(format!("Open another folder or disc ({})", shortcut("O")))
-                    .clicked()
-                {
-                    actions.push(Action::OpenDialog);
-                }
-            });
-        });
+        }
+        show_over
     }
 
     fn viewports(
@@ -343,6 +446,7 @@ impl Viewer {
         settings: &Settings,
         active: Option<&(SeriesKey, Arc<SeriesData>)>,
         layout: Layout,
+        overlay: Option<crate::pet::Overlay<'_>>,
     ) {
         let rect = ui.max_rect();
         ui.painter().rect_filled(rect, 0.0, Color32::from_gray(8));
@@ -357,10 +461,11 @@ impl Viewer {
         let study = self.session.studies()[key.study].clone();
         let views = layout.views();
         let rects = grid(rect, views.len());
+        let fusion = crate::pet::shown(&self.session, self.views.get(&key));
         let state = self.views.entry(key).or_insert_with(|| ViewState::new(&series));
         self.hover = None;
         for (i, (&kind, &r)) in views.iter().zip(&rects).enumerate() {
-            self.renders.update(ui.ctx(), key, kind, &series, state, settings.smooth_interpolation);
+            self.renders.update(ui.ctx(), key, kind, &series, state, settings.smooth_interpolation, overlay);
             let input = ViewportInput {
                 id: ui.scope_id().with(("viewport", kind)),
                 kind,
@@ -373,8 +478,15 @@ impl Viewer {
                 is_active: self.active_view == kind,
                 multi_view: views.len() > 1,
                 show_details: i == 0,
+                fusion: fusion.as_ref(),
             };
-            let out = viewport::show(ui, r, &input, state);
+            let out = if kind == ViewKind::Volume {
+                // The volume of the stack on screen (stack 0 for a series that is not split).
+                let volume = series.stack_volume(state.stack());
+                self.volume_view.show(ui, r, &input, key, state, volume)
+            } else {
+                viewport::show(ui, r, &input, state)
+            };
             if out.activated {
                 self.active_view = kind;
             }
@@ -383,8 +495,9 @@ impl Viewer {
                 self.active_view = kind;
             }
         }
-        // Loading concentrates on the images around the one on screen.
-        let displayed = state.slice_index(ViewKind::Stack, &series);
+        // Loading concentrates on the images around the one on screen, or on
+        // the one playback waits for.
+        let displayed = self.cine.awaited(key).unwrap_or_else(|| state.slot_index(&series));
         self.session.set_displayed(key, displayed);
     }
 
@@ -400,10 +513,11 @@ impl Viewer {
                 let shown = active
                     .and_then(|key| self.views.get(&key))
                     .map_or(series.initial_index(), |view| view.slice_index(ViewKind::Stack, series));
-                (format!("Loading image {} / {}", shown + 1, series.len()), true)
+                let count = series.stack_len();
+                (tr!("Loading image {number} / {count}", number = shown + 1, count = count), true)
             }
-            Some(SeriesState::Failed(e)) => (format!("This series could not be displayed.\n{e}"), false),
-            _ => ("Select a series".to_owned(), false),
+            Some(SeriesState::Failed(e)) => (tr!("This series could not be displayed.\n{reason}", reason = e), false),
+            _ => (tr!("Select a series").to_owned(), false),
         };
         let center = rect.center();
         if busy {
@@ -414,10 +528,16 @@ impl Viewer {
         ui.put(message, egui::Label::new(RichText::new(text).size(14.0).color(p.text_weak)).selectable(false));
     }
 
-    fn status_bar(&self, ui: &mut Ui, active: Option<&(SeriesKey, Arc<SeriesData>)>) {
+    fn status_bar(&mut self, ui: &mut Ui, active: Option<&(SeriesKey, Arc<SeriesData>)>) {
         let p = theme::palette(ui);
+        // The group on the right keeps its place; the text on the left gets the rest of
+        // the width and is shortened ("…", in full on hover) where it does not fit. The
+        // right group's width is the one measured in the previous frame.
+        let right_id = egui::Id::unique("status bar right group");
+        let right_width = ui.ctx().data(|d| d.get_temp::<f32>(right_id)).unwrap_or(0.0);
         ui.horizontal(|ui| {
-            match (&self.hover, active) {
+            let left_width = (ui.available_width() - right_width - ui.spacing().item_spacing.x).max(0.0);
+            let text = match (&self.hover, active) {
                 (Some((_, h)), Some((_, series))) => {
                     let mut parts = vec![format!("x {} y {}", h.pixel.0, h.pixel.1)];
                     if let Some(pt) = h.patient {
@@ -432,29 +552,41 @@ impl Viewer {
                         ));
                     }
                     if let Some(v) = h.value {
-                        parts.push(format!("{} {}", format::number(f64::from(v), 1), series.units().unwrap_or("")));
+                        // "40 HU", "SUV 3.1", or both values while a PET is drawn over a CT.
+                        parts.push(crate::pet::readout(&self.session, series, v, h.patient));
+                    } else if h.outside {
+                        parts.push(summrise_i18n::tr!("Outside the scanned area").to_owned());
                     }
-                    ui.label(RichText::new(parts.join("   ·   ")).small().monospace().color(p.text));
+                    RichText::new(parts.join("   ·   ")).small().monospace().color(p.text)
                 }
-                _ => {
-                    ui.label(
-                        RichText::new(format!(
-                            "Scroll: change image · Drag: contrast · Pinch/{}-scroll: zoom · Double-click: fit",
-                            command_key()
-                        ))
-                        .small()
-                        .color(p.text_weak),
-                    );
+                _ if self.active_view == ViewKind::Volume => {
+                    RichText::new(volume_view::status_hint()).small().color(p.text_weak)
                 }
-            }
-            ui.with_layout(ELayout::right_to_left(Align::Center), |ui| {
+                _ => RichText::new(tr!(
+                    "Scroll: change image · Drag: contrast · Pinch/{key}-scroll: zoom · Double-click: fit",
+                    key = command_key()
+                ))
+                .small()
+                .color(p.text_weak),
+            };
+            ui.scope(|ui| {
+                ui.set_max_width(left_width);
+                ui.add(Label::new(text).truncate());
+            });
+            let right = ui.with_layout(ELayout::right_to_left(Align::Center), |ui| {
                 let index = self.session.index();
-                let source = match &index.source {
-                    DiscoverySource::Dicomdir(_) => "DICOMDIR",
-                    DiscoverySource::FolderScan => "Folder scan",
-                    DiscoverySource::SingleFile => "Single file",
+                let source = match (self.session.media().kind(), &index.source) {
+                    (MediaKind::Zip, DiscoverySource::Dicomdir(_)) => summrise_i18n::tr!("ZIP archive · DICOMDIR"),
+                    (MediaKind::Zip, _) => summrise_i18n::tr!("ZIP archive"),
+                    (MediaKind::Iso, DiscoverySource::Dicomdir(_)) => summrise_i18n::tr!("Disc image · DICOMDIR"),
+                    (MediaKind::Iso, _) => summrise_i18n::tr!("Disc image"),
+                    (MediaKind::Folder, DiscoverySource::Dicomdir(_)) => "DICOMDIR",
+                    (MediaKind::Folder, DiscoverySource::FolderScan) => tr!("Folder scan"),
+                    (MediaKind::Folder, DiscoverySource::SingleFile) => tr!("Single file"),
                 };
-                ui.label(RichText::new(format!("{} images · {source}", index.stats.images)).small().color(p.text_weak))
+                let images =
+                    tr_n!("{n} image · {source}", "{n} images · {source}", index.stats.images, source = source);
+                ui.label(RichText::new(images).small().color(p.text_weak))
                     .on_hover_text(index.root.display().to_string());
                 if !index.warnings.is_empty() {
                     let warn = ui.label(
@@ -467,10 +599,21 @@ impl Viewer {
                     && series.len() > 2
                     && !series.is_color()
                 {
-                    ui.label(RichText::new(format!("{} MPR off", icon(ICON_INFO))).small().color(p.text_weak))
-                        .on_hover_text(issue.to_string());
+                    // Translators: the reformats (MPR) are not available for this series.
+                    let off = format!("{} {}", icon(ICON_INFO), tr!("MPR off"));
+                    ui.label(RichText::new(off).small().color(p.text_weak)).on_hover_text(issue.to_string());
+                }
+                if let Some((key, series)) = active
+                    && let Some(state) = self.views.get_mut(key)
+                {
+                    fidelity::graphics_toggle(ui, series, state);
                 }
             });
+            let measured = right.response.rect.width();
+            if (measured - right_width).abs() > 0.5 {
+                ui.ctx().data_mut(|d| d.insert_temp(right_id, measured));
+                ui.ctx().request_discard("status bar layout");
+            }
         });
     }
 
@@ -481,44 +624,63 @@ impl Viewer {
         };
         let complete = series.is_complete();
         let mut rows = Vec::new();
-        rows.push(("Image".into(), format!("{} of {}", state.slice + 1, series.len())));
+        let image = tr!("{number} of {count}", number = state.slice + 1, count = series.stack_len());
+        // Translators: the rows of the "Display" section of the image information.
+        rows.push((tr_ctx!("display", "Image").into(), image));
+        if let Some(stacks) = series.stacks() {
+            rows.push((summrise_i18n::tr!("Image set").to_owned(), stacks.label(state.stack())));
+            rows.push((summrise_i18n::tr!("Image sets").to_owned(), stacks.summary()));
+        }
         if !complete {
-            rows.push(("Loading".into(), format!("{} of {} images", series.loaded(), series.len())));
+            let loaded =
+                tr_n!("{loaded} of {n} image", "{loaded} of {n} images", series.len(), loaded = series.loaded());
+            rows.push((tr_ctx!("display", "Loading").into(), loaded));
         }
         if !series.is_color() {
-            let units = series.units().map(|u| format!(" {u}")).unwrap_or_default();
-            rows.push((
-                "Window".into(),
-                format!(
-                    "W {} / L {}{units} ({})",
-                    format::number(state.window.width, 1),
-                    format::number(state.window.center, 1),
-                    state.preset.as_deref().unwrap_or("custom")
-                ),
-            ));
+            // A contrast table replaces the window of the acquired images (reformats show theirs).
+            if let Some(table) = state.active_lut(series) {
+                rows.push((summrise_i18n::tr!("Contrast table").to_owned(), table.name.clone()));
+            } else {
+                let (width, level) = (format::number(state.window.width, 1), format::number(state.window.center, 1));
+                // Translators: a window set by hand, shown in brackets after its values.
+                let preset = state.preset_label(series).unwrap_or(tr!("custom"));
+                // Translators: the window in use: W its width, L its level, then its name.
+                let window = match series.units() {
+                    Some(unit) => tr!(
+                        "W {width} / L {level} {unit} ({preset})",
+                        width = width,
+                        level = level,
+                        unit = unit,
+                        preset = preset
+                    ),
+                    None => tr!("W {width} / L {level} ({preset})", width = width, level = level, preset = preset),
+                };
+                rows.push((tr_ctx!("contrast control", "Window").into(), window));
+            }
             // The values present are only known once every image is decoded.
             if complete {
-                let (lo, hi) = series.value_range();
-                rows.push(("Value range".into(), format!("{lo} … {hi}{units}")));
+                rows.push((tr!("Value range").into(), crate::pet::value_range_text(series)));
             }
         }
         if let Some(v) = series.volume() {
             let s = v.geometry.spacing();
-            rows.push((
-                "Volume".into(),
-                format!("{} × {} × {} voxels", v.geometry.dims[0], v.geometry.dims[1], v.geometry.dims[2]),
-            ));
-            rows.push(("Voxel size".into(), format!("{:.2} × {:.2} × {:.2} mm", s.x, s.y, s.z)));
+            let [columns, rows_, slices] = v.geometry.dims;
+            let voxels = tr!("{columns} × {rows} × {slices} voxels", columns = columns, rows = rows_, slices = slices);
+            // Translators: the images as one 3D block of voxels (not the loudness of sound).
+            rows.push((tr!("Volume").into(), voxels));
+            rows.push((tr!("Voxel size").into(), format!("{:.2} × {:.2} × {:.2} mm", s.x, s.y, s.z)));
             let tilt = v.geometry.shear_degrees();
             if tilt > 0.1 {
-                rows.push(("Gantry tilt".into(), format!("{tilt:.1}° (corrected in reformats)")));
+                let corrected = tr!("{degrees}° (corrected in reformats)", degrees = format!("{tilt:.1}"));
+                rows.push((tr!("Gantry tilt").into(), corrected));
             }
         } else if let Some(issue) = series.volume_issue() {
-            rows.push(("Reformatting".into(), format!("Unavailable — {issue}")));
+            rows.push((tr!("Reformatting").into(), tr!("Unavailable — {reason}", reason = issue)));
         } else if !complete {
-            rows.push(("Reformatting".into(), "Available when all images are loaded".into()));
+            rows.push((tr!("Reformatting").into(), tr!("Available when all images are loaded").into()));
         }
-        rows.push(("Memory".into(), format_bytes(series.byte_size())));
+        // Translators: the computer memory the decoded images of the series take.
+        rows.push((tr!("Memory").into(), format_bytes(series.byte_size())));
         rows
     }
 
@@ -536,13 +698,28 @@ impl Viewer {
         }
         let kind = self.active_view;
         let Some(state) = self.views.get_mut(&key) else { return };
+        // Turn, flip and tilt first: the bindings below ignore Alt and Shift.
+        orient::keys(&ctx, state, kind);
+        volume_view::keys(&ctx, state, series, kind);
         let pressed = |k: Key| ctx.input_mut(|i| i.consume_key(Modifiers::NONE, k));
         let step = |state: &mut ViewState, d: i64| state.scroll(kind, series, d);
-        if pressed(Key::ArrowUp) || pressed(Key::ArrowLeft) {
+        // Left and Right change the stack of a series with several; Up and Down the image.
+        let stacks = series.stack_count() > 1;
+        if pressed(Key::ArrowUp) || (!stacks && pressed(Key::ArrowLeft)) {
             step(state, -1);
         }
-        if pressed(Key::ArrowDown) || pressed(Key::ArrowRight) {
+        if pressed(Key::ArrowDown) || (!stacks && pressed(Key::ArrowRight)) {
             step(state, 1);
+        }
+        if stacks && pressed(Key::ArrowLeft) {
+            state.step_stack(series, -1);
+        }
+        if stacks && pressed(Key::ArrowRight) {
+            state.step_stack(series, 1);
+        }
+        // Space plays and pauses, unless a focused widget takes it (as a click).
+        if ctx.memory(|m| m.focused().is_none()) && pressed(Key::Space) {
+            self.cine.toggle(key, series, state, kind, ctx.input(|i| i.time));
         }
         if pressed(Key::PageUp) {
             step(state, -10);
@@ -566,20 +743,28 @@ impl Viewer {
         if pressed(Key::O) {
             settings.show_overlays = !settings.show_overlays;
         }
+        if pressed(Key::G) {
+            state.show_graphics = !state.show_graphics;
+        }
         if pressed(Key::M) && has_volume {
             self.layout = if self.layout == Layout::Single { Layout::Mpr } else { Layout::Single };
         }
         let digits =
             [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7, Key::Num8, Key::Num9];
         if let Some(n) = digits.iter().position(|&k| pressed(k))
-            && let Some(preset) = ViewState::presets(series).get(n)
+            && let Some(choice) = ViewState::contrast_choices(series, state.stack()).get(n)
         {
-            state.apply_preset(preset);
+            state.choose_contrast(choice);
         }
         if pressed(Key::A)
-            && let Some(preset) = ViewState::presets(series).into_iter().find(|p| p.source == PresetSource::Auto)
+            && let Some(preset) =
+                ViewState::presets_for(series, state.stack()).into_iter().find(|p| p.source == PresetSource::Auto)
         {
             state.apply_preset(&preset);
+        }
+        // C: colours of the PET; F: the PET overlay (from a PET: the CT or MR under it).
+        if let Some(request) = crate::pet::keys(&ctx, &self.session, key, series, state) {
+            crate::pet::show_over(&mut self.session, &mut self.fusion_pending, request);
         }
     }
 }
@@ -590,11 +775,11 @@ impl Viewer {
 fn reformat_blocker(state: Option<&SeriesState>) -> String {
     let series = state.and_then(SeriesState::data);
     match (state, series.and_then(|s| s.volume_issue())) {
-        (_, Some(issue)) => format!("Multiplanar reformatting unavailable: {issue}"),
+        (_, Some(issue)) => tr!("Multiplanar reformatting unavailable: {reason}", reason = issue),
         (Some(SeriesState::Loading(loading)), None) => {
-            format!("Loading {} / {}", loading.data.loaded(), loading.data.len())
+            tr!("Loading {loaded} / {total}", loaded = loading.data.loaded(), total = loading.data.len())
         }
-        _ => "Multiplanar reformatting unavailable: Needs a stack of at least 3 parallel slices".to_owned(),
+        _ => tr!("Multiplanar reformatting unavailable: Needs a stack of at least 3 parallel slices").to_owned(),
     }
 }
 
@@ -603,6 +788,39 @@ fn format_bytes(bytes: usize) -> String {
         b if b >= 1 << 30 => format!("{:.1} GB", b as f64 / f64::from(1u32 << 30)),
         b if b >= 1 << 20 => format!("{:.1} MB", b as f64 / f64::from(1u32 << 20)),
         b => format!("{:.0} KB", (b as f64 / 1024.0).ceil()),
+    }
+}
+
+/// Width of the right-hand toolbar group before it is first measured.
+const RIGHT_GROUP_WIDTH: f32 = 280.0;
+
+/// The group at the right edge of the toolbar, laid out from the right:
+/// inspector, settings, annotations, privacy, then close and open.
+fn toolbar_right(ui: &mut Ui, settings: &mut Settings, actions: &mut Vec<Action>) {
+    let inspector_icon = if settings.show_inspector { ICON_RIGHT_PANEL_CLOSE } else { ICON_RIGHT_PANEL_OPEN };
+    let inspector_hint = tr!("Image information ({shortcut})", shortcut = shortcut("I"));
+    if ui.button(icon(inspector_icon)).on_hover_text(inspector_hint).clicked() {
+        settings.show_inspector = !settings.show_inspector;
+    }
+    if ui.button(icon(ICON_SETTINGS)).on_hover_text(tr!("Settings")).clicked() {
+        actions.push(Action::ShowSettings);
+    }
+    let overlay_icon = if settings.show_overlays { ICON_VISIBILITY } else { ICON_VISIBILITY_OFF };
+    if ui.button(icon(overlay_icon)).on_hover_text(tr!("Show/hide annotations (O)")).clicked() {
+        settings.show_overlays = !settings.show_overlays;
+    }
+    ui.toggle_value(&mut settings.hide_patient_details, icon(ICON_BADGE))
+        .on_hover_text(tr!("Privacy: hide patient name, ID and birth date"));
+    ui.separator();
+    if ui.button(icon(ICON_CLOSE)).on_hover_text(tr!("Close study")).clicked() {
+        actions.push(Action::CloseStudy);
+    }
+    if ui
+        .button(format!("{} {}", icon(ICON_FOLDER_OPEN), tr!("Open")))
+        .on_hover_text(tr!("Open another folder or disc ({shortcut})", shortcut = shortcut("O")))
+        .clicked()
+    {
+        actions.push(Action::OpenDialog);
     }
 }
 
@@ -632,6 +850,19 @@ fn grid(rect: Rect, n: usize) -> Vec<Rect> {
     }
 }
 
+#[cfg(test)]
+mod fidelity_tests;
+#[cfg(test)]
+mod oblique_tests;
+#[cfg(test)]
+mod pet_tests;
+#[cfg(test)]
+mod stacks_tests;
+#[cfg(test)]
+mod toolbar_tests;
+#[cfg(test)]
+mod volume_tests;
+
 /// The viewer while a series loads, driven frame by frame with an image
 /// source that the tests let through one file at a time. Set
 /// `SUMMRISE_SNAPSHOT_DIR` to keep renderings of the loading states.
@@ -643,7 +874,7 @@ mod tests {
 
     use egui_kittest::Harness;
     use egui_kittest::kittest::{NodeT, Queryable};
-    use summrise_core::dicom::{DecodedInstance, DicomError, InstanceHeader, Progress, scan};
+    use summrise_core::dicom::{DecodedInstance, DicomError, InstanceHeader, Media, Progress, scan};
     use summrise_core::{DicomFiles, ImageSource};
     use summrise_testkit::{PhantomOptions, write_phantom_study};
 
@@ -676,12 +907,12 @@ mod tests {
     }
 
     impl ImageSource for SlowSource {
-        fn read(&self, header: &InstanceHeader) -> Result<Vec<u8>, DicomError> {
+        fn read(&self, media: &Media, header: &InstanceHeader) -> Result<Vec<u8>, DicomError> {
             let turn = self.started.fetch_add(1, Ordering::SeqCst);
             while turn >= self.allowed.load(Ordering::SeqCst) {
                 std::thread::sleep(Duration::from_millis(1));
             }
-            DicomFiles.read(header)
+            DicomFiles.read(media, header)
         }
 
         fn decode(&self, header: &InstanceHeader, bytes: Vec<u8>) -> Result<DecodedInstance, DicomError> {

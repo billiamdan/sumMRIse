@@ -6,9 +6,10 @@ use egui::{
     Color32, ColorImage, CornerRadius, Label, ProgressBar, RichText, ScrollArea, Sense, Shape, TextureHandle,
     TextureOptions, Ui, vec2,
 };
-use egui_material_icons::icons::{ICON_ERROR, ICON_WARNING};
+use egui_material_icons::icons::{ICON_ERROR, ICON_LAYERS, ICON_WARNING};
 use summrise_core::dicom::{Study, format};
 use summrise_core::{SeriesKey, SeriesState, Session, Settings};
+use summrise_i18n::{tr, tr_n};
 
 use crate::theme;
 use crate::widgets::{chip, icon, section_title};
@@ -32,7 +33,8 @@ impl ThumbnailTextures {
 }
 
 fn study_label(study: &Study) -> String {
-    let date = study.date.as_deref().and_then(format::date).unwrap_or_else(|| "Undated".into());
+    // Translators: a study without a date.
+    let date = study.date.as_deref().and_then(format::date).unwrap_or_else(|| tr!("Undated").into());
     format!("{date} · {}", study.title())
 }
 
@@ -77,11 +79,13 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
     if let Some(d) = study.date.as_deref().and_then(format::date) {
         meta.push(d);
     }
-    meta.push(format!("{} series · {} images", study.series.len(), study.image_count()));
+    meta.push(tr_n!("{n} series", "{n} series", study.series.len()));
+    meta.push(tr_n!("{n} image", "{n} images", study.image_count()));
     ui.label(RichText::new(meta.join(" · ")).small().color(p.text_weak));
     if !settings.hide_patient_details {
         let pt = &study.patient;
-        let mut who = vec![pt.name.as_deref().map(format::person_name).unwrap_or_else(|| "Unknown patient".into())];
+        let mut who =
+            vec![pt.name.as_deref().map(format::person_name).unwrap_or_else(|| tr!("Unknown patient").into())];
         who.extend(pt.age.as_deref().and_then(format::age));
         who.extend(pt.sex.as_deref().map(format::sex));
         ui.label(RichText::new(who.join(" · ")).small().color(p.text_weak));
@@ -93,7 +97,7 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
     });
     ui.add_space(4.0);
     ui.separator();
-    section_title(ui, "Series");
+    section_title(ui, tr!("Series"));
 
     let active_study = session.active_study;
     let mut clicked = None;
@@ -120,6 +124,12 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
                 ui.vertical(|ui| {
                     ui.set_width(ui.available_width());
                     ui.add(Label::new(RichText::new(series.title()).strong()).truncate());
+                    if settings.show_explanations
+                        && let Some(line) = summrise_core::guide::series_line(series)
+                    {
+                        // What the series is, in plain language.
+                        ui.add(Label::new(RichText::new(line).small().color(p.text)).wrap());
+                    }
                     let mut line = Vec::new();
                     if let Some(n) = series.number {
                         line.push(format!("#{n}"));
@@ -128,7 +138,7 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
                     if let Some(plane) = series.plane() {
                         line.push(plane.label().to_owned());
                     } else if series.has_mixed_planes() {
-                        line.push("Mixed planes".into());
+                        line.push(tr!("Mixed planes").into());
                     }
                     ui.label(RichText::new(line.join(" · ")).small().color(p.text_weak));
                     let dims = series.dimensions().map(|(w, h)| format!(" · {w}×{h}")).unwrap_or_default();
@@ -138,8 +148,20 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
                         _ => None,
                     };
                     let total = series.frame_count();
-                    let count = loading.map_or_else(|| total.to_string(), |(loaded, _)| format!("{loaded} / {total}"));
-                    ui.label(RichText::new(format!("{count} images{dims}")).small().color(p.text_weak));
+                    let count = match loading {
+                        Some((loaded, _)) => {
+                            tr_n!("{loaded} / {n} image", "{loaded} / {n} images", total, loaded = loaded)
+                        }
+                        None => tr_n!("{n} image", "{n} images", total),
+                    };
+                    ui.label(RichText::new(format!("{count}{dims}")).small().color(p.text_weak));
+                    if let Some(stacks) = session.stacks(key) {
+                        // Several sets of images at the same positions, shown one set at a time.
+                        ui.label(RichText::new(format!("{} {}", icon(ICON_LAYERS), stacks.summary())).small().color(p.text))
+                            .on_hover_text(tr!(
+                                "This series holds several sets of images of the same slices; the viewer shows one set at a time."
+                            ));
+                    }
                     let unsupported = series.unsupported_transfer_syntaxes();
                     if !unsupported.is_empty() {
                         ui.label(
@@ -151,15 +173,19 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
                             .small()
                             .color(p.warn),
                         )
-                        .on_hover_text("This compression is not supported by this build");
+                        .on_hover_text(tr!("This compression is not supported by this build"));
                     }
                     match session.state(key) {
                         Some(SeriesState::Loading(_)) => {
                             let (loaded, paused) = loading.unwrap_or_default();
                             let hint = if paused {
-                                format!("Paused at {loaded} / {total} — select the series to continue loading")
+                                tr!(
+                                    "Paused at {loaded} / {total} — select the series to continue loading",
+                                    loaded = loaded,
+                                    total = total
+                                )
                             } else {
-                                format!("Loading {loaded} / {total}")
+                                tr!("Loading {loaded} / {total}", loaded = loaded, total = total)
                             };
                             ui.add(
                                 ProgressBar::new(loaded as f32 / total.max(1) as f32)
@@ -170,7 +196,9 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
                         }
                         Some(SeriesState::Failed(e)) => {
                             ui.label(
-                                RichText::new(format!("{} Could not decode", icon(ICON_ERROR))).small().color(p.error),
+                                RichText::new(format!("{} {}", icon(ICON_ERROR), tr!("Could not decode")))
+                                    .small()
+                                    .color(p.error),
                             )
                             .on_hover_text(e);
                         }

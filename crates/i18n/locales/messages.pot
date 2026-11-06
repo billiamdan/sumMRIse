@@ -1,0 +1,3673 @@
+# Template of the messages of SumMRIse, written by `cargo xtask i18n`.
+# Do not edit: the PO files of the languages are brought up to date from the source code.
+msgid ""
+msgstr ""
+"Project-Id-Version: SumMRIse\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: crates/core/src/guide.rs
+msgid "General information about how these images were made, not an interpretation of the images."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The settings are read from one image of the series; other images of the series may differ."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Named by the scanner operator: the series description reads “{name}”."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Named by the scanner operator: the protocol name reads “{name}”."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: image type LOCALIZER."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "For this kind of sequence the recorded timing does not settle the weighting."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "No repetition time or echo time is recorded."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The images do not record which type of sequence was used."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Inferred from the recorded settings: a gradient-echo sequence with a long echo time ({te} ms) and a small flip angle ({flip} degrees)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "For this gradient-echo sequence the recorded timing does not settle the weighting."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "An inversion pulse is recorded, but not its timing."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Inferred from the recorded timing: repetition time {tr} ms and a short inversion time ({ti} ms), which suppresses the signal of fat."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Inferred from the recorded timing: long repetition time ({tr} ms), long echo time ({te} ms) and a long inversion time ({ti} ms), which suppresses the signal of fluid."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "An inversion time of {ti} ms fits none of the rules this guide uses."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Inferred from the recorded timing: short repetition time ({tr} ms) and short echo time ({te} ms)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Inferred from the recorded timing: long repetition time ({tr} ms) and long echo time ({te} ms)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Inferred from the recorded timing: long repetition time ({tr} ms) and short echo time ({te} ms)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Repetition time {tr} ms and echo time {te} ms fit none of the rules this guide uses."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: image type ADC."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: diffusion b-value {b} s/mm²."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: image type DIFFUSION."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, T1-weighted"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, likely T1-weighted"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, T2-weighted"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, likely T2-weighted"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, proton-density-weighted"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, likely proton-density-weighted"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, T2*-weighted"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, likely T2*-weighted"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, T2 FLAIR (fluid suppressed)"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, likely T2 FLAIR (fluid suppressed)"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, T1 FLAIR (fluid suppressed)"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, STIR (fat suppressed)"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, likely STIR (fat suppressed)"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, diffusion-weighted"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "MR scan, ADC map (calculated)"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The weighting of these images cannot be told from what is recorded."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "T1-weighted: on such images fat tends to appear bright and fluid dark."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Likely T1-weighted: on such images fat tends to appear bright and fluid dark."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "T2-weighted: on such images fluid tends to appear bright."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Likely T2-weighted: on such images fluid tends to appear bright."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Proton-density-weighted: on such images brightness mainly follows how much water and fat a tissue contains, so fluid and fat both appear fairly bright."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Likely proton-density-weighted: on such images brightness mainly follows how much water and fat a tissue contains, so fluid and fat both appear fairly bright."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "T2*-weighted: such images are very sensitive to small disturbances of the magnetic field; places where the field is disturbed, for example next to air, tend to appear dark."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Likely T2*-weighted: such images are very sensitive to small disturbances of the magnetic field; places where the field is disturbed, for example next to air, tend to appear dark."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "T2 FLAIR: like a T2-weighted image, but the signal of free fluid is suppressed, so fluid such as that around the brain appears dark."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Likely T2 FLAIR: like a T2-weighted image, but the signal of free fluid is suppressed, so fluid such as that around the brain appears dark."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "T1 FLAIR: a T1-weighted image made with an extra preparation pulse that suppresses the signal of free fluid, which appears dark."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "STIR: the signal of fat is suppressed and appears dark, while fluid tends to appear bright."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Likely STIR: the signal of fat is suppressed and appears dark, while fluid tends to appear bright."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Diffusion-weighted: such images are sensitive to how freely water molecules move in the tissue; where they move less freely, the image tends to be brighter."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "ADC map: an image calculated from diffusion-weighted images, not measured directly; brighter means that water moves more freely."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "CT scan"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Localizer (planning overview)"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Dose report (a stored picture)"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Stored picture (secondary capture)"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "PET scan"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Nuclear medicine image"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Ultrasound image"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "X-ray image"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Mammogram (X-ray image)"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "X-ray fluoroscopy or angiography"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Unrecognised kind of images"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A CT scan (computed tomography) measures with X-rays from many directions and computes cross-sections of the body from them. On the usual display, denser means brighter: bone is bright, air is dark."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "An MR scan (magnetic resonance imaging) is made with a strong magnet and radio waves, without X-rays. Which tissues appear bright depends on the settings of each series."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A localizer (also called scout or survey): quick overview images that the operator uses to plan the other series. They are coarse on purpose."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A picture of the dose report: a table of the radiation dose values that the scanner recorded for this examination. It is a stored picture, not a scan of the body."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A stored picture (secondary capture), such as a screenshot, a computed 3D view or a scanned document. It was produced by a workstation or by the scanner software, not measured directly."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A PET scan (positron emission tomography) shows where a weakly radioactive tracer has collected in the body."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A nuclear medicine image shows where a weakly radioactive tracer has collected in the body, recorded by a gamma camera."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "An ultrasound image is made with sound waves that the tissues reflect, without X-rays."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "An X-ray image (projection): X-rays pass through the body onto a detector, so structures lying behind each other overlap in one picture."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A mammogram: an X-ray projection image of the breast."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "X-ray fluoroscopy or angiography: X-ray projection images, often recorded as a moving sequence, for example while a contrast agent flows through vessels."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "This guide does not recognise what kind of images these are."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The files are stored pictures and the series description reads “{name}”."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: the files are secondary captures."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: modality {modality}."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The slices are axial: horizontal cross-sections of the body, like the slices of a loaf of bread."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The slices are coronal: they divide the body into front and back, like a view from the front."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The slices are sagittal: they divide the body into left and right, like a view from the side."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The slices are tilted (oblique): they lie between the standard directions."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The images of this series lie in different directions."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "This series holds {n} time point of the same slices."
+msgid_plural "This series holds {n} time points of the same slices."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: temporal position."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "This series holds {n} phase of the heartbeat at the same slices."
+msgid_plural "This series holds {n} phases of the heartbeat at the same slices."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: trigger time."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "This series holds {n} echo of the same slices: images taken at different echo times."
+msgid_plural "This series holds {n} echoes of the same slices: images taken at different echo times."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: echo number and echo time."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "This series holds {n} diffusion weighting (b-value) of the same slices."
+msgid_plural "This series holds {n} diffusion weightings (b-values) of the same slices."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: diffusion b-value."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "This series holds {n} kind of image of the same slices."
+msgid_plural "This series holds {n} kinds of image of the same slices."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: image type."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "This series holds {n} acquisition of the same slices."
+msgid_plural "This series holds {n} acquisitions of the same slices."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: acquisition number."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "This series holds {n} set of the same slices, made with a different sequence."
+msgid_plural "This series holds {n} sets of the same slices, made with different sequences."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: sequence name."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "This series holds {n} set of images of the same slices."
+msgid_plural "This series holds {n} sets of images of the same slices."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/core/src/guide.rs
+msgid "The images repeat the same slice positions, and nothing recorded in them tells the sets apart."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The images were measured slice by slice (2D)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A whole block of the body was measured at once (3D) and then divided into the slices shown."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: MR acquisition type."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "No contrast agent is recorded for this series, which does not rule one out: not every scanner records it."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The contrast agent entry of the images reads “{value}”."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A contrast agent is recorded for this series: {agent}."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: contrast agent."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The contrast agent entry of the images is absent or empty."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: image orientation."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Each image shows a slice of the body {thickness} mm thick."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: slice thickness."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Computed with the reconstruction kernel “{kernel}”, as recorded by the scanner. The kernel sets the balance between sharp detail and low grain."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Recorded in the images: convolution kernel."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The time between two successive excitations of the same slice, in milliseconds (ms, thousandths of a second). Together with the echo time it largely decides which tissues appear bright."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The time between exciting the tissue and measuring its signal, in milliseconds (ms, thousandths of a second). With a long echo time, fluid stands out as bright."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The waiting time after an extra preparation pulse, in milliseconds (ms, thousandths of a second). It is chosen so that the signal of one tissue, such as fat or fluid, is suppressed."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "How far the radio pulse tips the magnetisation of the tissue, in degrees. It influences brightness and contrast."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The number of echoes measured after each excitation. More echoes shorten the scan."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "How many times each measurement was repeated and averaged. More averages give a less grainy image but take longer."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The radio frequency the scanner worked at, in megahertz (MHz, millions of cycles per second). It follows from the strength of the magnet."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The range of signal frequencies that falls into one pixel, in hertz per pixel (Hz/px). It affects image grain and some distortions."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The receiver coil, a kind of antenna placed near the body, that picked up the signal, as named by the scanner."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The scanner's internal name of the measuring programme (pulse sequence). The names differ between manufacturers."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The basic measuring technique: spin echo, gradient echo, inversion recovery or echo planar. It shapes how tissues differ in brightness."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Options of the measuring technique, recorded by the scanner as short codes, for example SP for spoiled or SK for segmented."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Further options used for the scan, recorded by the scanner as short codes, for example FS for fat suppression."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "2D means the body was measured slice by slice. 3D means a whole block was measured at once and then divided into slices."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The strength of the scanner's main magnet, in tesla (T). Most scanners have 1.5 T or 3 T."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The voltage of the X-ray tube, in kilovolts (kV, thousands of volts). It sets how penetrating the X-rays are."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The electric current through the X-ray tube, in milliamperes (mA, thousandths of an ampere). A higher current produces more X-rays: a less grainy image at a higher dose."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Tube current multiplied by exposure time, in milliampere-seconds (mAs). It is a measure of the amount of X-rays used for this image."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "How long the X-rays were on for this image, in milliseconds (ms, thousandths of a second)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A standardised measure of the radiation output of the scanner for this scan, in milligray (mGy). It describes the scanner setting, not the dose an individual person received."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The mathematical filter used to compute the images, as named by the scanner. Sharp kernels show fine detail and edges; smooth kernels reduce grain."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The filter placed in the X-ray beam inside the scanner, as named by the manufacturer."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "How far the table moves during one turn of the X-ray tube, relative to the width of the X-ray beam. At 1 the turns of the spiral lie side by side without gap or overlap."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The time the X-ray tube needs for one turn around the body, in seconds (s)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The width of the X-ray beam along the body, in millimetres (mm)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The diameter of the circular area that was computed into the image, in millimetres (mm)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The angle by which the scanner ring was tilted from the upright position, in degrees."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The contrast agent recorded for this series. Contrast agents make vessels or certain tissues stand out in the images."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The kind of equipment that made the images, for example CT (computed tomography) or MR (magnetic resonance)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The body region entered at the scanner for this series. It is picked from a list by the operator and can be imprecise."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The name of the scan programme selected at the scanner. Hospitals choose these names themselves."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The name given to this series at the scanner, usually an abbreviation of the technique and the direction of the slices."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "How the person lay in the scanner, for example head first and on the back."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The side of the body that was examined: R for right, L for left."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The number under which the hospital's information system filed this examination."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The number of this image within its series, as assigned by the scanner."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Codes describing how the image came about, for example ORIGINAL for a direct measurement or DERIVED for an image computed from others."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The number of picture points (pixels) across and down the image."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The number of images stored together in this file."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The size of the piece of the body that one pixel stands for, in millimetres (mm): across by down."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The width and height of the area of the body that the image covers, in millimetres (mm)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The thickness of the layer of the body shown in one image, in millimetres (mm). Thinner slices show finer detail but look grainier."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The distance from the middle of one slice to the middle of the next, in millimetres (mm). If it is larger than the slice thickness, there are gaps between the slices."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The position of this slice along the scan direction, in millimetres (mm), counted from a reference point set by the scanner."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Where the first pixel of this image lies in the body, in millimetres (mm): towards the patient's left, towards the back and towards the head, counted from a reference point set by the scanner."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The direction of the image through the body and the directions of its rows and columns. The letters stand for the patient's right (R), left (L), front (A), back (P), head (S) and feet (I)."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "How the stored numbers translate into grey levels or colours, for example MONOCHROME2: larger numbers are brighter."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "How many bits hold each pixel value, which limits the number of different grey levels: 12 bits allow 4096 levels."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The rule that turns stored numbers into meaningful values: stored number times slope plus intercept. For CT the result is in Hounsfield units (HU), a density scale on which water is 0 and air is -1000."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Brightness and contrast settings stored with the image by the scanner or its operator. C is the centre and W the width of the range of values shown from black to white."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Whether the image was compressed in a way that discards some detail to save space."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Whether the equipment wrote text, such as names or dates, into the picture itself. Such text is part of the image and cannot be hidden by this viewer."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The technical format in which the image data is stored in the file, including any compression."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The kind of DICOM object this file is, for example a CT image or a secondary capture, which is a stored picture."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A worldwide unique technical number of this examination. It has no medical meaning."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A worldwide unique technical number of this series. It has no medical meaning."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A worldwide unique technical number of this image. It has no medical meaning."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Images that share this number use the same coordinate system, so positions can be compared between them."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The standardised uptake value (SUV) compares the amount of tracer in a spot with the amount there would be if the injected tracer were spread evenly through the whole body, so 1 is that average. It is computed from the weight, the injected dose and the times that staff entered at the scanner, so it is approximate and only as exact as those entries."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The unit in which the scanner stored the values, for example BQML: becquerel per millilitre, the measured concentration of radioactivity."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Corrections the scanner applied to the values, as short codes: for example ATTN for attenuation, the weakening of the signal inside the body, and DECY for the decay of the radioactivity."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The moment to which the scanner corrected the values for the decay of the radioactivity: START means the start of the scan."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The amount of radioactivity injected, in megabecquerel (MBq, millions of decays per second), as entered by staff."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The time in which the radioactivity of the tracer falls to half, in seconds (s): about 110 minutes for fluorine-18."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The time the tracer was injected, as entered by staff. The radioactivity decays between this time and the scan, which the uptake value takes into account."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The time the scanner recorded for this series; for a PET series, the moment its values refer to."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The tracer that was injected, as entered at the scanner, for example fluorodeoxyglucose (FDG), a form of sugar."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A window stored with the images by the scanner or its operator, usually the one intended for this series."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A window computed from the brightness values of the images loaded so far: it shows almost all of them and ignores the extremes."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A window from the smallest to the largest value in the series: nothing is clipped, but contrast is low."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A built-in window for uptake values (SUV) from SUV 0 to its upper limit: a higher limit keeps differences between high values visible, a lower one shows low values more clearly."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "It spreads the grey scale over densities from {low} to {high} HU (Hounsfield units: air is -1000, water 0); everything outside that range is shown as black or white."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "It spreads the grey scale over values from {low} to {high} {unit}; everything outside that range is shown as black or white."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "It spreads the grey scale over values from {low} to {high}; everything outside that range is shown as black or white."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A contrast table stored with the images by the equipment: it turns values into grey levels along a curve chosen for these images instead of a straight line. Adjusting the contrast by hand switches to an ordinary window."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A narrow window around the density of brain tissue, so that small density differences inside the brain become visible."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A wider window for the head, in which the thin layer between the brain and the skull stays distinguishable from the bone."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A very narrow window that exaggerates small density differences in brain tissue; the image looks grainy with it."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A window for the soft tissues of the head and neck, such as muscles and glands."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A very wide window centred on bone, so that fine bone structures, such as those of the ear, stay distinguishable."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A wide window centred on low densities, so that the air-filled lungs with their vessels and airways become visible."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A window for the soft tissues in the middle of the chest, such as the heart and the large vessels; the lungs look black with it."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A window for the soft tissues of the abdomen, such as the liver, the kidneys and the bowel."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A narrow window around the density of the liver, so that small density differences inside it become visible."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A wide window centred on high densities, so that the outer shell and the inner structure of bones become visible."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A window centred above soft tissue, so that vessels filled with contrast agent stand out and stay distinguishable from bone."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "A standard CT window."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "You are looking from the feet towards the head."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "You are looking from the head towards the feet."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "You are looking from the front of the body towards the back."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "You are looking from the back of the body towards the front."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "You are looking from the patient's right side towards the left."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "You are looking from the patient's left side towards the right."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The image is tilted: you are looking roughly from the feet towards the head."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The image is tilted: you are looking roughly from the head towards the feet."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The image is tilted: you are looking roughly from the front of the body towards the back."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The image is tilted: you are looking roughly from the back of the body towards the front."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The image is tilted: you are looking roughly from the patient's right side towards the left."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The image is tilted: you are looking roughly from the patient's left side towards the right."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The patient's right side is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The patient's left side is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The front of the body is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The back of the body is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The head end is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "The feet end is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Roughly, the patient's right side is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Roughly, the patient's left side is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Roughly, the front of the body is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Roughly, the back of the body is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Roughly, the head end is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Roughly, the feet end is on the left of the screen."
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Axial image"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Coronal image"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Sagittal image"
+msgstr ""
+
+#: crates/core/src/guide.rs
+msgid "Tilted (oblique) image"
+msgstr ""
+
+#: crates/core/src/jobs.rs
+msgid "the loader could not be started"
+msgstr ""
+
+#: crates/core/src/jobs.rs
+msgid "the image source panicked"
+msgstr ""
+
+#: crates/core/src/jobs.rs
+msgid "the image is missing from the index"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "SUV {value}"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "SUV 0–{limit}"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Not recorded"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "SUV (standardised uptake value by body weight), computed by SumMRIse; approximate"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "SUV, as stored in the images by the scanner or a workstation (g/ml)"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "{unit} as stored; SUV not computed"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Values shown"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Not computed because"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Hidden (privacy mode)"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "{weight} kg"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Patient weight"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "{dose} MBq"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Injected dose"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Injection time"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Reference time"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "{seconds} s ({minutes} min)"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Half-life"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Decay correction"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Corrections"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Stored unit"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "{tracer} ({nuclide})"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Tracer"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "{dose} MBq, {after} after the injection"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Dose at the reference time"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "Uptake values"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "{date} {time}"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "{seconds} s"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "{minutes} min"
+msgstr ""
+
+#: crates/core/src/pet.rs
+msgid "{hours} h {minutes} min"
+msgstr ""
+
+#: crates/core/src/series.rs
+msgid "the file holds fewer frames than its header announces"
+msgstr ""
+
+#: crates/core/src/series.rs
+msgid "the image was not loaded"
+msgstr ""
+
+#: crates/core/src/series.rs
+#: crates/dicom/src/decode.rs
+msgid "no pixel data"
+msgstr ""
+
+#: crates/core/src/session/overlay.rs
+msgid "no regular volume"
+msgstr ""
+
+#: crates/core/src/session/overlay.rs
+msgid "not enough memory"
+msgstr ""
+
+#: crates/core/src/session/overlay.rs
+msgid "could not be loaded"
+msgstr ""
+
+#: crates/core/src/session/overlay.rs
+msgid "The PET series does not form a volume: {issue}."
+msgstr ""
+
+#: crates/core/src/session/overlay.rs
+msgid "Together with the displayed series it needs about {needed} MB; the memory budget is {budget} MB."
+msgstr ""
+
+#: crates/core/src/session/overlay.rs
+msgid "It could not be loaded: {reason}"
+msgstr ""
+
+#: crates/core/src/settings.rs
+msgid "DICOM folder"
+msgstr ""
+
+#: crates/core/src/settings.rs
+msgid "{n} study"
+msgid_plural "{n} studies"
+msgstr[0] ""
+msgstr[1] ""
+
+#. the layouts of the toolbar: the acquired images one at a time, the three reformats (multiplanar reformatting, MPR), the images with the three reformats (2 × 2), the 3D view.
+#: crates/core/src/view.rs
+msgctxt "layout"
+msgid "Images"
+msgstr ""
+
+#: crates/core/src/view.rs
+msgctxt "layout"
+msgid "MPR"
+msgstr ""
+
+#: crates/core/src/view.rs
+msgctxt "layout"
+msgid "2 × 2"
+msgstr ""
+
+#: crates/core/src/view.rs
+msgid "3D"
+msgstr ""
+
+#. the view of the images as the scanner made them (not reformatted).
+#: crates/core/src/view.rs
+msgctxt "view"
+msgid "Acquired"
+msgstr ""
+
+#. the mouse tools: dragging changes the contrast, moves the image or zooms it.
+#: crates/core/src/view.rs
+msgctxt "mouse tool"
+msgid "Contrast"
+msgstr ""
+
+#: crates/core/src/view.rs
+msgctxt "mouse tool"
+msgid "Pan"
+msgstr ""
+
+#: crates/core/src/view.rs
+msgctxt "mouse tool"
+msgid "Zoom"
+msgstr ""
+
+#: crates/dicom/src/decode.rs
+msgid "{n} image could not be decoded: {reason}"
+msgid_plural "{n} images could not be decoded: {reason}"
+msgstr[0] ""
+msgstr[1] ""
+
+#. the reason an image could not be decoded: the decoder stopped on damaged data.
+#: crates/dicom/src/decode.rs
+msgid "decoder panicked on malformed data"
+msgstr ""
+
+#: crates/dicom/src/decode.rs
+msgid "Decoding images"
+msgstr ""
+
+#: crates/dicom/src/decode.rs
+msgid "{bits}-bit colour images are not supported yet"
+msgstr ""
+
+#. {kind} is a DICOM photometric interpretation, such as YBR_RCT.
+#: crates/dicom/src/decode.rs
+msgid "{kind} colour images are not supported yet"
+msgstr ""
+
+#. the name of a contrast window stored in the images without a name of its own.
+#: crates/dicom/src/decode.rs
+msgid "Window {number}"
+msgstr ""
+
+#: crates/dicom/src/discovery.rs
+msgid "Looking for DICOMDIR"
+msgstr ""
+
+#: crates/dicom/src/discovery.rs
+msgid "Reading DICOMDIR"
+msgstr ""
+
+#: crates/dicom/src/discovery.rs
+msgid "{path} lists no images"
+msgstr ""
+
+#: crates/dicom/src/discovery.rs
+msgid "{n} of the {total} files that DICOMDIR lists is missing; the folder was scanned instead"
+msgid_plural "{n} of the {total} files that DICOMDIR lists are missing; the folder was scanned instead"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/discovery.rs
+msgid "{n} file listed in DICOMDIR is missing"
+msgid_plural "{n} files listed in DICOMDIR are missing"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/discovery.rs
+msgid "DICOMDIR could not be read ({reason}); the folder was scanned instead"
+msgstr ""
+
+#: crates/dicom/src/discovery.rs
+msgid "Scanning the archive"
+msgstr ""
+
+#: crates/dicom/src/discovery.rs
+msgid "Scanning folder"
+msgstr ""
+
+#: crates/dicom/src/error.rs
+msgid "cannot read {path}: {reason}"
+msgstr ""
+
+#: crates/dicom/src/error.rs
+msgid "{path}: not a readable DICOM file ({reason})"
+msgstr ""
+
+#: crates/dicom/src/error.rs
+msgid "no DICOM images were found in {path}"
+msgstr ""
+
+#: crates/dicom/src/error.rs
+msgid "the operation was cancelled"
+msgstr ""
+
+#: crates/dicom/src/error.rs
+msgid "none of the images in this series could be decoded: {reason}"
+msgstr ""
+
+#: crates/dicom/src/fidelity.rs
+msgid "Lossy {ratio} ({method})"
+msgstr ""
+
+#: crates/dicom/src/fidelity.rs
+msgid "Lossy {ratio}"
+msgstr ""
+
+#: crates/dicom/src/fidelity.rs
+msgid "Lossy ({method})"
+msgstr ""
+
+#: crates/dicom/src/fidelity.rs
+#: crates/dicom/src/metadata.rs
+msgid "Lossy compression"
+msgstr ""
+
+#. the age of the patient when the images were made.
+#: crates/dicom/src/format.rs
+msgid "{n} year"
+msgid_plural "{n} years"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/format.rs
+msgid "{n} month"
+msgid_plural "{n} months"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/format.rs
+msgid "{n} week"
+msgid_plural "{n} weeks"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/format.rs
+msgid "{n} day"
+msgid_plural "{n} days"
+msgstr[0] ""
+msgstr[1] ""
+
+#. the sex of the patient as recorded in the images.
+#: crates/dicom/src/format.rs
+msgctxt "sex"
+msgid "Male"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgctxt "sex"
+msgid "Female"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgctxt "sex"
+msgid "Other"
+msgstr ""
+
+#. the names of the DICOM modalities (kinds of examination), shown next to their code, as in "Computed Tomography (CT)".
+#: crates/dicom/src/format.rs
+msgid "Computed Tomography"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Magnetic Resonance"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Positron Emission Tomography"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Nuclear Medicine"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Ultrasound"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Computed Radiography"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Digital Radiography"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Mammography"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "X-Ray Angiography"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Radio Fluoroscopy"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgctxt "modality"
+msgid "Other"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Structured Report"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Secondary Capture"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Presentation State"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Key Object Selection"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Document"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Segmentation"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Radiotherapy Structure Set"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Radiotherapy Dose"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Radiotherapy Plan"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Ophthalmic Tomography"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "External-camera Photography"
+msgstr ""
+
+#. how the patient lay in the scanner: entering head or feet first, on the back (supine), on the front (prone) or on the right or left side (decubitus).
+#: crates/dicom/src/format.rs
+msgid "Head first, supine"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Head first, prone"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Head first, decubitus right"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Head first, decubitus left"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Feet first, supine"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Feet first, prone"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Feet first, decubitus right"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Feet first, decubitus left"
+msgstr ""
+
+#. the kinds of MR sequence (DICOM Scanning Sequence); established English terms.
+#: crates/dicom/src/format.rs
+msgid "Spin echo"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Inversion recovery"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Gradient recalled"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Echo planar"
+msgstr ""
+
+#: crates/dicom/src/format.rs
+msgid "Research mode"
+msgstr ""
+
+#. the name of a study without a description, such as "CT/MR study".
+#: crates/dicom/src/index.rs
+msgid "{modalities} study"
+msgstr ""
+
+#: crates/dicom/src/index.rs
+msgid "Series {number}"
+msgstr ""
+
+#: crates/dicom/src/index.rs
+msgid "Unnamed series"
+msgstr ""
+
+#: crates/dicom/src/index.rs
+msgid "Reading image headers"
+msgstr ""
+
+#: crates/dicom/src/index.rs
+msgid "{n} file could not be read and was skipped"
+msgid_plural "{n} files could not be read and were skipped"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/index.rs
+msgid "{n} object that is not an image (a report or an annotation) is not shown"
+msgid_plural "{n} objects that are not images (reports, annotations) are not shown"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/media.rs
+msgid "{name} is protected by a password. Unpack it with the password, then open the unpacked folder."
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "{name} is compressed with a method that is not supported ({method}). Unpack it, then open the unpacked folder."
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "The images in {name} are larger than {limit}, the most that is read from an archive. Unpack it, then open the unpacked folder."
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "{name} cannot be read as a disc image: it is damaged or incomplete."
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "{name} cannot be read as a ZIP archive: it is damaged or was not downloaded completely."
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "{name} contains another archive ({inner}), which is not opened automatically. Unpack {name}, then open {inner}."
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "{name} is a disc image in UDF format, which is not supported. Open it with your system, where it appears as a disc, then open that disc."
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "{name} is a {format} file, which is not supported. Unpack or open it with your system, then open the resulting folder."
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "{n} file in {name} is protected by a password and was skipped"
+msgid_plural "{n} files in {name} are protected by a password and were skipped"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/media.rs
+msgid "{n} file in {name} is compressed with a method that is not supported ({method}) and was skipped"
+msgid_plural "{n} files in {name} are compressed with a method that is not supported ({method}) and were skipped"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/media.rs
+msgid "{n} file in {name} is larger than {limit} and was skipped"
+msgid_plural "{n} files in {name} are larger than {limit} and were skipped"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/media.rs
+msgid "{n} file in {name} could not be read and was skipped"
+msgid_plural "{n} files in {name} could not be read and were skipped"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/media.rs
+msgid "the file is protected by a password"
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "the compression method {method} is not supported"
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "the file is larger than {limit}"
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "the file could not be read"
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "the file ends early"
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "the file has changed since it was opened"
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "there is no such file in the archive"
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "there is not enough memory for the file"
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "the file is longer than the archive says"
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "Part of {name} could not be read: the disc image is damaged or incomplete"
+msgstr ""
+
+#: crates/dicom/src/media.rs
+msgid "{name} contains another archive, which was not opened: {inner}"
+msgid_plural "{name} contains {n} other archives, which were not opened: {inner}"
+msgstr[0] ""
+msgstr[1] ""
+
+#. the name shown for an attribute that the DICOM dictionary does not know.
+#: crates/dicom/src/metadata.rs
+msgid "Unknown attribute"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Sequence of {n} item"
+msgid_plural "Sequence of {n} items"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Encapsulated pixel data, {n} fragment"
+msgid_plural "Encapsulated pixel data, {n} fragments"
+msgstr[0] ""
+msgstr[1] ""
+
+#. the name of an attribute that a manufacturer added; {creator} names the manufacturer's block.
+#: crates/dicom/src/metadata.rs
+msgid "Private attribute"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Private ({creator})"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "<binary data, {n} byte>"
+msgid_plural "<binary data, {n} bytes>"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/metadata.rs
+msgid "<binary data, {n} value>"
+msgid_plural "<binary data, {n} values>"
+msgstr[0] ""
+msgstr[1] ""
+
+#. the labels of the image information (inspector), grouped in sections.
+#: crates/dicom/src/metadata.rs
+msgctxt "patient"
+msgid "Name"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Patient ID"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Birth date"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Age"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Sex"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Weight"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Height"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgctxt "inspector section"
+msgid "Patient"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Description"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Date"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Accession number"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Study ID"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Referring physician"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Institution"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Department"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgctxt "inspector section"
+msgid "Study"
+msgstr ""
+
+#. the number of the series on the disc.
+#: crates/dicom/src/metadata.rs
+msgctxt "series"
+msgid "Number"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Modality"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Body part"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Protocol"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Patient position"
+msgstr ""
+
+#. which side of the body was examined (DICOM Laterality: R or L).
+#: crates/dicom/src/metadata.rs
+msgid "Laterality"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Series date"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgctxt "inspector section"
+msgid "Series"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Manufacturer"
+msgstr ""
+
+#. the scanner's model name.
+#: crates/dicom/src/metadata.rs
+msgid "Model"
+msgstr ""
+
+#. the name of the scanner (DICOM Station Name).
+#: crates/dicom/src/metadata.rs
+msgid "Station"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Software"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Field strength"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgctxt "inspector section"
+msgid "Equipment"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Sequence name"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Scanning sequence"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Sequence variant"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Scan options"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Acquisition type"
+msgstr ""
+
+#. the abbreviations TR, TE and TI are the usual ones in MR; keep them.
+#: crates/dicom/src/metadata.rs
+msgid "Repetition time (TR)"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Echo time (TE)"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Inversion time (TI)"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Flip angle"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Echo train length"
+msgstr ""
+
+#. how many times each signal was measured and averaged (DICOM Number of Averages).
+#: crates/dicom/src/metadata.rs
+msgid "Averages"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Imaging frequency"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Pixel bandwidth"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Receive coil"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Tube voltage"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Tube current"
+msgstr ""
+
+#. the X-ray exposure of a CT, in mAs.
+#: crates/dicom/src/metadata.rs
+msgid "Exposure"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Exposure time"
+msgstr ""
+
+#. CTDIvol, the CT dose index; the abbreviation is international.
+#: crates/dicom/src/metadata.rs
+msgid "CTDIvol"
+msgstr ""
+
+#. the reconstruction kernel (filter) of a CT.
+#: crates/dicom/src/metadata.rs
+msgid "Kernel"
+msgstr ""
+
+#. the filter of the X-ray beam of a CT (DICOM Filter Type).
+#: crates/dicom/src/metadata.rs
+msgid "Filter"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Pitch factor"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Rotation time"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Collimation"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Reconstruction diameter"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+#: crates/ui/src/viewer.rs
+msgid "Gantry tilt"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Contrast agent"
+msgstr ""
+
+#. the date and time the images were acquired.
+#: crates/dicom/src/metadata.rs
+msgctxt "date and time"
+msgid "Acquired"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgctxt "inspector section"
+msgid "Acquisition"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Instance number"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Image type"
+msgstr ""
+
+#. the number of pixels of the image (columns × rows).
+#: crates/dicom/src/metadata.rs
+msgid "Matrix"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Frames"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Pixel spacing"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Field of view"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Slice thickness"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Spacing between slices"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Slice location"
+msgstr ""
+
+#. the position of the image in the patient (DICOM Image Position), in mm.
+#: crates/dicom/src/metadata.rs
+msgctxt "image position"
+msgid "Position"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Orientation"
+msgstr ""
+
+#. {row} and {column} are orientation letters of the patient (L, R, A, P, S, I), which are not translated.
+#: crates/dicom/src/metadata.rs
+msgid "{plane} (rows toward {row}, columns toward {column})"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Photometric interpretation"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Bit depth"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "{stored} of {allocated} bits, signed"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "{stored} of {allocated} bits, unsigned"
+msgstr ""
+
+#. the conversion of stored values to measured values (DICOM Rescale Slope and Intercept).
+#: crates/dicom/src/metadata.rs
+msgid "Rescale"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "slope {slope}, intercept {intercept} ({unit})"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "slope {slope}, intercept {intercept}"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Stored windows"
+msgstr ""
+
+#. a stored contrast window: its name, C for its centre (level), W for its width.
+#: crates/dicom/src/metadata.rs
+msgid "{name}: C {center} / W {width}"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "No"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Burned-in text"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Yes"
+msgstr ""
+
+#. DICOM terms (transfer syntax: how the pixels are encoded; SOP class: the kind of object).
+#: crates/dicom/src/metadata.rs
+msgid "Transfer syntax"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "SOP class"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Character set"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgctxt "inspector section"
+msgid "Image"
+msgstr ""
+
+#. unique identifiers (UIDs) of the study, the series and the image.
+#: crates/dicom/src/metadata.rs
+msgid "Study UID"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Series UID"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Instance UID"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgid "Frame of reference"
+msgstr ""
+
+#: crates/dicom/src/metadata.rs
+msgctxt "inspector section"
+msgid "Identifiers"
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The images do not record the unit of their values."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The values are stored in the unit {unit}, not in becquerel per millilitre (BQML)."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The images hold uptake values of the kind {kind}, not by body weight."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The images are not corrected for attenuation (the weakening of the signal inside the body)."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The images are not corrected for the decay of the radioactivity."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The images do not record to which moment they are corrected for decay."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The images are corrected for decay to {code}, not to the start of the scan (START)."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The patient's weight is not recorded."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The injected dose is not recorded."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The half-life of the tracer is not recorded."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The injection time is not recorded."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The series date or time is not recorded."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The recorded injection time is later than the series time."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "The series time is later than the acquisition of its images: the series may have been processed later."
+msgstr ""
+
+#: crates/dicom/src/pet.rs
+msgid "More than ten half-lives lie between the recorded injection and the series time."
+msgstr ""
+
+#. the unit of PET values that are raw detector counts.
+#: crates/dicom/src/pet.rs
+msgid "counts"
+msgstr ""
+
+#. {kind} is a DICOM photometric interpretation, such as PALETTE COLOR.
+#: crates/dicom/src/pixels.rs
+msgid "{kind} images are not supported yet"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "{bits}-bit grey-scale images are not supported yet"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "The modality table of this image cannot be used: {reason}"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "the table descriptor has {count} values instead of 3"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "the table has no entries"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "the table has {bits} bits per entry; 1 to 16 are possible"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "the table descriptor is missing"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "the table data is missing"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "the table holds {found} values instead of {expected}"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "the table data is not a list of numbers"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "Segmented palette colour images are not supported yet"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "The colour table of this palette colour image is missing"
+msgstr ""
+
+#: crates/dicom/src/pixels.rs
+msgid "Contrast table {number}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Time point {index} / {count}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Heart phase {index} / {count} · {time} ms"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Heart phase {index} / {count}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Echo {index} / {count} · TE {time} ms"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Echo {index} / {count}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "b = {b} s/mm²"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Diffusion weighting {index} / {count}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Image type {index} / {count} · {value}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Image type {index} / {count}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Acquisition {index} / {count}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Sequence {index} / {count} · {name}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Sequence {index} / {count}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "Part {index} / {count}"
+msgstr ""
+
+#: crates/dicom/src/stacks.rs
+msgid "{n} time point"
+msgid_plural "{n} time points"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/stacks.rs
+msgid "{n} heart phase"
+msgid_plural "{n} heart phases"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/stacks.rs
+msgid "{n} echo"
+msgid_plural "{n} echoes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/stacks.rs
+msgid "{n} b-value"
+msgid_plural "{n} b-values"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/stacks.rs
+msgid "{n} image type"
+msgid_plural "{n} image types"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/stacks.rs
+msgid "{n} acquisition"
+msgid_plural "{n} acquisitions"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/stacks.rs
+msgid "{n} sequence"
+msgid_plural "{n} sequences"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/stacks.rs
+msgid "{n} part"
+msgid_plural "{n} parts"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/stacks.rs
+#: crates/ui/src/browser.rs
+msgid "{n} image"
+msgid_plural "{n} images"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/dicom/src/stacks.rs
+msgid "{stacks} × {images}"
+msgstr ""
+
+#. the names of the colour maps of PET and nuclear-medicine images.
+#: crates/imaging/src/colormap.rs
+msgid "Grey"
+msgstr ""
+
+#: crates/imaging/src/colormap.rs
+msgid "Inverted grey"
+msgstr ""
+
+#: crates/imaging/src/colormap.rs
+msgid "Hot iron"
+msgstr ""
+
+#: crates/imaging/src/colormap.rs
+msgid "Rainbow"
+msgstr ""
+
+#. the names of the image planes (views of the body), used on their own and before an image number ("Axial 12 / 24").
+#: crates/imaging/src/geometry.rs
+msgid "Axial"
+msgstr ""
+
+#: crates/imaging/src/geometry.rs
+msgid "Coronal"
+msgstr ""
+
+#: crates/imaging/src/geometry.rs
+msgid "Sagittal"
+msgstr ""
+
+#. an image plane that is neither axial, coronal nor sagittal.
+#: crates/imaging/src/geometry.rs
+#: crates/ui/src/orient.rs
+msgid "Oblique"
+msgstr ""
+
+#. maximum intensity projection; the abbreviation is usual in most languages.
+#: crates/imaging/src/mpr.rs
+#: crates/imaging/src/render3d.rs
+msgid "MIP"
+msgstr ""
+
+#. minimum intensity projection; the abbreviation is usual in most languages.
+#: crates/imaging/src/mpr.rs
+msgid "MinIP"
+msgstr ""
+
+#. a thick slab shown as the average of its slices.
+#: crates/imaging/src/mpr.rs
+msgctxt "slab projection"
+msgid "Average"
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "From the front"
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "From the back"
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "From the patient's left"
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "From the patient's right"
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "From above the head"
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "From below the feet"
+msgstr ""
+
+#. the looks of the 3D view: how it draws the volume.
+#: crates/imaging/src/render3d.rs
+msgctxt "3D look"
+msgid "Bone"
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgctxt "3D look"
+msgid "Skin"
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgctxt "3D look"
+msgid "Vessels and bone"
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgctxt "3D look"
+msgid "Surface"
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "Shows bone (from 300 HU) as a shaded surface; soft tissue is left out."
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "Shows the outer surface of the body (from about -600 HU)."
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "For scans with contrast agent: contrast-filled vessels (from 150 HU) in red, bone (from about 450 HU) in ivory."
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "Shows a surface whose opacity follows the contrast window: values above the window are opaque."
+msgstr ""
+
+#: crates/imaging/src/render3d.rs
+msgid "Maximum intensity projection: the brightest value along each line of sight, through the contrast window."
+msgstr ""
+
+#. why the images of a series cannot be reformatted. Shown after "Multiplanar reformatting unavailable:", hence the small letter at the start.
+#: crates/imaging/src/volume.rs
+msgid "at least two slices are required"
+msgstr ""
+
+#: crates/imaging/src/volume.rs
+msgid "slices have different size, orientation or pixel spacing"
+msgstr ""
+
+#: crates/imaging/src/volume.rs
+msgid "several images share the same slice position (multi-echo, dynamic or repeated scan)"
+msgstr ""
+
+#: crates/imaging/src/volume.rs
+msgid "slices are not evenly spaced (largest deviation {deviation} mm); a slice may be missing"
+msgstr ""
+
+#: crates/imaging/src/volume.rs
+msgid "slice geometry is degenerate"
+msgstr ""
+
+#: crates/imaging/src/volume.rs
+msgid "images carry no patient geometry (e.g. X-ray, scanned document or screenshot)"
+msgstr ""
+
+#: crates/imaging/src/volume.rs
+msgid "colour images cannot be reformatted"
+msgstr ""
+
+#. the names of the DICOM VOI LUT functions, how values map to grey.
+#: crates/imaging/src/window.rs
+msgctxt "VOI function"
+msgid "Linear"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "VOI function"
+msgid "Linear (exact)"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "VOI function"
+msgid "Sigmoid"
+msgstr ""
+
+#. the built-in CT windows, named after what each shows best.
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Brain"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Subdural"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Stroke"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Head soft tissue"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Temporal bone"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Lung"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Mediastinum"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Abdomen"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Liver"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Bone"
+msgstr ""
+
+#: crates/imaging/src/window.rs
+msgctxt "CT window"
+msgid "Angio"
+msgstr ""
+
+#. the window computed from the brightness values of the images.
+#: crates/imaging/src/window.rs
+msgctxt "contrast preset"
+msgid "Auto"
+msgstr ""
+
+#. the window that spans every value present in the images.
+#: crates/imaging/src/window.rs
+msgid "Full range"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Open a folder or disc with DICOM images"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Open a ZIP archive or a disc image"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "ZIP archives and disc images"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "{n} study found — switch between them in the browser."
+msgid_plural "{n} studies found — switch between them in the browser."
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/ui/src/app.rs
+msgid "Preparing…"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "{n} file found"
+msgid_plural "{n} files found"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/ui/src/app.rs
+msgid "Cancel"
+msgstr ""
+
+#: crates/ui/src/app.rs
+#: crates/ui/src/viewer.rs
+msgid "Settings"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Language"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "The language of the interface; it changes at once"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Appearance"
+msgstr ""
+
+#. the appearance of the interface: as the system has it, dark or light.
+#: crates/ui/src/app.rs
+msgctxt "appearance"
+msgid "System"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgctxt "appearance"
+msgid "Dark"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgctxt "appearance"
+msgid "Light"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Annotations"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Show patient/study text, orientation and scale"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Privacy"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Hide patient name, ID and birth date"
+msgstr ""
+
+#. how the images are drawn on the screen.
+#: crates/ui/src/app.rs
+#: crates/ui/src/inspector.rs
+msgid "Display"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Smooth (bilinear) magnification"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Explanations"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Show explanations of series, values and the viewing position"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Shows what each series is, what the values in the image information mean and where the image on screen lies in the body."
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Recent studies"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Remember opened folders and archives"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Stores the path of the folder or archive, the study description and date only."
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Memory limit"
+msgstr ""
+
+#: crates/ui/src/app.rs
+#: crates/ui/src/welcome.rs
+msgid "About SumMRIse"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Restore defaults"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Version {version}"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "A viewer for MRI and CT studies from patient CDs/DVDs. Reads DICOM media (DICOMDIR), shows every series with correct orientation, contrast presets, multiplanar reformatting and full metadata."
+msgstr ""
+
+#. keep this statement unambiguous and at least as strong as the English.
+#: crates/ui/src/app.rs
+msgid "Not a medical device. Not for diagnostic use."
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Built with dicom-rs, egui/eframe and wgpu. Licensed under the MIT licence."
+msgstr ""
+
+#: crates/ui/src/app.rs
+#: crates/ui/src/display_check.rs
+msgid "Close"
+msgstr ""
+
+#: crates/ui/src/app.rs
+msgid "Drop to open"
+msgstr ""
+
+#. a study without a date.
+#: crates/ui/src/browser.rs
+msgid "Undated"
+msgstr ""
+
+#: crates/ui/src/browser.rs
+msgid "{n} series"
+msgid_plural "{n} series"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/ui/src/browser.rs
+#: crates/ui/src/viewport.rs
+msgid "Unknown patient"
+msgstr ""
+
+#: crates/ui/src/browser.rs
+msgid "Series"
+msgstr ""
+
+#: crates/ui/src/browser.rs
+msgid "Mixed planes"
+msgstr ""
+
+#: crates/ui/src/browser.rs
+msgid "{loaded} / {n} image"
+msgid_plural "{loaded} / {n} images"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/ui/src/browser.rs
+msgid "This series holds several sets of images of the same slices; the viewer shows one set at a time."
+msgstr ""
+
+#: crates/ui/src/browser.rs
+msgid "This compression is not supported by this build"
+msgstr ""
+
+#: crates/ui/src/browser.rs
+msgid "Paused at {loaded} / {total} — select the series to continue loading"
+msgstr ""
+
+#: crates/ui/src/browser.rs
+#: crates/ui/src/viewer.rs
+#: crates/ui/src/viewport.rs
+msgid "Loading {loaded} / {total}"
+msgstr ""
+
+#: crates/ui/src/browser.rs
+msgid "Could not decode"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Pause"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Play"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Stop playing (Space)"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Play the heart phases at this position as a loop (Space)"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Play the time points at this position as a loop (Space)"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Play the images of the active view as a loop (Space)"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "This view shows a single image"
+msgstr ""
+
+#. the speed of playback, in images per second (" / s" follows the number).
+#: crates/ui/src/cine.rs
+msgid "Speed"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Images per second, from 1 to 60. The images record {rate} per second."
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Images per second, from 1 to 60. The images record no speed; {rate} per second is used."
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid " / s"
+msgstr ""
+
+#. the ways of playback: again from the first image, or back and forth.
+#: crates/ui/src/cine.rs
+msgid "Loop"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Loop: after the last image, start again at the first"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Back and forth"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Back and forth: play to the last image, then back to the first"
+msgstr ""
+
+#: crates/ui/src/cine.rs
+msgid "Waiting for images to load"
+msgstr ""
+
+#: crates/ui/src/crosshair.rs
+msgid "Tilt handle of the {plane} plane in the {view} view"
+msgstr ""
+
+#: crates/ui/src/crosshair.rs
+msgid "Drag to tilt the planes about the crosshair"
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "{percent} %"
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Display check picture: grey steps, a ramp, fine lines and a border"
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Check the display…"
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Shows a test picture to check that the screen shows dark and light greys and fine detail. A quick check, not a calibration."
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Display check"
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Close the display check (Esc)"
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "A quick check of your screen in the style of the SMPTE test pattern. It is not a calibration and does not show that the screen meets any standard."
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "What you should see"
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Grey steps: 11 steps from black to white, each a little brighter than the one before."
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Small squares: the square inside the black step (5 %) and the one inside the white step (95 %)."
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Ramp: a band that turns smoothly from black to white, without stripes."
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Fine lines: separate lines in the four patterns at the bottom, not an even grey."
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Border: a thin line all around the edge of the picture."
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "If something is not visible"
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "The square in the black step is missing: turn the brightness of the screen up or dim the room."
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "The square in the white step is missing: turn the contrast of the screen down."
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "Steps run together or the ramp shows stripes: switch off picture modes such as vivid or dynamic contrast."
+msgstr ""
+
+#: crates/ui/src/display_check.rs
+msgid "The fine lines look blurred: set the screen to its native resolution and switch off scaling."
+msgstr ""
+
+#: crates/ui/src/fidelity.rs
+msgid "This image is or was compressed in a way that discards some detail to save space. Fine detail can differ from what the scanner recorded."
+msgstr ""
+
+#: crates/ui/src/fidelity.rs
+msgid "Patient details may be part of the picture itself and cannot be hidden."
+msgstr ""
+
+#: crates/ui/src/fidelity.rs
+msgid "Contrast table stored in the images"
+msgstr ""
+
+#: crates/ui/src/fidelity.rs
+msgid "Scanner graphics"
+msgstr ""
+
+#: crates/ui/src/fidelity.rs
+msgid "Scanner graphics (G): marks and text that the scanner stored with the image, drawn in colour over it"
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "About this series"
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "Where is this image?"
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "3D view"
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "These images carry no position information, so the figure cannot show where the image lies."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "Schematic body outline: the examined region is highlighted and the image on screen is marked."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "Schematic body outline: the examined region is highlighted."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "Schematic, not to scale. Highlighted: the body region recorded for this series (“{part}”)."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "The coloured line or band marks the image on screen within the scanned block."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "Both sides are highlighted, because the images do not say which side was examined."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "R and L mark the patient's right and left."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "Schematic of the scanned block with the image on screen inside it."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "Schematic, not to scale. The box is the scanned block and the coloured sheet is the image on screen."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "R is the patient's right, L left, A front, P back, S head and I feet, as at the edges of the image."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "No body outline is shown, because the images name no body region that this guide recognises."
+msgstr ""
+
+#: crates/ui/src/guide.rs
+msgid "About {subject}"
+msgstr ""
+
+#: crates/ui/src/inspector.rs
+msgid "Overview"
+msgstr ""
+
+#: crates/ui/src/inspector.rs
+msgid "All attributes"
+msgstr ""
+
+#: crates/ui/src/inspector.rs
+msgid "Metadata unavailable: {reason}"
+msgstr ""
+
+#: crates/ui/src/inspector.rs
+msgid "Search tag, name or value"
+msgstr ""
+
+#: crates/ui/src/inspector.rs
+msgid "{n} attribute · right-click to copy"
+msgid_plural "{n} attributes · right-click to copy"
+msgstr[0] ""
+msgstr[1] ""
+
+#. the two parts of a DICOM file, as the DICOM standard calls them.
+#: crates/ui/src/inspector.rs
+msgid "File meta information"
+msgstr ""
+
+#: crates/ui/src/inspector.rs
+msgid "Data set"
+msgstr ""
+
+#. shown in privacy mode instead of a patient detail.
+#: crates/ui/src/inspector.rs
+msgid "•••• (hidden)"
+msgstr ""
+
+#: crates/ui/src/inspector.rs
+msgid "private / unknown"
+msgstr ""
+
+#: crates/ui/src/inspector.rs
+msgid "Copy value"
+msgstr ""
+
+#: crates/ui/src/inspector.rs
+msgid "Copy tag and value"
+msgstr ""
+
+#. a DICOM sequence: its tag, its name and the number of its items.
+#: crates/ui/src/inspector.rs
+msgid "{tag}  {name}  ({n} item)"
+msgid_plural "{tag}  {name}  ({n} items)"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/ui/src/inspector.rs
+msgid "Item {number}"
+msgstr ""
+
+#: crates/ui/src/language.rs
+msgid "System language ({language})"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Rotate and flip"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Rotate or flip the active view; return tilted planes to the standard ones"
+msgstr ""
+
+#. which of the views (axial, coronal, sagittal) the entries below turn and flip.
+#: crates/ui/src/orient.rs
+msgid "View"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Rotate and flip this view"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Turn the picture a quarter turn to the left"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Rotate left"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Turn the picture a quarter turn to the right"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Rotate right"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Mirror the picture left to right; a badge marks it as mirrored"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Flip horizontally"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Mirror the picture top to bottom; a badge marks it as mirrored"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Flip vertically"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Reset planes"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Return the tilted planes to axial, coronal and sagittal"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "The planes are not tilted"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "To tilt the planes, drag a round handle on a line in a reformat view, or press {alt}+Left and {alt}+Right (5° steps with Shift)."
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Oblique {degrees}° · near {plane}"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "Mirrored"
+msgstr ""
+
+#: crates/ui/src/orient.rs
+msgid "This picture is shown mirrored. The letters at its edges give the true directions. Flip it again or reset (R) to return to the standard view."
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "PET loading {loaded} / {total}"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "The PET is loaded in the background and drawn over the images when all of its images are there."
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "PET overlay unavailable: {why}"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "PET overlay {opacity} % · {colours} · {scale}"
+msgstr ""
+
+#. a window set by hand, shown in brackets after its values.
+#: crates/ui/src/pet.rs
+#: crates/ui/src/viewer.rs
+msgid "custom"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+#: crates/ui/src/volume_view.rs
+msgid "Colours: {map}"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Aligned by scanner positions only"
+msgstr ""
+
+#. the window on the image: W its width, L its level (as on scanner annotations), then the unit.
+#: crates/ui/src/pet.rs
+msgid "W {width}  L {level} {unit}"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "W {width}  L {level}"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "{low} … {high} {unit}"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "{low} … {high}"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "{modality} {value} · PET {uptake}"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Colour map (C)"
+msgstr ""
+
+#. a PET drawn in colour over a CT or MR of the same study (image fusion).
+#: crates/ui/src/pet.rs
+msgid "Fusion"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "PET colours and fusion"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Colours of a PET, and a PET drawn over a CT or MR (C, F)"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Low values dark, high values bright"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Low values bright, high values dark: the usual way to show PET"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "From black through red, orange and yellow to white"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "From black through blue, cyan, green and yellow to red"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Show over {series}"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Opens {series} with this PET drawn over it"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "The PET is placed by the positions the scanner recorded; nothing is aligned afterwards. Movement or breathing between the two scans can shift it against the anatomy."
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "PET overlay (F)"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "No PET overlay"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Show these images alone"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Draw {series} over these images"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "PET overlay unavailable: {reason}"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Opacity"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "0 % shows the images alone, 100 % covers them"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Colours"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Colour map of the PET drawn over the images (C)"
+msgstr ""
+
+#. the range of PET values that the colours are spread over.
+#: crates/ui/src/pet.rs
+msgid "Scale"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "The values the colours of the PET are spread over"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "Hide below"
+msgstr ""
+
+#: crates/ui/src/pet.rs
+msgid "PET values below this are not drawn, so the images show through"
+msgstr ""
+
+#: crates/ui/src/stacks.rs
+#: crates/ui/src/viewer.rs
+msgid "Image set"
+msgstr ""
+
+#: crates/ui/src/stacks.rs
+msgid "Previous image set"
+msgstr ""
+
+#: crates/ui/src/stacks.rs
+msgid "Previous image set (Left arrow key)"
+msgstr ""
+
+#: crates/ui/src/stacks.rs
+msgid "This is the first image set"
+msgstr ""
+
+#: crates/ui/src/stacks.rs
+msgid "This series holds several sets of images of the same slices. The images shown are those of this set."
+msgstr ""
+
+#: crates/ui/src/stacks.rs
+msgid "Next image set"
+msgstr ""
+
+#: crates/ui/src/stacks.rs
+msgid "Next image set (Right arrow key)"
+msgstr ""
+
+#: crates/ui/src/stacks.rs
+msgid "This is the last image set"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Could not open series: {reason}"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Series browser ({shortcut})"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Contrast: drag left/right for width, up/down for level (or right-drag with any tool)"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Pan: drag (also middle-drag or Shift-drag)"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Zoom: drag up/down (also pinch or {key}-scroll)"
+msgstr ""
+
+#. the contrast window (its width and level), not a window of the screen.
+#: crates/ui/src/viewer.rs
+msgctxt "contrast control"
+msgid "Window"
+msgstr ""
+
+#. a contrast window set by hand.
+#: crates/ui/src/viewer.rs
+msgid "Custom"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Stored in the images"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Standard PET window"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Standard CT window"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "From image statistics"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "All values"
+msgstr ""
+
+#. short label of the window width field (contrast), as on scanner annotations.
+#: crates/ui/src/viewer.rs
+msgctxt "window width"
+msgid "W"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Window width (contrast)"
+msgstr ""
+
+#. short label of the window level field (brightness); not L for the patient's left.
+#: crates/ui/src/viewer.rs
+msgctxt "window level"
+msgid "L"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Window level (brightness)"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Invert grey scale (I)"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Reset contrast, zoom, pan, rotation and tilted planes (R)"
+msgstr ""
+
+#. a thick slab of the reformats, shown as one projection.
+#: crates/ui/src/viewer.rs
+msgid "Slab"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Thin slice"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Thick-slab projection for reformatted views"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+#: crates/ui/src/viewport.rs
+msgid "Loading image {number} / {count}"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid ""
+"This series could not be displayed.\n"
+"{reason}"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Select a series"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Outside the scanned area"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Scroll: change image · Drag: contrast · Pinch/{key}-scroll: zoom · Double-click: fit"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "ZIP archive · DICOMDIR"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "ZIP archive"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Disc image · DICOMDIR"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Disc image"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Folder scan"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Single file"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "{n} image · {source}"
+msgid_plural "{n} images · {source}"
+msgstr[0] ""
+msgstr[1] ""
+
+#. the reformats (MPR) are not available for this series.
+#: crates/ui/src/viewer.rs
+msgid "MPR off"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "{number} of {count}"
+msgstr ""
+
+#. the rows of the "Display" section of the image information.
+#: crates/ui/src/viewer.rs
+msgctxt "display"
+msgid "Image"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Image sets"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "{loaded} of {n} image"
+msgid_plural "{loaded} of {n} images"
+msgstr[0] ""
+msgstr[1] ""
+
+#: crates/ui/src/viewer.rs
+msgctxt "display"
+msgid "Loading"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+#: crates/ui/src/viewport.rs
+msgid "Contrast table"
+msgstr ""
+
+#. the window in use: W its width, L its level, then its name.
+#: crates/ui/src/viewer.rs
+msgid "W {width} / L {level} {unit} ({preset})"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "W {width} / L {level} ({preset})"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Value range"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "{columns} × {rows} × {slices} voxels"
+msgstr ""
+
+#. the images as one 3D block of voxels (not the loudness of sound).
+#: crates/ui/src/viewer.rs
+msgid "Volume"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Voxel size"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "{degrees}° (corrected in reformats)"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Reformatting"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Unavailable — {reason}"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Available when all images are loaded"
+msgstr ""
+
+#. the computer memory the decoded images of the series take.
+#: crates/ui/src/viewer.rs
+msgid "Memory"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Multiplanar reformatting unavailable: {reason}"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Multiplanar reformatting unavailable: Needs a stack of at least 3 parallel slices"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Image information ({shortcut})"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Show/hide annotations (O)"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Privacy: hide patient name, ID and birth date"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Close study"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+#: crates/ui/src/welcome.rs
+msgid "Open"
+msgstr ""
+
+#: crates/ui/src/viewer.rs
+msgid "Open another folder or disc ({shortcut})"
+msgstr ""
+
+#: crates/ui/src/viewport.rs
+msgid ""
+"Reformatting is not available:\n"
+"{reason}"
+msgstr ""
+
+#: crates/ui/src/viewport.rs
+msgid "No image"
+msgstr ""
+
+#: crates/ui/src/viewport.rs
+msgid "Image {number} could not be decoded"
+msgstr ""
+
+#: crates/ui/src/viewport.rs
+msgid "Image {number} / {count}"
+msgstr ""
+
+#. {view} is the name of a view, such as Axial or Coronal.
+#: crates/ui/src/viewport.rs
+msgid "{view} {number} / {count}"
+msgstr ""
+
+#. the patient ID on the image.
+#: crates/ui/src/viewport.rs
+msgid "ID {id}"
+msgstr ""
+
+#: crates/ui/src/viewport.rs
+msgid "Born {date}"
+msgstr ""
+
+#. S is short for series, followed by the series number; {title} is the series' name.
+#: crates/ui/src/viewport.rs
+msgid "S{number}: {title}"
+msgstr ""
+
+#. the number of the image file (DICOM Instance Number) and of the frame in it.
+#: crates/ui/src/viewport.rs
+msgid "Instance {number} · frame {frame}"
+msgstr ""
+
+#: crates/ui/src/viewport.rs
+msgid "Instance {number}"
+msgstr ""
+
+#. {mode} is MIP, MinIP or Average; the slab's thickness follows in millimetres.
+#: crates/ui/src/viewport.rs
+msgid "{mode} slab {thickness} mm"
+msgstr ""
+
+#: crates/ui/src/viewport.rs
+#: crates/ui/src/volume_view.rs
+msgid "Custom window"
+msgstr ""
+
+#: crates/ui/src/viewport.rs
+msgid "Zoom {percent}% · Inverted"
+msgstr ""
+
+#: crates/ui/src/viewport.rs
+#: crates/ui/src/volume_view.rs
+msgid "Zoom {percent}%"
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "There is no volume to show in 3D."
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "3D view: {look}"
+msgstr ""
+
+#. the 3D view is computing a sharper picture.
+#: crates/ui/src/volume_view.rs
+msgid "Refining…"
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "Inverted"
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "Illustration: colours and surfaces are computed"
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "This 3D picture is computed from the scan to show its shape. Its colours are not those of the body, and which parts appear depends on the look and the contrast. It is an illustration, not a basis for diagnosis."
+msgstr ""
+
+#. how the 3D view draws the volume (bone, skin, vessels and bone, surface, MIP).
+#: crates/ui/src/volume_view.rs
+msgid "Look"
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "Standard views"
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+#: crates/ui/src/welcome.rs
+msgid "Shift+{key}"
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "Turn the object to this view"
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "Drag the picture to turn the object. The arrow keys turn it by 10° (by 45° with Shift), L chooses the next look and R resets the view."
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "Look and standard views"
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "How the volume is drawn, and the side from which it is seen (L: next look)"
+msgstr ""
+
+#: crates/ui/src/volume_view.rs
+msgid "Drag: turn · Arrow keys: turn · Shift+A, P, L, R, S, I: standard views · Shift-drag: pan · Right-drag: contrast · Pinch/{command}-scroll: zoom · Double-click: fit"
+msgstr ""
+
+#: crates/ui/src/welcome.rs
+msgid "View the MRI and CT scans from your hospital CD, DVD or USB stick"
+msgstr ""
+
+#: crates/ui/src/welcome.rs
+msgid "Open folder or disc…"
+msgstr ""
+
+#: crates/ui/src/welcome.rs
+msgid "Open archive or disc image…"
+msgstr ""
+
+#: crates/ui/src/welcome.rs
+msgid "Opens a ZIP archive or an ISO disc image without unpacking it ({shortcut})"
+msgstr ""
+
+#: crates/ui/src/welcome.rs
+msgid "…or drag a folder, a ZIP archive, a disc image, a DICOMDIR or a DICOM file onto this window"
+msgstr ""
+
+#: crates/ui/src/welcome.rs
+msgid "Discs and drives with images"
+msgstr ""
+
+#. the list of recently opened studies.
+#: crates/ui/src/welcome.rs
+msgctxt "studies"
+msgid "Recent"
+msgstr ""
+
+#. empties the list of recent studies.
+#: crates/ui/src/welcome.rs
+msgctxt "recent list"
+msgid "Clear"
+msgstr ""
+
+#: crates/ui/src/welcome.rs
+msgid "Remove from list"
+msgstr ""
+
+#: crates/ui/src/welcome.rs
+msgid "Images are processed only on this computer — nothing is uploaded."
+msgstr ""
+
+#. keep this statement unambiguous and at least as strong as the English.
+#: crates/ui/src/welcome.rs
+msgid "SumMRIse is intended for personal and educational viewing. It is not a medical device and must not be used for diagnosis — discuss your images with your doctor."
+msgstr ""
+
+#. the names of modifier keys as printed on keyboards of your language (German: Strg).
+#: crates/ui/src/widgets.rs
+msgctxt "key name"
+msgid "Ctrl"
+msgstr ""
+
+#: crates/ui/src/widgets.rs
+msgctxt "key name"
+msgid "Option"
+msgstr ""
+
+#: crates/ui/src/widgets.rs
+msgctxt "key name"
+msgid "Alt"
+msgstr ""

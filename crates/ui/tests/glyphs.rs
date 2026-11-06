@@ -71,3 +71,43 @@ fn ui_symbols_render_with_bundled_fonts_only() {
     });
     harness.run();
 }
+
+/// Every character of every translation (`msgstr` of the compiled PO files)
+/// and of the language names in the settings renders with egui's bundled
+/// fonts alone, whatever the system has.
+#[test]
+fn translations_and_language_names_render_with_bundled_fonts_only() {
+    let mut characters: BTreeSet<char> = summrise_i18n::LANGUAGES.iter().flat_map(|l| l.name.chars()).collect();
+    assert!(characters.contains(&'у') && characters.contains(&'ç') && characters.contains(&'ñ'));
+    for language in summrise_i18n::translated_languages() {
+        let po = summrise_i18n::compiled_po(language.code).expect("compiled catalogue");
+        let file = summrise_i18n::po::parse(po).expect("the catalogue reads");
+        for entry in &file.entries {
+            characters.extend(entry.translations.iter().flat_map(|t| t.chars()).filter(|c| !c.is_control()));
+        }
+    }
+    characters.remove(&PLATFORM_ONLY);
+    let text: String = characters.into_iter().collect();
+    let mut harness = Harness::new_ui(move |ui| {
+        ui.label(text.as_str());
+    });
+    harness.run();
+}
+
+mod tour;
+
+/// The main screens of the app in every language with the fonts the app
+/// loads on this platform; kittest panics on a missing glyph. With the
+/// catalogues still empty this shows English everywhere, and once they are
+/// filled, every language.
+#[test]
+fn main_screens_render_in_every_language() {
+    summrise_i18n::with_catalogue(None, || {
+        for language in summrise_i18n::LANGUAGES {
+            let mut tour = tour::Tour::new(language.code, None);
+            tour.main_screens();
+            assert_eq!(summrise_i18n::active_language(), language.code);
+            assert!(tour.problems.is_empty(), "{}: {:?}", language.code, tour.problems);
+        }
+    });
+}

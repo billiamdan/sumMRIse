@@ -15,6 +15,12 @@ use summrise_core::imaging::MprAxis;
 pub(crate) struct Palette {
     pub accent: Color32,
     pub accent_text: Color32,
+    /// Emphasised text (headings, `RichText::strong`). egui draws it in the
+    /// colour of a widget being pressed, so this also sets that colour.
+    pub strong_text: Color32,
+    /// Fill of a widget while it is being pressed; `strong_text` must be
+    /// readable on it.
+    pub pressed: Color32,
     pub bg: Color32,
     pub panel: Color32,
     pub surface: Color32,
@@ -29,6 +35,8 @@ pub(crate) struct Palette {
 pub(crate) const DARK: Palette = Palette {
     accent: Color32::from_rgb(0x4C, 0x9A, 0xFF),
     accent_text: Color32::WHITE,
+    strong_text: Color32::WHITE,
+    pressed: Color32::from_rgb(0x2F, 0x6A, 0xB8),
     bg: Color32::from_rgb(0x0F, 0x11, 0x15),
     panel: Color32::from_rgb(0x16, 0x19, 0x1F),
     surface: Color32::from_rgb(0x1E, 0x22, 0x2A),
@@ -43,6 +51,8 @@ pub(crate) const DARK: Palette = Palette {
 pub(crate) const LIGHT: Palette = Palette {
     accent: Color32::from_rgb(0x1F, 0x6F, 0xEB),
     accent_text: Color32::WHITE,
+    strong_text: Color32::from_rgb(0x0B, 0x0F, 0x17),
+    pressed: Color32::from_rgb(0xC7, 0xDA, 0xFA),
     bg: Color32::from_rgb(0xF4, 0xF6, 0xF9),
     panel: Color32::from_rgb(0xFB, 0xFC, 0xFD),
     surface: Color32::from_rgb(0xEE, 0xF1, 0xF5),
@@ -71,6 +81,7 @@ pub(crate) fn view_color(kind: ViewKind) -> Color32 {
         ViewKind::Mpr(MprAxis::Axial) => Color32::from_rgb(0xF2, 0x5C, 0x54),
         ViewKind::Mpr(MprAxis::Coronal) => Color32::from_rgb(0x4C, 0xC3, 0x5A),
         ViewKind::Mpr(MprAxis::Sagittal) => Color32::from_rgb(0xF4, 0xC4, 0x30),
+        ViewKind::Volume => Color32::from_rgb(0xC3, 0xA6, 0xF2),
     }
 }
 
@@ -146,10 +157,11 @@ fn apply(style: &mut egui::Style, p: &Palette, dark: bool) {
         state.expansion = 0.0;
     }
     w.hovered.bg_stroke = Stroke::new(1.0, p.accent.gamma_multiply(0.6));
-    w.active.bg_fill = p.accent.gamma_multiply(0.8);
-    w.active.weak_bg_fill = p.accent.gamma_multiply(0.8);
+    w.active.bg_fill = p.pressed;
+    w.active.weak_bg_fill = p.pressed;
     w.active.bg_stroke = Stroke::new(1.0, p.accent);
-    w.active.fg_stroke = Stroke::new(1.0, p.accent_text);
+    // Also the colour of strong text everywhere (see `Palette::strong_text`).
+    w.active.fg_stroke = Stroke::new(1.0, p.strong_text);
     w.active.corner_radius = radius;
     w.active.expansion = 0.0;
 }
@@ -192,6 +204,48 @@ fn install_fonts(ctx: &Context) {
                 data,
                 vec![InsertFontFamily { family, priority: FontPriority::Highest }],
             ));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// WCAG 2 contrast ratio of two opaque colours.
+    fn contrast(a: Color32, b: Color32) -> f32 {
+        let luminance = |c: Color32| {
+            let lin = |v: u8| {
+                let v = f32::from(v) / 255.0;
+                if v <= 0.040_45 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+            };
+            0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+        };
+        let (hi, lo) = {
+            let (x, y) = (luminance(a), luminance(b));
+            if x > y { (x, y) } else { (y, x) }
+        };
+        (hi + 0.05) / (lo + 0.05)
+    }
+
+    /// Strong text (headings, series titles) was white in the light theme and
+    /// vanished on the light panels.
+    #[test]
+    fn strong_text_is_readable_in_both_themes() {
+        let ctx = Context::default();
+        ctx.style_mut_of(Theme::Dark, |style| apply(style, &DARK, true));
+        ctx.style_mut_of(Theme::Light, |style| apply(style, &LIGHT, false));
+        for (theme, p) in [(Theme::Dark, DARK), (Theme::Light, LIGHT)] {
+            let visuals = &ctx.style_of(theme).visuals;
+            let strong = visuals.strong_text_color();
+            for background in [p.panel, p.surface, p.bg] {
+                let ratio = contrast(strong, background);
+                assert!(ratio >= 7.0, "{theme:?}: strong text {strong:?} on {background:?} has contrast {ratio:.1}");
+            }
+            let pressed = contrast(visuals.widgets.active.fg_stroke.color, visuals.widgets.active.bg_fill);
+            assert!(pressed >= 4.5, "{theme:?}: text of a pressed widget has contrast {pressed:.1}");
+            // Strong text stands out from ordinary text.
+            assert!(contrast(strong, p.panel) > contrast(visuals.text_color(), p.panel));
         }
     }
 }

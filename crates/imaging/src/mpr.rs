@@ -8,8 +8,10 @@
 use glam::DVec3;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use summrise_i18n::{tr, tr_ctx};
 
 use crate::geometry::{AnatomicalPlane, EdgeLabels};
+use crate::plane::PlaneBasis;
 use crate::volume::{Volume, VolumeGeometry};
 
 /// One of the three orthogonal reformatting planes.
@@ -76,7 +78,14 @@ pub struct MprExtent {
 
 impl MprExtent {
     pub fn of(geometry: &VolumeGeometry, axis: MprAxis) -> Self {
-        let (right, down, normal) = axis.basis();
+        Self::of_plane(geometry, &PlaneBasis::standard(axis))
+    }
+
+    /// The extent on a plane of any orientation: the bounding box of the
+    /// eight volume corners projected on `basis`. Slices follow the basis
+    /// normal.
+    pub fn of_plane(geometry: &VolumeGeometry, basis: &PlaneBasis) -> Self {
+        let PlaneBasis { right, down, normal } = *basis;
         let range = |dir: DVec3| {
             geometry.corners().iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), c| {
                 let d = c.dot(dir);
@@ -121,9 +130,12 @@ impl SlabMode {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Mip => "MIP",
-            Self::MinIp => "MinIP",
-            Self::Mean => "Average",
+            // Translators: maximum intensity projection; the abbreviation is usual in most languages.
+            Self::Mip => tr!("MIP"),
+            // Translators: minimum intensity projection; the abbreviation is usual in most languages.
+            Self::MinIp => tr!("MinIP"),
+            // Translators: a thick slab shown as the average of its slices.
+            Self::Mean => tr_ctx!("slab projection", "Average"),
         }
     }
 }
@@ -166,9 +178,23 @@ impl MprImage {
 /// Resamples `volume` on the plane of `axis` located `position` mm along the
 /// view normal. Output is limited to `max_dim` pixels per side.
 pub fn reslice(volume: &Volume, axis: MprAxis, position: f64, slab: Option<Slab>, max_dim: usize) -> MprImage {
+    reslice_plane(volume, &PlaneBasis::standard(axis), position, slab, max_dim)
+}
+
+/// Resamples `volume` on the plane with the orientation `basis` located
+/// `position` mm along the basis normal: the standard planes and planes
+/// tilted about the crosshair alike. A slab projects along the basis normal.
+/// Output is limited to `max_dim` pixels per side.
+pub fn reslice_plane(
+    volume: &Volume,
+    basis: &PlaneBasis,
+    position: f64,
+    slab: Option<Slab>,
+    max_dim: usize,
+) -> MprImage {
     let g = &volume.geometry;
-    let (right, down, normal) = axis.basis();
-    let ext = MprExtent::of(g, axis);
+    let PlaneBasis { right, down, normal } = *basis;
+    let ext = MprExtent::of_plane(g, basis);
     let max_dim = max_dim.max(16) as f64;
     let spacing = g.min_spacing().max((ext.u.1 - ext.u.0) / (max_dim - 1.0)).max((ext.v.1 - ext.v.0) / (max_dim - 1.0));
     let width = ((ext.u.1 - ext.u.0) / spacing).floor() as usize + 1;

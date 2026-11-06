@@ -19,7 +19,9 @@ rfd.workspace = true
 serde.workspace = true
 summrise-core.workspace = true
 summrise-dicom.workspace = true
+summrise-i18n.workspace = true
 summrise-imaging.workspace = true
+sys-locale.workspace = true
 
 [lints]
 workspace = true

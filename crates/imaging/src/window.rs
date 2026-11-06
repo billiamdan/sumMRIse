@@ -8,6 +8,9 @@ use std::borrow::Cow;
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use summrise_i18n::{tr, tr_ctx};
+
+use crate::lut::LookupTable;
 
 /// VOI LUT Function (0028,1056).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
@@ -30,9 +33,10 @@ impl VoiFunction {
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::Linear => "Linear",
-            Self::LinearExact => "Linear (exact)",
-            Self::Sigmoid => "Sigmoid",
+            // Translators: the names of the DICOM VOI LUT functions, how values map to grey.
+            Self::Linear => tr_ctx!("VOI function", "Linear"),
+            Self::LinearExact => tr_ctx!("VOI function", "Linear (exact)"),
+            Self::Sigmoid => tr_ctx!("VOI function", "Sigmoid"),
         }
     }
 }
@@ -132,6 +136,17 @@ pub struct WindowPreset {
 }
 
 impl WindowPreset {
+    /// The name shown to the user. The name of a built-in preset is its
+    /// identity and stays English; it is shown translated (see
+    /// [`builtin_label`]). A window stored in the images keeps the name it
+    /// was stored with: that is text from the disc.
+    pub fn label(&self) -> &str {
+        match self.source {
+            PresetSource::Dicom => &self.name,
+            PresetSource::Clinical | PresetSource::Auto | PresetSource::FullRange => builtin_label(&self.name),
+        }
+    }
+
     const fn clinical(name: &'static str, width: f64, level: f64) -> Self {
         Self {
             name: Cow::Borrowed(name),
@@ -155,6 +170,31 @@ pub const CT_PRESETS: &[WindowPreset] = &[
     WindowPreset::clinical("Bone", 1800.0, 400.0),
     WindowPreset::clinical("Angio", 600.0, 300.0),
 ];
+
+/// The translation of the name of a built-in preset: a CT window of
+/// [`CT_PRESETS`], `"Auto"` or `"Full range"`. Other names (the uptake
+/// windows "SUV 0–5", windows stored in the images) are returned as they are.
+pub fn builtin_label(name: &str) -> &str {
+    match name {
+        // Translators: the built-in CT windows, named after what each shows best.
+        "Brain" => tr_ctx!("CT window", "Brain"),
+        "Subdural" => tr_ctx!("CT window", "Subdural"),
+        "Stroke" => tr_ctx!("CT window", "Stroke"),
+        "Head soft tissue" => tr_ctx!("CT window", "Head soft tissue"),
+        "Temporal bone" => tr_ctx!("CT window", "Temporal bone"),
+        "Lung" => tr_ctx!("CT window", "Lung"),
+        "Mediastinum" => tr_ctx!("CT window", "Mediastinum"),
+        "Abdomen" => tr_ctx!("CT window", "Abdomen"),
+        "Liver" => tr_ctx!("CT window", "Liver"),
+        "Bone" => tr_ctx!("CT window", "Bone"),
+        "Angio" => tr_ctx!("CT window", "Angio"),
+        // Translators: the window computed from the brightness values of the images.
+        "Auto" => tr_ctx!("contrast preset", "Auto"),
+        // Translators: the window that spans every value present in the images.
+        "Full range" => tr!("Full range"),
+        other => other,
+    }
+}
 
 /// Robust automatic window from image statistics: the 0.5–99.5 percentile
 /// range, ignoring `NaN` and a dominant background/padding value.
@@ -197,6 +237,29 @@ pub fn gray_to_rgba(len: usize, get: impl Fn(usize) -> f32 + Sync, window: &Wind
             let v = get(base + n);
             let g = if v.is_finite() {
                 let t = window.apply(f64::from(v));
+                let t = if invert { 1.0 - t } else { t };
+                (t * 255.0).round() as u8
+            } else {
+                0
+            };
+            rgba.copy_from_slice(&[g, g, g, 255]);
+        }
+    });
+    out
+}
+
+/// Converts `len` grey values to RGBA8 through a contrast table (VOI LUT)
+/// instead of a window: the grey level of a value is its table entry as a
+/// fraction of the table's largest output. Non-finite values (outside the
+/// scanned area) are rendered as opaque black, also when inverted.
+pub fn lut_to_rgba(len: usize, get: impl Fn(usize) -> f32 + Sync, table: &LookupTable, invert: bool) -> Vec<u8> {
+    let mut out = vec![0u8; len * 4];
+    out.par_chunks_mut(4 * 4096).enumerate().for_each(|(chunk, px)| {
+        let base = chunk * 4096;
+        for (n, rgba) in px.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+            let v = get(base + n);
+            let g = if v.is_finite() {
+                let t = table.fraction(f64::from(v));
                 let t = if invert { 1.0 - t } else { t };
                 (t * 255.0).round() as u8
             } else {
@@ -286,5 +349,51 @@ mod tests {
         assert_eq!(&inv[0..4], &[255, 255, 255, 255]);
         assert_eq!(&inv[12..16], &[0, 0, 0, 255], "background stays black");
         assert_eq!(rgb_to_rgba(&[1, 2, 3], false), vec![1, 2, 3, 255]);
+    }
+
+    #[test]
+    fn contrast_table_maps_values_through_its_entries() {
+        // A 12-bit square-root curve: input 100 has entry 640 of 4095, grey 40 of 255.
+        let data: Vec<u16> = (0..4096).map(|i| (4095.0 * (f64::from(i) / 4095.0).sqrt()).round() as u16).collect();
+        let table = LookupTable::new(0, 12, data).expect("table");
+        assert_eq!(table.entry(100), 640);
+        let values = [100.0f32, 0.0, 5000.0, f32::NAN];
+        let rgba = lut_to_rgba(4, |i| values[i], &table, false);
+        assert_eq!(&rgba[0..4], &[40, 40, 40, 255]);
+        assert_eq!(&rgba[4..8], &[0, 0, 0, 255]);
+        assert_eq!(&rgba[8..12], &[255, 255, 255, 255], "beyond the table: its last entry");
+        assert_eq!(&rgba[12..16], &[0, 0, 0, 255], "outside the scanned area");
+        let inverted = lut_to_rgba(4, |i| values[i], &table, true);
+        assert_eq!(&inverted[0..4], &[215, 215, 215, 255]);
+        assert_eq!(&inverted[12..16], &[0, 0, 0, 255], "padding stays black when inverted");
+    }
+
+    /// Built-in presets are shown in the language of the interface under an
+    /// English name that stays their identity; a stored window keeps the
+    /// name from the disc, even when it reads like a built-in one.
+    #[test]
+    fn built_in_preset_names_are_translated_when_shown_and_stored_names_never() {
+        let mut test = summrise_i18n::Catalogue::new("xx", summrise_i18n::english_plural_form);
+        for preset in CT_PRESETS {
+            let Cow::Borrowed(name) = preset.name else { panic!("built-in names are static") };
+            let key: &'static str = Box::leak(format!("CT window\u{4}{name}").into_boxed_str());
+            test.insert(key, Box::leak(format!("«{name}»").into_boxed_str()));
+        }
+        test.insert("contrast preset\u{4}Auto", "«Auto»");
+        test.insert("Full range", "«Full range»");
+        summrise_i18n::with_catalogue(Some(test.leak()), || {
+            for preset in CT_PRESETS {
+                assert_eq!(preset.label(), format!("«{}»", preset.name), "{} has no translation", preset.name);
+            }
+            let stored =
+                WindowPreset { name: "Lung".into(), window: Window::new(-600.0, 1500.0), source: PresetSource::Dicom };
+            assert_eq!(stored.label(), "Lung");
+            let auto = WindowPreset { name: "Auto".into(), source: PresetSource::Auto, ..stored.clone() };
+            assert_eq!(auto.label(), "«Auto»");
+            assert_eq!(builtin_label("Full range"), "«Full range»");
+            let uptake = WindowPreset { name: "SUV 0–5".into(), source: PresetSource::Clinical, ..stored };
+            assert_eq!(uptake.label(), "SUV 0–5");
+        });
+        assert_eq!(CT_PRESETS[0].label(), "Brain");
     }
 }

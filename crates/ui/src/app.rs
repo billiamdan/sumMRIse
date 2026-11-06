@@ -8,7 +8,10 @@ use std::time::{Duration, Instant};
 use egui::{Align2, Color32, Frame, Id, Key, KeyboardShortcut, Margin, Modifiers, RichText, Ui, vec2};
 use summrise_core::dicom::{DicomError, StudyIndex};
 use summrise_core::{Appearance, Job, MediaWatcher, RecentStudies, Session, Settings, Waker, recent_label};
+use summrise_i18n::{tr, tr_ctx, tr_n};
 
+use crate::display_check::{self, DisplayCheckScreen};
+use crate::language;
 use crate::theme;
 use crate::viewer::Viewer;
 use crate::welcome;
@@ -20,14 +23,20 @@ const RECENT_KEY: &str = "recent";
 /// Start-up options from the command line / OS.
 #[derive(Debug, Default, Clone)]
 pub struct AppOptions {
-    /// Folder, DICOMDIR or file to open immediately.
+    /// Folder, DICOMDIR, DICOM file, ZIP archive or disc image to open immediately.
     pub open: Option<PathBuf>,
+    /// The languages the operating system prefers, most preferred first
+    /// ([`crate::system_languages`]): "System language" stands for the first
+    /// one the interface has. Empty (the default, and in tests): English.
+    pub system_languages: Vec<String>,
 }
 
 /// User intents raised by screens and handled centrally.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Action {
     OpenDialog,
+    /// Choose a ZIP archive or a disc image to open.
+    OpenArchiveDialog,
     Open(PathBuf),
     RemoveRecent(PathBuf),
     ClearRecent,
@@ -115,8 +124,12 @@ pub struct SumMRIseApp {
     pending: Vec<Action>,
     show_settings: bool,
     show_about: bool,
+    /// The display check, while it is open.
+    display_check: Option<DisplayCheckScreen>,
     applied_appearance: Option<Appearance>,
     title: String,
+    /// See [`AppOptions::system_languages`].
+    system_languages: Vec<String>,
 }
 
 impl SumMRIseApp {
@@ -140,8 +153,10 @@ impl SumMRIseApp {
             pending,
             show_settings: false,
             show_about: false,
+            display_check: None,
             applied_appearance: None,
             title: String::new(),
+            system_languages: options.system_languages,
         }
     }
 
@@ -161,7 +176,17 @@ impl SumMRIseApp {
         match action {
             Action::OpenDialog => {
                 if let Some(path) =
-                    rfd::FileDialog::new().set_title("Open a folder or disc with DICOM images").pick_folder()
+                    rfd::FileDialog::new().set_title(tr!("Open a folder or disc with DICOM images")).pick_folder()
+                {
+                    self.start_scan(path);
+                }
+            }
+            Action::OpenArchiveDialog => {
+                // The content decides what a file is; the filter only helps to find it.
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title(tr!("Open a ZIP archive or a disc image"))
+                    .add_filter(tr!("ZIP archives and disc images"), &["zip", "iso", "ZIP", "ISO"])
+                    .pick_file()
                 {
                     self.start_scan(path);
                 }
@@ -203,7 +228,11 @@ impl SumMRIseApp {
                 let studies = index.studies.len();
                 let session = Session::new(index, self.settings.memory_budget_bytes(), Some(self.waker.clone()));
                 if studies > 1 {
-                    self.toasts.info(format!("{studies} studies found — switch between them in the browser."));
+                    self.toasts.info(tr_n!(
+                        "{n} study found — switch between them in the browser.",
+                        "{n} studies found — switch between them in the browser.",
+                        studies
+                    ));
                 }
                 self.screen = Screen::Viewer(Box::new(Viewer::new(session, &self.settings)));
             }
@@ -223,13 +252,10 @@ impl SumMRIseApp {
     }
 
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
-        let open = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
         let settings = KeyboardShortcut::new(Modifiers::COMMAND, Key::Comma);
         let inspector = KeyboardShortcut::new(Modifiers::COMMAND, Key::I);
         let browser = KeyboardShortcut::new(Modifiers::COMMAND, Key::B);
-        if ctx.input_mut(|i| i.consume_shortcut(&open)) {
-            self.pending.push(Action::OpenDialog);
-        }
+        self.pending.extend(open_shortcut(ctx));
         if ctx.input_mut(|i| i.consume_shortcut(&settings)) {
             self.show_settings = true;
         }
@@ -267,19 +293,21 @@ impl SumMRIseApp {
             card(ui, |ui| {
                 ui.set_width(420.0);
                 let snap = job.progress();
-                ui.label(RichText::new(if snap.stage.is_empty() { "Preparing…" } else { &snap.stage }).strong());
+                ui.label(RichText::new(if snap.stage.is_empty() { tr!("Preparing…") } else { &snap.stage }).strong());
                 ui.add(
                     egui::Label::new(RichText::new(path.display().to_string()).small().color(p.text_weak)).truncate(),
                 );
                 ui.add_space(6.0);
                 match snap.fraction() {
                     Some(f) => ui.add(egui::ProgressBar::new(f).text(format!("{} / {}", snap.done, snap.total))),
-                    None => {
-                        ui.add(egui::ProgressBar::new(0.0).animate(true).text(format!("{} files found", snap.done)))
-                    }
+                    None => ui.add(egui::ProgressBar::new(0.0).animate(true).text(tr_n!(
+                        "{n} file found",
+                        "{n} files found",
+                        snap.done
+                    ))),
                 };
                 ui.add_space(6.0);
-                if ui.button("Cancel").clicked() {
+                if ui.button(tr!("Cancel")).clicked() {
                     cancel = true;
                 }
             });
@@ -289,7 +317,10 @@ impl SumMRIseApp {
 
     fn settings_window(&mut self, ctx: &egui::Context) {
         let mut open = self.show_settings;
-        egui::Window::new("Settings")
+        let mut check_display = false;
+        // The id stays the same in every language.
+        egui::Window::new(tr!("Settings"))
+            .id(Id::unique("settings window"))
             .open(&mut open)
             .resizable(false)
             .collapsible(false)
@@ -297,32 +328,54 @@ impl SumMRIseApp {
             .show(ctx, |ui| {
                 let s = &mut self.settings;
                 egui::Grid::new("settings-grid").num_columns(2).spacing([16.0, 10.0]).show(ui, |ui| {
-                    ui.label("Appearance");
+                    let label = ui.label(tr!("Language"));
+                    language::choice(ui, &mut s.language, &self.system_languages)
+                        .labelled_by(label.id)
+                        .on_hover_text(tr!("The language of the interface; it changes at once"));
+                    ui.end_row();
+                    ui.label(tr!("Appearance"));
                     ui.horizontal(|ui| {
-                        ui.selectable_value(&mut s.appearance, Appearance::System, "System");
-                        ui.selectable_value(&mut s.appearance, Appearance::Dark, "Dark");
-                        ui.selectable_value(&mut s.appearance, Appearance::Light, "Light");
+                        // Translators: the appearance of the interface: as the system has it, dark or light.
+                        ui.selectable_value(&mut s.appearance, Appearance::System, tr_ctx!("appearance", "System"));
+                        ui.selectable_value(&mut s.appearance, Appearance::Dark, tr_ctx!("appearance", "Dark"));
+                        ui.selectable_value(&mut s.appearance, Appearance::Light, tr_ctx!("appearance", "Light"));
                     });
                     ui.end_row();
-                    ui.label("Annotations");
-                    ui.checkbox(&mut s.show_overlays, "Show patient/study text, orientation and scale");
+                    ui.label(tr!("Annotations"));
+                    ui.checkbox(&mut s.show_overlays, tr!("Show patient/study text, orientation and scale"));
                     ui.end_row();
-                    ui.label("Privacy");
-                    ui.checkbox(&mut s.hide_patient_details, "Hide patient name, ID and birth date");
+                    ui.label(tr!("Privacy"));
+                    ui.checkbox(&mut s.hide_patient_details, tr!("Hide patient name, ID and birth date"));
                     ui.end_row();
-                    ui.label("Display");
-                    ui.checkbox(&mut s.smooth_interpolation, "Smooth (bilinear) magnification");
+                    // Translators: how the images are drawn on the screen.
+                    ui.label(tr!("Display"));
+                    ui.checkbox(&mut s.smooth_interpolation, tr!("Smooth (bilinear) magnification"));
                     ui.end_row();
-                    ui.label("Recent studies");
+                    ui.label(summrise_i18n::tr!("Explanations"));
+                    ui.checkbox(
+                        &mut s.show_explanations,
+                        summrise_i18n::tr!("Show explanations of series, values and the viewing position"),
+                    )
+                    .on_hover_text(summrise_i18n::tr!(
+                        "Shows what each series is, what the values in the image information mean and where the image on screen lies in the body."
+                    ));
+                    ui.end_row();
+                    ui.label(tr!("Recent studies"));
                     ui.vertical(|ui| {
-                        ui.checkbox(&mut s.remember_recent, "Remember opened folders");
+                        ui.checkbox(&mut s.remember_recent, summrise_i18n::tr!("Remember opened folders and archives"));
                         ui.label(
-                            RichText::new("Stores the folder path, study description and date only.").small().weak(),
+                            RichText::new(summrise_i18n::tr!(
+                                "Stores the path of the folder or archive, the study description and date only."
+                            ))
+                            .small()
+                            .weak(),
                         );
                     });
                     ui.end_row();
-                    ui.label("Memory limit");
-                    ui.add(egui::Slider::new(&mut s.memory_budget_mb, 512..=32_768).logarithmic(true).suffix(" MB"));
+                    let memory = ui.label(tr!("Memory limit"));
+                    // The slider and its number field are both named by the row label.
+                    ui.add(egui::Slider::new(&mut s.memory_budget_mb, 512..=32_768).logarithmic(true).suffix(" MB"))
+                        .labelled_by(memory.id);
                     ui.end_row();
                 });
                 if !self.settings.remember_recent {
@@ -330,14 +383,19 @@ impl SumMRIseApp {
                 }
                 ui.separator();
                 ui.horizontal(|ui| {
-                    if ui.button("About SumMRIse").clicked() {
+                    if ui.button(tr!("About SumMRIse")).clicked() {
                         self.show_about = true;
                     }
-                    if ui.button("Restore defaults").clicked() {
+                    if ui.button(tr!("Restore defaults")).clicked() {
                         self.settings = Settings::default();
                     }
+                    check_display = display_check::open_button(ui).clicked();
                 });
             });
+        if check_display {
+            open = false;
+            self.display_check = Some(DisplayCheckScreen::default());
+        }
         self.show_settings = open;
         if let Screen::Viewer(v) = &mut self.screen {
             v.session.set_budget(self.settings.memory_budget_bytes());
@@ -351,26 +409,32 @@ impl SumMRIseApp {
                 let (logo, _) = ui.allocate_exact_size(vec2(64.0, 64.0), egui::Sense::hover());
                 paint_logo(ui.painter(), logo);
                 ui.heading("SumMRIse");
-                ui.label(RichText::new(format!("Version {}", env!("CARGO_PKG_VERSION"))).weak());
+                ui.label(RichText::new(tr!("Version {version}", version = env!("CARGO_PKG_VERSION"))).weak());
             });
             ui.add_space(8.0);
-            ui.label(
-                "A viewer for MRI and CT studies from patient CDs/DVDs. Reads DICOM media (DICOMDIR), \
+            ui.label(tr!("A viewer for MRI and CT studies from patient CDs/DVDs. Reads DICOM media (DICOMDIR), \
                  shows every series with correct orientation, contrast presets, multiplanar \
-                 reformatting and full metadata.",
-            );
+                 reformatting and full metadata."));
             ui.add_space(6.0);
-            ui.label(RichText::new("Not a medical device. Not for diagnostic use.").color(theme::palette(ui).warn));
+            // Translators: keep this statement unambiguous and at least as strong as the English.
+            let disclaimer = tr!("Not a medical device. Not for diagnostic use.");
+            ui.label(RichText::new(disclaimer).color(theme::palette(ui).warn));
             ui.add_space(6.0);
             ui.label(
-                RichText::new("Built with dicom-rs, egui/eframe and wgpu. Licensed under the MIT licence.")
+                RichText::new(tr!("Built with dicom-rs, egui/eframe and wgpu. Licensed under the MIT licence."))
                     .small()
                     .weak(),
             );
             ui.add_space(8.0);
-            ui.vertical_centered(|ui| ui.button("Close").clicked()).inner
+            let check = ui.vertical_centered(|ui| display_check::open_button(ui).clicked()).inner;
+            ui.add_space(4.0);
+            (ui.vertical_centered(|ui| ui.button(tr!("Close")).clicked()).inner, check)
         });
-        if response.inner || response.should_close() {
+        let (close, check) = response.inner;
+        if check {
+            self.display_check = Some(DisplayCheckScreen::default());
+        }
+        if close || check || response.should_close() {
             self.show_about = false;
         }
     }
@@ -385,16 +449,32 @@ impl SumMRIseApp {
         painter.text(
             rect.center(),
             Align2::CENTER_CENTER,
-            "Drop to open",
+            tr!("Drop to open"),
             egui::FontId::proportional(24.0),
             Color32::WHITE,
         );
     }
 }
 
+/// The dialog a keyboard shortcut asks for: the folder dialog with Command+O
+/// (Ctrl+O), the dialog for archives and disc images with Shift added.
+fn open_shortcut(ctx: &egui::Context) -> Option<Action> {
+    let folder = KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
+    let archive = KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, Key::O);
+    // The longer shortcut first: with Shift held, the shorter one matches as well.
+    if ctx.input_mut(|i| i.consume_shortcut(&archive)) {
+        Some(Action::OpenArchiveDialog)
+    } else if ctx.input_mut(|i| i.consume_shortcut(&folder)) {
+        Some(Action::OpenDialog)
+    } else {
+        None
+    }
+}
+
 impl eframe::App for SumMRIseApp {
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        language::apply(&ctx, &self.settings, &self.system_languages);
         self.apply_appearance(&ctx);
         self.handle_dropped_files(&ctx);
         self.handle_shortcuts(&ctx);
@@ -433,6 +513,11 @@ impl eframe::App for SumMRIseApp {
         if self.show_about {
             self.about_modal(&ctx);
         }
+        if let Some(check) = &mut self.display_check
+            && !check.show(&ctx)
+        {
+            self.display_check = None;
+        }
         self.toasts.show(&ctx);
         Self::drop_overlay(&ctx);
         self.update_title(&ctx);
@@ -445,5 +530,30 @@ impl eframe::App for SumMRIseApp {
 
     fn auto_save_interval(&self) -> Duration {
         Duration::from_secs(30)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use egui_kittest::Harness;
+
+    use super::*;
+
+    /// The shortcut for archives is the one for folders with Shift: each asks
+    /// for its own dialog, and never for both.
+    #[test]
+    fn open_shortcuts_ask_for_one_dialog_each() {
+        let mut harness =
+            Harness::new_ui_state(|ui, asked: &mut Vec<Action>| asked.extend(open_shortcut(ui.ctx())), Vec::new());
+        let mut asked_after = |modifiers: Modifiers| {
+            harness.state_mut().clear();
+            harness.key_press_modifiers(modifiers, Key::O);
+            harness.step();
+            harness.state().clone()
+        };
+        assert_eq!(asked_after(Modifiers::COMMAND | Modifiers::SHIFT), [Action::OpenArchiveDialog]);
+        assert_eq!(asked_after(Modifiers::COMMAND), [Action::OpenDialog]);
+        assert_eq!(asked_after(Modifiers::NONE), []);
+        assert_eq!(asked_after(Modifiers::SHIFT), []);
     }
 }

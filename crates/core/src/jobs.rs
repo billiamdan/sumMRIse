@@ -12,7 +12,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
-use summrise_dicom::{DecodedInstance, DicomError, FrameInfo, InstanceHeader, Progress, ProgressSnapshot, Series};
+use summrise_i18n::tr;
+
+use summrise_dicom::{
+    DecodedInstance, DicomError, FrameInfo, InstanceHeader, Media, Progress, ProgressSnapshot, Series,
+};
 
 use crate::series::SeriesData;
 
@@ -127,8 +131,9 @@ impl<T> Drop for Stream<T> {
 /// separate steps because they run on different threads: one thread reads
 /// (sequential access suits optical media), several decode from memory.
 pub trait ImageSource: Send + Sync {
-    /// Reads the encoded bytes of one file.
-    fn read(&self, header: &InstanceHeader) -> Result<Vec<u8>, DicomError>;
+    /// Reads the encoded bytes of one file from `media`, the media of the
+    /// index: a folder, or an archive or disc image that is read in memory.
+    fn read(&self, media: &Media, header: &InstanceHeader) -> Result<Vec<u8>, DicomError>;
 
     /// Decodes every frame of a file from the bytes [`Self::read`] returned.
     fn decode(&self, header: &InstanceHeader, bytes: Vec<u8>) -> Result<DecodedInstance, DicomError>;
@@ -139,8 +144,8 @@ pub trait ImageSource: Send + Sync {
 pub struct DicomFiles;
 
 impl ImageSource for DicomFiles {
-    fn read(&self, header: &InstanceHeader) -> Result<Vec<u8>, DicomError> {
-        summrise_dicom::read_instance(header)
+    fn read(&self, media: &Media, header: &InstanceHeader) -> Result<Vec<u8>, DicomError> {
+        summrise_dicom::read_instance(media, header)
     }
 
     fn decode(&self, _header: &InstanceHeader, bytes: Vec<u8>) -> Result<DecodedInstance, DicomError> {
@@ -332,6 +337,8 @@ struct Control {
 
 struct Shared {
     data: Arc<SeriesData>,
+    /// Where the files of the series are read from.
+    media: Media,
     control: Mutex<Control>,
     changed: Condvar,
     waker: Option<Waker>,
@@ -393,9 +400,11 @@ impl std::fmt::Debug for SeriesLoader {
 
 impl SeriesLoader {
     /// Starts loading `series` into `data`, beginning with image `displayed`.
-    /// Files are decoded on `decoders`, or on the coordinator thread without one.
+    /// The files are read from `media`, the media of the index the series is
+    /// from, and decoded on `decoders`, or on the coordinator thread without one.
     pub fn spawn(
         series: Arc<Series>,
+        media: Media,
         data: Arc<SeriesData>,
         source: Arc<dyn ImageSource>,
         decoders: Option<Arc<Decoders>>,
@@ -403,14 +412,14 @@ impl SeriesLoader {
         waker: Option<Waker>,
     ) -> Self {
         let control = Control { displayed, paused: false, cancelled: false, in_flight: 0, in_flight_bytes: 0 };
-        let shared = Arc::new(Shared { data, control: Mutex::new(control), changed: Condvar::new(), waker });
+        let shared = Arc::new(Shared { data, media, control: Mutex::new(control), changed: Condvar::new(), waker });
         let coordinator = shared.clone();
         let spawned = std::thread::Builder::new()
             .name("summrise-load".to_owned())
             .spawn(move || coordinate(&coordinator, &series, &source, decoders.as_deref()));
         if let Err(e) = spawned {
             log::error!("failed to spawn the loader thread: {e}");
-            shared.data.abort("the loader could not be started");
+            shared.data.abort(tr!("the loader could not be started"));
         }
         Self { shared }
     }
@@ -447,7 +456,7 @@ impl Drop for SeriesLoader {
 /// Runs one step of an image source; a panic inside it becomes a failed image.
 fn guarded<T>(step: impl FnOnce() -> Result<T, DicomError>) -> Result<T, String> {
     catch_unwind(AssertUnwindSafe(step))
-        .unwrap_or_else(|_| Err(DicomError::Image("the image source panicked".to_owned())))
+        .unwrap_or_else(|_| Err(DicomError::Image(tr!("the image source panicked").to_owned())))
         .map_err(|e| e.to_string())
 }
 
@@ -483,8 +492,8 @@ fn coordinate(shared: &Arc<Shared>, series: &Arc<Series>, source: &Arc<dyn Image
         };
         let Some(instance) = schedule.next(displayed) else { break };
         let bytes = match series.instances.get(instance) {
-            Some(header) => guarded(|| source.read(header)),
-            None => Err("the image is missing from the index".to_owned()),
+            Some(header) => guarded(|| source.read(&shared.media, header)),
+            None => Err(tr!("the image is missing from the index").to_owned()),
         };
         let size = bytes.as_ref().map_or(0, Vec::len);
         {
@@ -542,7 +551,7 @@ pub(crate) mod testing {
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
-    use summrise_dicom::{DecodedInstance, DicomError, InstanceHeader};
+    use summrise_dicom::{DecodedInstance, DicomError, InstanceHeader, Media};
 
     use super::{DicomFiles, ImageSource};
 
@@ -602,13 +611,13 @@ pub(crate) mod testing {
     }
 
     impl ImageSource for SlowSource {
-        fn read(&self, header: &InstanceHeader) -> Result<Vec<u8>, DicomError> {
+        fn read(&self, media: &Media, header: &InstanceHeader) -> Result<Vec<u8>, DicomError> {
             let turn = self.started.fetch_add(1, Ordering::SeqCst);
             while turn >= self.allowed.load(Ordering::SeqCst) {
                 std::thread::sleep(Duration::from_millis(1));
             }
             self.reads.lock().expect("read log").push((folder(header), header.instance_number.unwrap_or(0)));
-            DicomFiles.read(header)
+            DicomFiles.read(media, header)
         }
 
         fn decode(&self, header: &InstanceHeader, bytes: Vec<u8>) -> Result<DecodedInstance, DicomError> {
@@ -794,7 +803,8 @@ mod tests {
             count.fetch_add(1, Ordering::SeqCst);
         });
         let decoders = Decoders::new(3).map(Arc::new);
-        let loader = SeriesLoader::spawn(series, data.clone(), slow.clone(), decoders, 12, Some(waker));
+        let loader =
+            SeriesLoader::spawn(series, index.media.clone(), data.clone(), slow.clone(), decoders, 12, Some(waker));
         let settled = |loaded: usize| data.loaded() == loaded && slow.started() == loaded + 1;
         let woken = |times: usize| {
             eventually("the wake-up", || wakes.load(Ordering::SeqCst) >= times);
@@ -838,7 +848,15 @@ mod tests {
         let series = Arc::new(index.studies[0].series[3].clone());
         let data = Arc::new(SeriesData::new(plan_series(&series)));
         let slow = SlowSource::new();
-        let loader = SeriesLoader::spawn(series, data.clone(), slow.clone(), Decoders::new(2).map(Arc::new), 0, None);
+        let loader = SeriesLoader::spawn(
+            series,
+            index.media.clone(),
+            data.clone(),
+            slow.clone(),
+            Decoders::new(2).map(Arc::new),
+            0,
+            None,
+        );
         eventually("the read of its only file", || slow.started() == 1);
         // The user moves on while that file is being read.
         loader.pause();
@@ -855,7 +873,15 @@ mod tests {
         let series = Arc::new(index.studies[0].series[0].clone());
         let data = Arc::new(SeriesData::new(plan_series(&series)));
         let slow = SlowSource::new();
-        let loader = SeriesLoader::spawn(series, data.clone(), slow.clone(), Decoders::new(2).map(Arc::new), 0, None);
+        let loader = SeriesLoader::spawn(
+            series,
+            index.media.clone(),
+            data.clone(),
+            slow.clone(),
+            Decoders::new(2).map(Arc::new),
+            0,
+            None,
+        );
         slow.allow(2);
         eventually("two images", || data.loaded() == 2 && slow.started() == 3);
         drop(loader);

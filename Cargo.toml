@@ -17,6 +17,7 @@ publish = false
 # Internal crates
 summrise-core = { path = "crates/core" }
 summrise-dicom = { path = "crates/dicom" }
+summrise-i18n = { path = "crates/i18n" }
 summrise-imaging = { path = "crates/imaging" }
 summrise-testkit = { path = "crates/testkit" }
 summrise-ui = { path = "crates/ui" }
@@ -40,14 +41,25 @@ rfd = "0.17"
 # General purpose
 anyhow = "1.0.104"
 env_logger = "0.11.11"
+# Deflate for the synthetic ZIP archives the testkit writes (archive-import). Not a new
+# crate in the tree: dicom-rs, png and zip use it already.
+flate2 = "1.1.10"
 glam = "0.34.2"
 image = { version = "0.25.10", default-features = false, features = ["png", "ico"] }
 log = "0.4.35"
 rayon = "1.12.0"
 serde = { version = "1.0.229", features = ["derive"] }
+# The languages the operating system prefers, for the "System language" setting (translations).
+# Not a new crate in the tree: eframe's system-font provider uses it already.
+sys-locale = "0.3.2"
 tempfile = "3.27.0"
 thiserror = "2.0.21"
 walkdir = "2.5.0"
+# ZIP downloads of patient discs are read in memory, never unpacked (archive-import).
+# Only what reading stored, deflate and deflate64 entries needs: no encryption, no other
+# methods, no dates. `deflate-flate2-zlib-rs` is deflate through flate2 with its pure-Rust
+# zlib-rs back-end, which the dependency tree holds already.
+zip = { version = "9.4.0", default-features = false, features = ["deflate-flate2-zlib-rs", "deflate64"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
