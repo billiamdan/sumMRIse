@@ -6,15 +6,21 @@ use std::path::{Path, PathBuf};
 
 use dicom_core::Tag;
 use dicom_dictionary_std::tags;
-use dicom_object::{InMemDicomObject, OpenFileOptions};
+use dicom_object::InMemDicomObject;
 use log::{debug, warn};
 use rayon::prelude::*;
+use summrise_i18n::{tr, tr_n};
 use summrise_imaging::{AnatomicalPlane, ImagePlane};
 
+use crate::acquisition::Acquisition;
 use crate::attrs;
 use crate::discovery::{DiscoverySource, discover};
 use crate::error::{DicomError, Result};
+use crate::fidelity::Fidelity;
+use crate::media::Media;
+use crate::pet::PetHeader;
 use crate::progress::Progress;
+use crate::stacks::FrameValues;
 
 /// Everything found on a disc or in a folder.
 #[derive(Debug, Clone)]
@@ -24,6 +30,10 @@ pub struct StudyIndex {
     pub studies: Vec<Study>,
     pub stats: IndexStats,
     pub warnings: Vec<String>,
+    /// Where the files were found and every later read gets them from: the
+    /// folder, or the ZIP archive or disc image that `root` is. The paths of
+    /// the instances are paths in this media.
+    pub media: Media,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -80,7 +90,8 @@ impl Study {
     }
 
     pub fn title(&self) -> String {
-        self.description.clone().unwrap_or_else(|| format!("{} study", self.modalities().join("/")))
+        // Translators: the name of a study without a description, such as "CT/MR study".
+        self.description.clone().unwrap_or_else(|| tr!("{modalities} study", modalities = self.modalities().join("/")))
     }
 }
 
@@ -91,6 +102,14 @@ pub struct Series {
     pub description: Option<String>,
     pub modality: String,
     pub body_part: Option<String>,
+    /// How the images were made, as recorded in the first file indexed.
+    pub acquisition: Acquisition,
+    /// Frame of Reference UID (0020,0052): series that share it have their
+    /// positions in one patient coordinate system. `None` when not every
+    /// file of the series records the same one.
+    pub frame_of_reference: Option<String>,
+    /// For PET series (modality PT): what the SUV calculation needs.
+    pub pet: Option<PetHeader>,
     pub instances: Vec<InstanceHeader>,
 }
 
@@ -102,8 +121,8 @@ impl Series {
     pub fn title(&self) -> String {
         match (&self.description, self.number) {
             (Some(d), _) => d.clone(),
-            (None, Some(n)) => format!("Series {n}"),
-            (None, None) => "Unnamed series".to_owned(),
+            (None, Some(n)) => tr!("Series {number}", number = n),
+            (None, None) => tr!("Unnamed series").to_owned(),
         }
     }
 
@@ -132,6 +151,18 @@ impl Series {
     /// The instance used for thumbnails and default metadata.
     pub fn representative(&self) -> Option<&InstanceHeader> {
         self.instances.get(self.instances.len() / 2)
+    }
+
+    /// Adds what one more file of the series records: the Frame of Reference
+    /// is kept only while every file records the same one, and a PET series
+    /// keeps the earliest acquisition time of its files.
+    fn absorb(&mut self, frame_of_reference: Option<String>, acquired_s: Option<f64>) {
+        if self.frame_of_reference != frame_of_reference {
+            self.frame_of_reference = None;
+        }
+        if let (Some(pet), Some(acquired)) = (self.pet.as_mut(), acquired_s) {
+            pet.earliest_acquisition_s = Some(pet.earliest_acquisition_s.map_or(acquired, |t| t.min(acquired)));
+        }
     }
 
     /// Transfer syntaxes this build cannot decode.
@@ -175,6 +206,14 @@ pub struct InstanceHeader {
     pub rescale: Vec<Rescale>,
     /// Rescale Type (0028,1054), e.g. "HU".
     pub rescale_type: Option<String>,
+    /// What tells this file's frames apart from other images at the same
+    /// slice positions (time point, echo, b-value …): one entry per frame for
+    /// Enhanced objects with per-frame values, else one for all frames;
+    /// empty when nothing was read.
+    pub frame_values: Vec<FrameValues>,
+    /// Lossy compression, burned-in text, inverted presentation and the
+    /// output range of a Modality LUT (see [`crate::fidelity`]).
+    pub fidelity: Fidelity,
 }
 
 /// Linear Modality LUT (PS3.3 C.11.1): value = stored value × slope + intercept.
@@ -193,13 +232,21 @@ impl Rescale {
 }
 
 impl InstanceHeader {
+    /// Whether the image is in colour: three samples per pixel, or palette colour.
+    pub fn is_color(&self) -> bool {
+        self.samples_per_pixel == 3 || self.photometric == "PALETTE COLOR"
+    }
+
     /// Range of modality values this image can hold, from Bits Stored, Pixel
-    /// Representation and the rescale values. Known before any pixel data is
-    /// read; the values actually present usually span less. `None` for
-    /// colour images.
+    /// Representation and the rescale values (or the output of its Modality
+    /// LUT). Known before any pixel data is read; the values actually present
+    /// usually span less. `None` for colour images.
     pub fn value_range_estimate(&self) -> Option<(f64, f64)> {
-        if self.samples_per_pixel != 1 {
+        if self.samples_per_pixel != 1 || self.is_color() {
             return None;
+        }
+        if let Some(range) = self.fidelity.modality_lut_range {
+            return Some(range);
         }
         let bits = i32::from(self.bits_stored.clamp(1, 32));
         let (lo, hi) = if self.signed {
@@ -218,12 +265,19 @@ impl InstanceHeader {
 /// Discovers and indexes all images below `root`.
 pub fn scan(root: &Path, progress: &Progress) -> Result<StudyIndex> {
     let discovery = discover(root, progress)?;
-    let mut index = index_files(&discovery.files, progress)?;
+    let mut index = index_files(&discovery.media, &discovery.files, progress)?;
     index.root = root.to_path_buf();
     index.source = discovery.source;
     index.warnings.splice(0..0, discovery.warnings);
+    if let Some(archive) = index.media.archive() {
+        debug!("indexed from {} of the {} bytes of the archive", archive.bytes_read(), archive.len());
+    }
     if index.studies.is_empty() {
-        return Err(DicomError::NothingFound(root.to_path_buf()));
+        // An archive that holds images which cannot be read says so.
+        return Err(match discovery.blocker {
+            Some(problem) => DicomError::Archive { path: root.to_path_buf(), problem },
+            None => DicomError::NothingFound(root.to_path_buf()),
+        });
     }
     Ok(index)
 }
@@ -236,16 +290,17 @@ struct HeaderRecord {
     instance: Option<InstanceHeader>,
 }
 
-/// Reads headers in parallel and groups them by Study/Series Instance UID.
-pub fn index_files(files: &[PathBuf], progress: &Progress) -> Result<StudyIndex> {
-    progress.begin("Reading image headers", files.len());
+/// Reads the headers of `files` in `media` in parallel and groups them by
+/// Study/Series Instance UID.
+pub fn index_files(media: &Media, files: &[PathBuf], progress: &Progress) -> Result<StudyIndex> {
+    progress.begin(tr!("Reading image headers"), files.len());
     let records: Vec<std::result::Result<HeaderRecord, String>> = files
         .par_iter()
         .map(|path| {
             if progress.is_cancelled() {
                 return Err("cancelled".to_owned());
             }
-            let record = catch_unwind(AssertUnwindSafe(|| read_header(path)))
+            let record = catch_unwind(AssertUnwindSafe(|| read_header(media, path)))
                 .unwrap_or_else(|_| Err("parser panicked".to_owned()));
             progress.advance();
             record.map_err(|e| {
@@ -283,10 +338,13 @@ pub fn index_files(files: &[PathBuf], progress: &Progress) -> Result<StudyIndex>
             studies.len() - 1
         });
         let study = &mut studies[si];
+        let file =
+            (rec.series.frame_of_reference.clone(), rec.series.pet.as_ref().and_then(|p| p.earliest_acquisition_s));
         let ri = *series_pos.entry((si, rec.series_uid.clone())).or_insert_with(|| {
             study.series.push(rec.series);
             study.series.len() - 1
         });
+        study.series[ri].absorb(file.0, file.1);
         study.series[ri].instances.push(instance);
     }
 
@@ -308,19 +366,29 @@ pub fn index_files(files: &[PathBuf], progress: &Progress) -> Result<StudyIndex>
 
     let mut warnings = Vec::new();
     if stats.unreadable > 0 {
-        warnings.push(format!("{} file(s) could not be read and were skipped", stats.unreadable));
+        warnings.push(tr_n!(
+            "{n} file could not be read and was skipped",
+            "{n} files could not be read and were skipped",
+            stats.unreadable
+        ));
     }
     if stats.non_images > 0 {
-        warnings.push(format!("{} non-image object(s) (reports, annotations) are not shown", stats.non_images));
+        warnings.push(tr_n!(
+            "{n} object that is not an image (a report or an annotation) is not shown",
+            "{n} objects that are not images (reports, annotations) are not shown",
+            stats.non_images
+        ));
     }
     if stats.unreadable > 0 {
         warn!("{} unreadable files during indexing", stats.unreadable);
     }
-    Ok(StudyIndex { root: PathBuf::new(), source: DiscoverySource::FolderScan, studies, stats, warnings })
+    let media = media.clone();
+    Ok(StudyIndex { root: PathBuf::new(), source: DiscoverySource::FolderScan, studies, stats, warnings, media })
 }
 
-fn read_header(path: &Path) -> std::result::Result<HeaderRecord, String> {
-    let file = OpenFileOptions::new().read_until(tags::PIXEL_DATA).open_file(path).map_err(|e| e.to_string())?;
+fn read_header(media: &Media, path: &Path) -> std::result::Result<HeaderRecord, String> {
+    // Up to the pixel data and no further: from an archive, only that much of the entry is read.
+    let file = media.open_object(path, Some(tags::PIXEL_DATA))?;
     let transfer_syntax_uid = file.meta().transfer_syntax().trim_end_matches('\0').to_owned();
     let media_sop_class = file.meta().media_storage_sop_class_uid().trim_end_matches('\0').to_owned();
     let obj: &InMemDicomObject = &file;
@@ -357,6 +425,9 @@ fn read_header(path: &Path) -> std::result::Result<HeaderRecord, String> {
         description: attrs::text(obj, tags::SERIES_DESCRIPTION),
         modality: attrs::text(obj, tags::MODALITY).unwrap_or_else(|| "OT".to_owned()),
         body_part: attrs::text(obj, tags::BODY_PART_EXAMINED),
+        acquisition: Acquisition::read(obj),
+        frame_of_reference: attrs::text(obj, tags::FRAME_OF_REFERENCE_UID),
+        pet: PetHeader::of_file(obj),
         instances: Vec::new(),
     };
 
@@ -365,6 +436,8 @@ fn read_header(path: &Path) -> std::result::Result<HeaderRecord, String> {
     let instance = (rows > 0 && cols > 0).then(|| {
         let frames = attrs::uint(obj, tags::NUMBER_OF_FRAMES).unwrap_or(1).max(1);
         let (pixel_spacing, frame_planes) = geometry(obj, rows, cols, frames);
+        let signed = attrs::uint(obj, tags::PIXEL_REPRESENTATION) == Some(1);
+        let fidelity = crate::fidelity::read(obj, &transfer_syntax_uid, signed);
         InstanceHeader {
             path: path.to_path_buf(),
             sop_instance_uid: attrs::text(obj, tags::SOP_INSTANCE_UID).unwrap_or_else(|| path.display().to_string()),
@@ -383,9 +456,11 @@ fn read_header(path: &Path) -> std::result::Result<HeaderRecord, String> {
                 .filter(|&bits| bits > 0)
                 .or_else(|| attrs::uint(obj, tags::BITS_ALLOCATED))
                 .map_or(16, |bits| bits.min(32) as u16),
-            signed: attrs::uint(obj, tags::PIXEL_REPRESENTATION) == Some(1),
+            signed,
             rescale: rescale(obj),
-            rescale_type: attrs::text(obj, tags::RESCALE_TYPE),
+            rescale_type: attrs::text(obj, tags::RESCALE_TYPE).or_else(|| crate::fidelity::modality_lut_type(obj)),
+            frame_values: crate::stacks::read_frame_values(obj, frames),
+            fidelity,
         }
     });
     Ok(HeaderRecord { study_uid, study, series_uid, series, instance })

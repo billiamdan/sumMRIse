@@ -1,0 +1,17 @@
+[package]
+name = "summrise-i18n"
+description = "Translation of user-visible text for SumMRIse (gettext style: the English text is the key)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+log.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

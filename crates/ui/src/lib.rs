@@ -3,15 +3,27 @@
 
 mod app;
 mod browser;
+mod cine;
+mod crosshair;
+mod display_check;
+mod fidelity;
+mod guide;
 mod inspector;
+mod language;
+mod orient;
+mod pet;
+mod placement;
 mod render;
+mod stacks;
 mod theme;
 mod viewer;
 mod viewport;
+mod volume_view;
 mod welcome;
 mod widgets;
 
 pub use app::{AppOptions, SumMRIseApp};
+pub use language::system_languages;
 
 /// Application identifier (reverse-DNS), used for the macOS bundle, the
 /// Linux desktop entry and the settings directory.

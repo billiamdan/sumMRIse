@@ -51,7 +51,7 @@ fn opens_study_and_renders_all_views() {
     let mut harness = Harness::builder()
         .with_size([1440.0, 900.0])
         .wgpu()
-        .build_eframe(move |cc| SumMRIseApp::new(cc, AppOptions { open: Some(path) }));
+        .build_eframe(move |cc| SumMRIseApp::new(cc, AppOptions { open: Some(path), ..AppOptions::default() }));
     settle(&mut harness, Duration::from_secs(3));
     assert!(harness.query_all_by_label("CT CHEST 2.5mm (synthetic)").count() >= 1);
     assert!(harness.query_all_by_label("T2 TSE SAG (synthetic)").count() >= 1);

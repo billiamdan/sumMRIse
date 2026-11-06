@@ -3,8 +3,10 @@
 use std::sync::Arc;
 
 use glam::{DMat3, DVec3};
+use summrise_i18n::tr;
 
 use crate::geometry::ImagePlane;
+use crate::padding::Padding;
 
 /// Grey-scale samples after the Modality LUT (e.g. Hounsfield units for CT),
 /// stored in the most compact lossless representation.
@@ -131,20 +133,37 @@ impl Frame {
 /// Why a stack of slices cannot be treated as a regular volume.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum VolumeError {
-    #[error("at least two slices are required")]
     TooFewSlices,
-    #[error("slices have different size, orientation or pixel spacing")]
     InconsistentGrid,
-    #[error("several images share the same slice position (multi-echo, dynamic or repeated scan)")]
     DuplicatePositions,
-    #[error("slices are not evenly spaced (largest deviation {max_deviation_mm:.2} mm); a slice may be missing")]
     IrregularSpacing { max_deviation_mm: f64 },
-    #[error("slice geometry is degenerate")]
     Degenerate,
-    #[error("images carry no patient geometry (e.g. X-ray, scanned document or screenshot)")]
     NoGeometry,
-    #[error("colour images cannot be reformatted")]
     NotGrayscale,
+}
+
+impl std::fmt::Display for VolumeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Translators: why the images of a series cannot be reformatted. Shown after
+        // "Multiplanar reformatting unavailable:", hence the small letter at the start.
+        let text = match self {
+            Self::TooFewSlices => tr!("at least two slices are required").to_owned(),
+            Self::InconsistentGrid => tr!("slices have different size, orientation or pixel spacing").to_owned(),
+            Self::DuplicatePositions => {
+                tr!("several images share the same slice position (multi-echo, dynamic or repeated scan)").to_owned()
+            }
+            Self::IrregularSpacing { max_deviation_mm } => tr!(
+                "slices are not evenly spaced (largest deviation {deviation} mm); a slice may be missing",
+                deviation = format!("{max_deviation_mm:.2}")
+            ),
+            Self::Degenerate => tr!("slice geometry is degenerate").to_owned(),
+            Self::NoGeometry => {
+                tr!("images carry no patient geometry (e.g. X-ray, scanned document or screenshot)").to_owned()
+            }
+            Self::NotGrayscale => tr!("colour images cannot be reformatted").to_owned(),
+        };
+        f.write_str(&text)
+    }
 }
 
 /// Affine mapping between voxel indices (i = column, j = row, k = slice) and
@@ -263,6 +282,11 @@ impl VolumeGeometry {
 pub struct Volume {
     pub geometry: VolumeGeometry,
     pub slices: Vec<Arc<VoxelBuffer>>,
+    /// The padding of each slice (see [`crate::padding`]); `None` when no
+    /// slice has padding. Padding voxels are sampled as `NaN`, like the
+    /// outside of the volume. (Behind one pointer, so that the volume grows
+    /// by 8 bytes only.)
+    padding: Option<Arc<Vec<Option<Padding>>>>,
 }
 
 impl Volume {
@@ -273,17 +297,37 @@ impl Volume {
     /// Like [`Self::new`], sharing the slices with their other owners.
     pub fn from_shared(geometry: VolumeGeometry, slices: Vec<Arc<VoxelBuffer>>) -> Option<Self> {
         let per_slice = geometry.dims[0] * geometry.dims[1];
-        (slices.len() == geometry.dims[2] && slices.iter().all(|s| s.len() == per_slice))
-            .then_some(Self { geometry, slices })
+        (slices.len() == geometry.dims[2] && slices.iter().all(|s| s.len() == per_slice)).then_some(Self {
+            geometry,
+            slices,
+            padding: None,
+        })
+    }
+
+    /// The same volume with the padding of each slice (one entry per slice);
+    /// resampling then treats padding voxels like the outside of the volume.
+    pub fn with_padding(mut self, padding: Vec<Option<Padding>>) -> Self {
+        self.padding = padding.iter().any(Option::is_some).then(|| Arc::new(padding));
+        self
+    }
+
+    /// The padding of slice `k`, if it has any.
+    pub fn padding(&self, k: usize) -> Option<Padding> {
+        self.padding.as_ref().and_then(|padding| padding.get(k).copied().flatten())
     }
 
     pub fn byte_size(&self) -> usize {
         self.slices.iter().map(|s| s.byte_size()).sum()
     }
 
+    /// The value of a voxel; `NaN` for padding.
     #[inline]
     fn voxel(&self, i: usize, j: usize, k: usize) -> f32 {
-        self.slices[k].get(j * self.geometry.dims[0] + i)
+        let value = self.slices[k].get(j * self.geometry.dims[0] + i);
+        match self.padding.as_ref().and_then(|padding| padding.get(k)) {
+            Some(&Some(padding)) if padding.contains(value) => f32::NAN,
+            _ => value,
+        }
     }
 
     /// Trilinear interpolation at a fractional voxel index. Returns `None`
@@ -313,14 +357,15 @@ impl Volume {
         Some(lerp(lerp(c00, c10, fy), lerp(c01, c11, fy), fz))
     }
 
-    /// Value of the nearest voxel to a patient-space point.
+    /// Value of the nearest voxel to a patient-space point; `None` outside
+    /// the volume and on padding.
     pub fn value_at_patient(&self, p: DVec3) -> Option<f32> {
         let ijk = self.geometry.to_index(p).round();
         let [nx, ny, nz] = self.geometry.dims;
         if ijk.cmplt(DVec3::ZERO).any() || ijk.x >= nx as f64 || ijk.y >= ny as f64 || ijk.z >= nz as f64 {
             return None;
         }
-        Some(self.voxel(ijk.x as usize, ijk.y as usize, ijk.z as usize))
+        Some(self.voxel(ijk.x as usize, ijk.y as usize, ijk.z as usize)).filter(|v| !v.is_nan())
     }
 }
 
@@ -392,5 +437,27 @@ mod tests {
         assert_eq!(v.sample(DVec3::new(2.0, 3.0, 0.5)), Some(50.0));
         assert_eq!(v.sample(DVec3::new(2.0, 3.0, 5.0)), None);
         assert_eq!(v.value_at_patient(g.to_patient(DVec3::new(1.0, 1.0, 1.0))), Some(100.0));
+    }
+
+    #[test]
+    fn padding_voxels_are_sampled_as_outside() {
+        let planes: Vec<_> = (0..2).map(|k| axial_plane(k as f64)).collect();
+        let g = VolumeGeometry::from_sorted_planes(&planes).expect("regular stack");
+        // Slice 0: the first voxel is padding (−3024); slice 1 has none.
+        let mut first = vec![40.0f32; 48];
+        first[0] = -3024.0;
+        let slices = vec![VoxelBuffer::compact(first), VoxelBuffer::compact(vec![40.0; 48])];
+        let plain = Volume::new(g, slices).expect("volume");
+        assert_eq!(plain.sample(DVec3::new(0.0, 0.0, 0.0)), Some(-3024.0), "without padding a value like any other");
+        let padded = plain.with_padding(vec![Some(Padding::new(-3024.0, -3024.0)), None]);
+        assert_eq!(padded.padding(0), Some(Padding::new(-3024.0, -3024.0)));
+        assert_eq!(padded.padding(1), None);
+        assert!(padded.sample(DVec3::new(0.0, 0.0, 0.0)).is_some_and(f32::is_nan), "padding is outside");
+        assert!(padded.sample(DVec3::new(0.5, 0.0, 0.0)).is_some_and(f32::is_nan), "nor is it interpolated");
+        assert_eq!(padded.sample(DVec3::new(2.0, 2.0, 0.5)), Some(40.0));
+        assert_eq!(padded.value_at_patient(g.to_patient(DVec3::ZERO)), None);
+        assert_eq!(padded.value_at_patient(g.to_patient(DVec3::new(0.0, 0.0, 1.0))), Some(40.0));
+        // No slice with padding: nothing is kept.
+        assert_eq!(padded.clone().with_padding(vec![None, None]).padding(0), None);
     }
 }

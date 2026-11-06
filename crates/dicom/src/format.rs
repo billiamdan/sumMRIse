@@ -5,6 +5,7 @@ use dicom_core::dictionary::UidDictionary;
 use dicom_dictionary_std::StandardSopClassDictionary;
 use dicom_encoding::TransferSyntaxIndex;
 use dicom_transfer_syntax_registry::TransferSyntaxRegistry;
+use summrise_i18n::{tr, tr_ctx, tr_n};
 
 /// Person Name (PN): `Family^Given^Middle^Prefix^Suffix` → `Prefix Given Middle Family, Suffix`.
 /// Only the alphabetic component group (before any `=`) is used.
@@ -48,25 +49,22 @@ pub fn age(value: &str) -> Option<String> {
     let value = value.trim();
     let (num, unit) = value.split_at(value.len().checked_sub(1)?);
     let n: u32 = num.parse().ok()?;
-    let unit = match (unit, n) {
-        ("Y", 1) => "year",
-        ("Y", _) => "years",
-        ("M", 1) => "month",
-        ("M", _) => "months",
-        ("W", 1) => "week",
-        ("W", _) => "weeks",
-        ("D", 1) => "day",
-        ("D", _) => "days",
+    // Translators: the age of the patient when the images were made.
+    Some(match unit {
+        "Y" => tr_n!("{n} year", "{n} years", n),
+        "M" => tr_n!("{n} month", "{n} months", n),
+        "W" => tr_n!("{n} week", "{n} weeks", n),
+        "D" => tr_n!("{n} day", "{n} days", n),
         _ => return None,
-    };
-    Some(format!("{n} {unit}"))
+    })
 }
 
 pub fn sex(code: &str) -> String {
     match code.trim() {
-        "M" => "Male".into(),
-        "F" => "Female".into(),
-        "O" => "Other".into(),
+        // Translators: the sex of the patient as recorded in the images.
+        "M" => tr_ctx!("sex", "Male").into(),
+        "F" => tr_ctx!("sex", "Female").into(),
+        "O" => tr_ctx!("sex", "Other").into(),
         other => other.into(),
     }
 }
@@ -74,28 +72,30 @@ pub fn sex(code: &str) -> String {
 /// Modality (0008,0060) code → name.
 pub fn modality_name(code: &str) -> Option<&'static str> {
     Some(match code.trim() {
-        "CT" => "Computed Tomography",
-        "MR" => "Magnetic Resonance",
-        "PT" => "Positron Emission Tomography",
-        "NM" => "Nuclear Medicine",
-        "US" => "Ultrasound",
-        "CR" => "Computed Radiography",
-        "DX" => "Digital Radiography",
-        "MG" => "Mammography",
-        "XA" => "X-Ray Angiography",
-        "RF" => "Radio Fluoroscopy",
-        "OT" => "Other",
-        "SR" => "Structured Report",
-        "SC" => "Secondary Capture",
-        "PR" => "Presentation State",
-        "KO" => "Key Object Selection",
-        "DOC" => "Document",
-        "SEG" => "Segmentation",
-        "RTSTRUCT" => "Radiotherapy Structure Set",
-        "RTDOSE" => "Radiotherapy Dose",
-        "RTPLAN" => "Radiotherapy Plan",
-        "OPT" => "Ophthalmic Tomography",
-        "XC" => "External-camera Photography",
+        // Translators: the names of the DICOM modalities (kinds of examination), shown next to their code,
+        // as in "Computed Tomography (CT)".
+        "CT" => tr!("Computed Tomography"),
+        "MR" => tr!("Magnetic Resonance"),
+        "PT" => tr!("Positron Emission Tomography"),
+        "NM" => tr!("Nuclear Medicine"),
+        "US" => tr!("Ultrasound"),
+        "CR" => tr!("Computed Radiography"),
+        "DX" => tr!("Digital Radiography"),
+        "MG" => tr!("Mammography"),
+        "XA" => tr!("X-Ray Angiography"),
+        "RF" => tr!("Radio Fluoroscopy"),
+        "OT" => tr_ctx!("modality", "Other"),
+        "SR" => tr!("Structured Report"),
+        "SC" => tr!("Secondary Capture"),
+        "PR" => tr!("Presentation State"),
+        "KO" => tr!("Key Object Selection"),
+        "DOC" => tr!("Document"),
+        "SEG" => tr!("Segmentation"),
+        "RTSTRUCT" => tr!("Radiotherapy Structure Set"),
+        "RTDOSE" => tr!("Radiotherapy Dose"),
+        "RTPLAN" => tr!("Radiotherapy Plan"),
+        "OPT" => tr!("Ophthalmic Tomography"),
+        "XC" => tr!("External-camera Photography"),
         _ => return None,
     })
 }
@@ -103,14 +103,16 @@ pub fn modality_name(code: &str) -> Option<&'static str> {
 /// Patient Position (0018,5100) code → description.
 pub fn patient_position(code: &str) -> Option<&'static str> {
     Some(match code.trim() {
-        "HFS" => "Head first, supine",
-        "HFP" => "Head first, prone",
-        "HFDR" => "Head first, decubitus right",
-        "HFDL" => "Head first, decubitus left",
-        "FFS" => "Feet first, supine",
-        "FFP" => "Feet first, prone",
-        "FFDR" => "Feet first, decubitus right",
-        "FFDL" => "Feet first, decubitus left",
+        // Translators: how the patient lay in the scanner: entering head or feet first, on the back (supine),
+        // on the front (prone) or on the right or left side (decubitus).
+        "HFS" => tr!("Head first, supine"),
+        "HFP" => tr!("Head first, prone"),
+        "HFDR" => tr!("Head first, decubitus right"),
+        "HFDL" => tr!("Head first, decubitus left"),
+        "FFS" => tr!("Feet first, supine"),
+        "FFP" => tr!("Feet first, prone"),
+        "FFDR" => tr!("Feet first, decubitus right"),
+        "FFDL" => tr!("Feet first, decubitus left"),
         _ => return None,
     })
 }
@@ -120,11 +122,12 @@ pub fn scanning_sequence(values: &[String]) -> String {
     values
         .iter()
         .map(|code| match code.as_str() {
-            "SE" => "Spin echo",
-            "IR" => "Inversion recovery",
-            "GR" => "Gradient recalled",
-            "EP" => "Echo planar",
-            "RM" => "Research mode",
+            // Translators: the kinds of MR sequence (DICOM Scanning Sequence); established English terms.
+            "SE" => tr!("Spin echo"),
+            "IR" => tr!("Inversion recovery"),
+            "GR" => tr!("Gradient recalled"),
+            "EP" => tr!("Echo planar"),
+            "RM" => tr!("Research mode"),
             other => other,
         })
         .collect::<Vec<_>>()
@@ -141,6 +144,31 @@ pub fn transfer_syntax_name(uid: &str) -> String {
 pub fn transfer_syntax_supported(uid: &str) -> bool {
     let uid = uid.trim_end_matches('\0').trim();
     TransferSyntaxRegistry.get(uid).is_some_and(|ts| ts.can_decode_all())
+}
+
+/// The family of a transfer syntax whose compression always discards detail
+/// ("JPEG", "JPEG-LS", "MPEG-2", "H.264", "HEVC", "JPEG XL"); `None` for
+/// transfer syntaxes that are lossless or can be either (JPEG 2000, HTJ2K,
+/// JPEG XL): for those only Lossy Image Compression tells.
+pub fn lossy_family(uid: &str) -> Option<&'static str> {
+    let uid = uid.trim_end_matches('\0').trim();
+    let process = uid.strip_prefix("1.2.840.10008.1.2.4.")?;
+    Some(match process {
+        // Baseline, Extended and the retired lossy JPEG processes (not 57, 58, 65, 66, 70: lossless).
+        "50" | "51" | "52" | "53" | "54" | "55" | "56" | "59" | "60" | "61" | "62" | "63" | "64" => "JPEG",
+        "81" => "JPEG-LS",
+        "100" | "100.1" | "101" | "101.1" => "MPEG-2",
+        "102" | "102.1" | "103" | "103.1" | "104" | "104.1" | "105" | "105.1" | "106" | "106.1" => "H.264",
+        "107" | "108" => "HEVC",
+        // A JPEG image recompressed without further loss: the loss of the JPEG remains.
+        "111" => "JPEG XL",
+        _ => return None,
+    })
+}
+
+/// Whether pixel data in this transfer syntax has always lost detail.
+pub fn transfer_syntax_is_lossy(uid: &str) -> bool {
+    lossy_family(uid).is_some()
 }
 
 /// SOP Class UID → name (falls back to the UID).
@@ -205,6 +233,26 @@ mod tests {
         assert_eq!(transfer_syntax_name("1.2.840.10008.1.2.1"), "Explicit VR Little Endian");
         assert!(transfer_syntax_supported("1.2.840.10008.1.2.4.50"));
         assert_eq!(sop_class_name("1.2.840.10008.5.1.4.1.1.2"), "CT Image Storage");
+    }
+
+    #[test]
+    fn knows_which_transfer_syntaxes_are_always_lossy() {
+        assert_eq!(lossy_family("1.2.840.10008.1.2.4.50\0"), Some("JPEG"));
+        assert_eq!(lossy_family("1.2.840.10008.1.2.4.81"), Some("JPEG-LS"));
+        assert_eq!(lossy_family("1.2.840.10008.1.2.4.102.1"), Some("H.264"));
+        for lossless_or_either in [
+            "1.2.840.10008.1.2.1",
+            "1.2.840.10008.1.2.4.57",
+            "1.2.840.10008.1.2.4.70",
+            "1.2.840.10008.1.2.4.80",
+            "1.2.840.10008.1.2.4.90",
+            "1.2.840.10008.1.2.4.91",
+            "1.2.840.10008.1.2.4.203",
+            "1.2.840.10008.1.2.4.112",
+            "1.2.840.10008.1.2.5",
+        ] {
+            assert!(!transfer_syntax_is_lossy(lossless_or_either), "{lossless_or_either}");
+        }
     }
 
     #[test]

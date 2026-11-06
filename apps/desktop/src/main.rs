@@ -1,6 +1,6 @@
 //! SumMRIse desktop entry point (macOS, Windows, Linux).
 //!
-//! Usage: `summrise [FOLDER | DICOMDIR | FILE]`
+//! Usage: `summrise [FOLDER | DICOMDIR | FILE | ARCHIVE.zip | IMAGE.iso]`
 
 // No console window for release builds on Windows.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use eframe::egui;
-use summrise_ui::{APP_ID, APP_NAME, AppOptions, SumMRIseApp};
+use summrise_ui::{APP_ID, APP_NAME, AppOptions, SumMRIseApp, system_languages};
 
 const ICON_PNG: &[u8] = include_bytes!("../../../packaging/icons/icon-256.png");
 
@@ -36,6 +36,7 @@ fn main() -> anyhow::Result<()> {
     }
 
     let native = eframe::NativeOptions { viewport, persist_window: true, centered: true, ..Default::default() };
-    eframe::run_native(APP_NAME, native, Box::new(move |cc| Ok(Box::new(SumMRIseApp::new(cc, AppOptions { open })))))
+    let options = AppOptions { open, system_languages: system_languages() };
+    eframe::run_native(APP_NAME, native, Box::new(move |cc| Ok(Box::new(SumMRIseApp::new(cc, options)))))
         .map_err(|e| anyhow::anyhow!("failed to start the user interface: {e}"))
 }

@@ -6,6 +6,7 @@
 
 use glam::DVec3;
 use serde::{Deserialize, Serialize};
+use summrise_i18n::tr;
 
 /// Geometry of a single 2-D image in patient space.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -114,12 +115,28 @@ impl AnatomicalPlane {
         if max < 0.8 { Self::Oblique } else { plane }
     }
 
+    /// The standard plane a plane with this normal is closest to (never
+    /// [`Self::Oblique`]), however far it is tilted.
+    pub fn nearest(normal: DVec3) -> Self {
+        let a = normal.abs();
+        if a.z >= a.x && a.z >= a.y {
+            Self::Axial
+        } else if a.y >= a.x {
+            Self::Coronal
+        } else {
+            Self::Sagittal
+        }
+    }
+
     pub fn label(self) -> &'static str {
         match self {
-            Self::Axial => "Axial",
-            Self::Coronal => "Coronal",
-            Self::Sagittal => "Sagittal",
-            Self::Oblique => "Oblique",
+            // Translators: the names of the image planes (views of the body), used on their own and before
+            // an image number ("Axial 12 / 24").
+            Self::Axial => tr!("Axial"),
+            Self::Coronal => tr!("Coronal"),
+            Self::Sagittal => tr!("Sagittal"),
+            // Translators: an image plane that is neither axial, coronal nor sagittal.
+            Self::Oblique => tr!("Oblique"),
         }
     }
 }

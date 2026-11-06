@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use summrise_dicom::StudyIndex;
+use summrise_i18n::{tr, tr_n};
 
 use crate::view::Layout;
 
@@ -33,6 +34,12 @@ pub struct Settings {
     pub remember_recent: bool,
     pub show_browser: bool,
     pub show_inspector: bool,
+    /// Plain-language explanations: the description of each series, the
+    /// explanations of parameters and presets and the position figure.
+    pub show_explanations: bool,
+    /// The language of the interface (a code of `summrise_i18n::LANGUAGES`,
+    /// such as `"de"`); `None` follows the language of the system.
+    pub language: Option<String>,
 }
 
 impl Default for Settings {
@@ -47,6 +54,8 @@ impl Default for Settings {
             remember_recent: true,
             show_browser: true,
             show_inspector: true,
+            show_explanations: true,
+            language: None,
         }
     }
 }
@@ -91,10 +100,11 @@ impl RecentStudies {
 }
 
 /// A privacy-minimal label for a recent entry: study description, date and
-/// modalities — no patient-identifying attributes.
+/// modalities — no patient-identifying attributes. It is stored, so it stays
+/// in the language it was made in.
 pub fn recent_label(index: &StudyIndex) -> String {
     let Some(study) = index.studies.first() else {
-        return "DICOM folder".to_owned();
+        return tr!("DICOM folder").to_owned();
     };
     let mut parts = vec![study.title()];
     if let Some(date) = study.date.as_deref().and_then(summrise_dicom::format::date) {
@@ -109,7 +119,7 @@ pub fn recent_label(index: &StudyIndex) -> String {
         .collect();
     parts.push(modalities.join(", "));
     if index.studies.len() > 1 {
-        parts.push(format!("{} studies", index.studies.len()));
+        parts.push(tr_n!("{n} study", "{n} studies", index.studies.len()));
     }
     parts.join(" · ")
 }
@@ -130,6 +140,35 @@ mod tests {
         assert_eq!(r.entries.iter().filter(|e| e.path == Path::new("/cd/5")).count(), 1);
         r.remove(Path::new("/cd/5"));
         assert!(r.entries.iter().all(|e| e.path != Path::new("/cd/5")));
+    }
+
+    #[test]
+    fn explanations_are_on_by_default_also_for_settings_stored_before() {
+        use serde::de::value::{Error, MapDeserializer};
+
+        assert!(Settings::default().show_explanations);
+        // Settings stored by a version that did not have the field.
+        let stored = [("show_overlays", false), ("show_inspector", false)];
+        let settings = Settings::deserialize(MapDeserializer::<_, Error>::new(stored.into_iter())).expect("settings");
+        assert!(settings.show_explanations, "explanations are on when the field is missing");
+        assert!(!settings.show_overlays && !settings.show_inspector, "stored fields are kept");
+        // Switched off, it stays off.
+        let stored = [("show_explanations", false)];
+        let settings = Settings::deserialize(MapDeserializer::<_, Error>::new(stored.into_iter())).expect("settings");
+        assert!(!settings.show_explanations && settings.show_overlays);
+    }
+
+    /// Settings stored before the language setting existed follow the
+    /// system language, as new ones do.
+    #[test]
+    fn the_language_follows_the_system_by_default_also_for_settings_stored_before() {
+        use serde::de::value::{Error, MapDeserializer};
+
+        assert_eq!(Settings::default().language, None);
+        let stored = [("show_overlays", false)];
+        let settings = Settings::deserialize(MapDeserializer::<_, Error>::new(stored.into_iter())).expect("settings");
+        assert_eq!(settings.language, None, "stored before the setting existed: the system language");
+        assert!(!settings.show_overlays, "stored fields are kept");
     }
 
     #[test]

@@ -54,6 +54,23 @@ pub(crate) fn per_frame_groups(obj: &InMemDicomObject) -> &[InMemDicomObject] {
     obj.get(tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE).and_then(|e| e.items()).unwrap_or(&[])
 }
 
+/// Where an attribute that classic objects hold at the top level may be
+/// found, in the order to try: the data set itself, then for Enhanced
+/// multi-frame objects the functional group macro `macro_seq` of the shared
+/// group, the shared group itself (some files store the values flat instead
+/// of in their own sequence) and the macro of the first frame.
+pub(crate) fn classic_or_functional(obj: &InMemDicomObject, macro_seq: Tag) -> impl Iterator<Item = &InMemDicomObject> {
+    let shared = shared_group(obj);
+    [
+        Some(obj),
+        shared.and_then(|group| functional(group, macro_seq)),
+        shared,
+        per_frame_groups(obj).first().and_then(|group| functional(group, macro_seq)),
+    ]
+    .into_iter()
+    .flatten()
+}
+
 /// Fixed-length float array, e.g. Image Position (Patient).
 pub(crate) fn float_array<const N: usize>(obj: &InMemDicomObject, tag: Tag) -> Option<[f64; N]> {
     let v = floats(obj, tag);

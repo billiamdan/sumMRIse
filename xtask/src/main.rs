@@ -9,6 +9,7 @@
 //!       --notarize <profile>      notarize + staple the DMG (xcrun notarytool keychain profile)
 //!   fixtures <dir> [--small]      Write a synthetic, PHI-free DICOM test CD to <dir>
 //!   ci                            fmt check, clippy (deny warnings) and tests
+//!   i18n                          Bring the translation catalogues up to date with the source code
 
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
@@ -35,6 +36,7 @@ fn main() -> Result<()> {
         "bundle-macos" => bundle_macos(rest),
         "fixtures" => fixtures(rest),
         "ci" => ci(),
+        "i18n" => i18n(),
         "-h" | "--help" | "help" => {
             print_help();
             Ok(())
@@ -324,4 +326,91 @@ fn ci() -> Result<()> {
     ]))?;
     run(Command::new(cargo).current_dir(&root).args(["test", "--workspace", "--locked"]))?;
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Translations
+
+/// Messages listed in full per kind; longer lists are cut.
+const LISTED: usize = 25;
+
+/// Writes the template `messages.pot` and brings the PO file of every
+/// language up to date with the messages of the source code (new messages
+/// added untranslated, translations kept, entries of removed messages
+/// dropped), then says per language what was added, removed, is
+/// untranslated or wrong.
+fn i18n() -> Result<()> {
+    use summrise_i18n::{po, tooling};
+
+    let root = root();
+    let messages = match tooling::scan_workspace(&root) {
+        Ok(messages) => messages,
+        Err(errors) => {
+            for error in &errors {
+                eprintln!("error: {error}");
+            }
+            bail!("{} uses of tr!, tr_n! or tr_ctx! need fixing", errors.len());
+        }
+    };
+    let plural = messages.iter().filter(|m| m.plural.is_some()).count();
+    let context = messages.iter().filter(|m| m.context.is_some()).count();
+    println!(
+        "{} messages in the source code: {} singular ({context} of them with a context), {plural} with a plural",
+        messages.len(),
+        messages.len() - plural,
+    );
+    let locales = root.join("crates/i18n/locales");
+    if write_if_changed(&locales.join("messages.pot"), &po::write(&tooling::template(&messages)))? {
+        println!("updated crates/i18n/locales/messages.pot");
+    }
+    let mut wrong = 0;
+    for language in summrise_i18n::translated_languages() {
+        let path = locales.join(format!("{}.po", language.code));
+        let text = fs::read_to_string(&path).unwrap_or_default();
+        let existing = po::parse(&text).with_context(|| format!("{} cannot be read", path.display()))?;
+        let before = tooling::check(&messages, &existing, language);
+        let updated = tooling::update(&messages, &existing, language);
+        let after = tooling::check(&messages, &updated, language);
+        let changed = write_if_changed(&path, &po::write(&updated))?;
+        let translated = after.entries - after.untranslated.len();
+        println!(
+            "{} ({}): {translated} of {} translated, {} untranslated; {} added, {} removed{}",
+            language.code,
+            language.english_name,
+            after.entries,
+            after.untranslated.len(),
+            before.missing.len(),
+            before.obsolete.len(),
+            if changed { "; file updated" } else { "" },
+        );
+        list("added", &before.missing);
+        list("removed (no longer in the source code)", &before.obsolete);
+        list("was wrong, translation dropped", &before.errors);
+        list("error", &after.errors);
+        // The list of what is left is for a translation in progress.
+        if translated > 0 {
+            list("untranslated", &after.untranslated);
+        }
+        wrong += after.errors.len();
+    }
+    ensure!(wrong == 0, "{wrong} entries are wrong");
+    Ok(())
+}
+
+fn list(kind: &str, items: &[String]) {
+    for item in items.iter().take(LISTED) {
+        println!("  {kind}: {item}");
+    }
+    if items.len() > LISTED {
+        println!("  {kind}: … and {} more", items.len() - LISTED);
+    }
+}
+
+/// Writes `text` to `path` unless it holds that already; says whether it wrote.
+fn write_if_changed(path: &Path, text: &str) -> Result<bool> {
+    if fs::read_to_string(path).is_ok_and(|old| old == text) {
+        return Ok(false);
+    }
+    fs::write(path, text).with_context(|| format!("cannot write {}", path.display()))?;
+    Ok(true)
 }

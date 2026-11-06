@@ -8,15 +8,22 @@
 //! or its slice position while the series loads, and an image that is not
 //! loaded is reported as such — never as a neighbouring image.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 
-use summrise_dicom::{DecodedInstance, DicomError, FrameInfo, FrameRef, SeriesPlan, decode_warning};
-use summrise_imaging::{Frame, FramePixels, Volume, VolumeError, VolumeGeometry, VoxelBuffer, Window, WindowPreset};
+use summrise_dicom::{
+    DecodedInstance, DicomError, FrameExtras, FrameInfo, FrameRef, SeriesPlan, Stacks, decode_warning,
+};
+use summrise_imaging::{
+    Frame, FramePixels, GraphicsPlane, Padding, VoiLut, Volume, VolumeError, VolumeGeometry, VoxelBuffer, Window,
+    WindowPreset,
+};
 
 /// Reason recorded for frames that a file announces in its header but does
 /// not contain.
-const MISSING_FRAME: &str = "the file holds fewer frames than its header announces";
+fn missing_frame() -> &'static str {
+    summrise_i18n::tr!("the file holds fewer frames than its header announces")
+}
 
 /// What is known about one displayed image.
 #[derive(Debug, Clone, Copy)]
@@ -33,13 +40,19 @@ enum Slot {
         width: u32,
         height: u32,
         data: Arc<VoxelBuffer>,
-        /// Smallest and largest finite value, for the series' value range.
+        /// Smallest and largest finite value that is not padding, for the
+        /// series' value range.
         range: Option<(f32, f32)>,
+        /// The values that are padding (display-fidelity D5).
+        padding: Option<Padding>,
+        /// Scanner graphics over the image (display-fidelity D6).
+        graphics: Vec<Arc<GraphicsPlane>>,
     },
     Rgb {
         width: u32,
         height: u32,
         data: Vec<u8>,
+        graphics: Vec<Arc<GraphicsPlane>>,
     },
     Failed(String),
 }
@@ -56,16 +69,23 @@ impl Slot {
     fn is_image(&self) -> bool {
         !matches!(self, Self::Failed(_))
     }
-}
 
-impl From<Frame> for Slot {
-    fn from(frame: Frame) -> Self {
+    /// A decoded frame with its padding and scanner graphics.
+    fn new(frame: Frame, extras: FrameExtras) -> Self {
+        let FrameExtras { padding, graphics } = extras;
         match frame.pixels {
             FramePixels::Gray(data) => {
-                let range = data.min_max();
-                Self::Gray { width: frame.width, height: frame.height, data: Arc::new(data), range }
+                let range = summrise_imaging::padding::min_max(&data, padding);
+                Self::Gray { width: frame.width, height: frame.height, data: Arc::new(data), range, padding, graphics }
             }
-            FramePixels::Rgb(data) => Self::Rgb { width: frame.width, height: frame.height, data },
+            FramePixels::Rgb(data) => Self::Rgb { width: frame.width, height: frame.height, data, graphics },
+        }
+    }
+
+    fn graphics(&self) -> &[Arc<GraphicsPlane>] {
+        match self {
+            Self::Gray { graphics, .. } | Self::Rgb { graphics, .. } => graphics,
+            Self::Failed(_) => &[],
         }
     }
 }
@@ -75,13 +95,19 @@ impl From<Frame> for Slot {
 struct FirstImage {
     presets: Vec<WindowPreset>,
     window: Window,
+    /// Contrast tables stored in the image (VOI LUT Sequence).
+    luts: Vec<VoiLut>,
 }
 
 /// What is only known once every image has been decoded or has failed.
 struct Outcome {
-    volume: Option<Volume>,
+    /// One volume per stack (one for a series that is not split); empty
+    /// when the images do not form volumes.
+    volumes: Vec<Volume>,
     volume_issue: Option<VolumeError>,
     value_range: (f32, f32),
+    /// Value range of each stack, for stacks with windows of their own.
+    stack_ranges: Vec<(f32, f32)>,
     warnings: Vec<String>,
     /// Set when not a single image could be decoded.
     failure: Option<String>,
@@ -97,7 +123,12 @@ pub struct SeriesData {
     filled: AtomicUsize,
     bytes: AtomicUsize,
     first: OnceLock<FirstImage>,
+    /// The first decoded image of each stack, for a series whose stacks
+    /// differ in contrast and so keep a window each; empty otherwise.
+    stack_first: Vec<OnceLock<FirstImage>>,
     outcome: OnceLock<Outcome>,
+    /// Whether a decoded image has scanner graphics.
+    graphics_seen: AtomicBool,
 }
 
 impl std::fmt::Debug for SeriesData {
@@ -115,6 +146,8 @@ impl SeriesData {
     pub fn new(plan: SeriesPlan) -> Self {
         let slots_by_instance = plan.slots_by_instance();
         let slots = (0..plan.frames.len()).map(|_| OnceLock::new()).collect();
+        let separate = plan.stacks.as_ref().filter(|s| !s.kind.is_time_like());
+        let stack_first = separate.map_or_else(Vec::new, |s| (0..s.count()).map(|_| OnceLock::new()).collect());
         Self {
             plan,
             slots_by_instance,
@@ -122,7 +155,9 @@ impl SeriesData {
             filled: AtomicUsize::new(0),
             bytes: AtomicUsize::new(0),
             first: OnceLock::new(),
+            stack_first,
             outcome: OnceLock::new(),
+            graphics_seen: AtomicBool::new(false),
         }
     }
 
@@ -149,9 +184,70 @@ impl SeriesData {
         &self.plan.frames
     }
 
-    /// The image shown when the series is opened, and the one loaded first.
+    /// The image shown when the series is opened, and the one loaded first:
+    /// the middle image of the (first) stack.
     pub fn initial_index(&self) -> usize {
-        self.len() / 2
+        self.stack_len() / 2
+    }
+
+    /// How the series is split into stacks; `None` when it is not.
+    pub fn stacks(&self) -> Option<&Stacks> {
+        self.plan.stacks.as_ref()
+    }
+
+    /// Number of stacks: 1 for a series that is not split.
+    pub fn stack_count(&self) -> usize {
+        self.plan.stack_count()
+    }
+
+    /// Images in every stack: [`Self::len`] for a series that is not split.
+    /// Image `i` of stack `s` is display index `s × stack_len + i`.
+    pub fn stack_len(&self) -> usize {
+        self.plan.stack_len()
+    }
+
+    /// What stack `stack` is, e.g. "Time point 2 / 3"; `None` for a series
+    /// that is not split.
+    pub fn stack_label(&self, stack: usize) -> Option<String> {
+        self.stacks().map(|s| s.label(stack))
+    }
+
+    /// Whether every stack keeps a window of its own: stacks that differ in
+    /// contrast (echoes, b-values …), not time points or heart phases.
+    pub fn separate_windows(&self) -> bool {
+        !self.stack_first.is_empty()
+    }
+
+    /// What the first decoded image of `stack` fixed: of the stack itself
+    /// when the stacks keep a window each, else of the series.
+    fn first_of(&self, stack: usize) -> Option<&FirstImage> {
+        if self.separate_windows() { self.stack_first.get(stack)?.get() } else { self.first.get() }
+    }
+
+    /// The window stack `stack` opens with: the first stored window of its
+    /// first decoded image, or an automatic window computed from that image
+    /// (the series' window when the stacks share one). `None` until an image
+    /// of that stack is decoded.
+    pub fn stack_initial_window(&self, stack: usize) -> Option<Window> {
+        self.first_of(stack).map(|f| f.window)
+    }
+
+    /// Windows stored in the first decoded image of `stack` (of the series
+    /// when the stacks share one window).
+    pub fn stack_presets(&self, stack: usize) -> &[WindowPreset] {
+        self.first_of(stack).map_or(&[], |f| f.presets.as_slice())
+    }
+
+    /// Smallest and largest modality value of `stack` (of the series when
+    /// the stacks share one window): exact once the series is complete, until
+    /// then the range the stored values can span.
+    pub fn stack_value_range(&self, stack: usize) -> (f32, f32) {
+        match self.outcome.get() {
+            Some(outcome) if self.separate_windows() => {
+                outcome.stack_ranges.get(stack).copied().unwrap_or(outcome.value_range)
+            }
+            _ => self.value_range(),
+        }
     }
 
     pub fn image(&self, index: usize) -> ImageSlot<'_> {
@@ -160,7 +256,7 @@ impl SeriesData {
             Some(Slot::Gray { width, height, data, .. }) => {
                 ImageSlot::Ready(FrameRef::Gray { width: *width, height: *height, data })
             }
-            Some(Slot::Rgb { width, height, data }) => {
+            Some(Slot::Rgb { width, height, data, .. }) => {
                 ImageSlot::Ready(FrameRef::Rgb { width: *width, height: *height, data })
             }
             Some(Slot::Failed(reason)) => ImageSlot::Failed(reason),
@@ -173,6 +269,36 @@ impl SeriesData {
             ImageSlot::Ready(frame) => Some(frame),
             ImageSlot::Pending | ImageSlot::Failed(_) => None,
         }
+    }
+
+    /// The values of image `index` that are padding (outside the scanned
+    /// area), once it is decoded.
+    pub fn padding(&self, index: usize) -> Option<Padding> {
+        match self.slots.get(index).and_then(OnceLock::get) {
+            Some(Slot::Gray { padding, .. }) => *padding,
+            _ => None,
+        }
+    }
+
+    /// The scanner graphics over image `index`, once it is decoded.
+    pub fn graphics(&self, index: usize) -> &[Arc<GraphicsPlane>] {
+        self.slots.get(index).and_then(OnceLock::get).map_or(&[], Slot::graphics)
+    }
+
+    /// Whether any image decoded so far has scanner graphics.
+    pub fn has_graphics(&self) -> bool {
+        self.graphics_seen.load(Ordering::Relaxed)
+    }
+
+    /// Contrast tables (VOI LUT Sequence) stored in the first decoded image
+    /// of `stack` (of the series when the stacks share one window).
+    pub fn stack_luts(&self, stack: usize) -> &[VoiLut] {
+        self.first_of(stack).map_or(&[], |f| f.luts.as_slice())
+    }
+
+    /// Contrast tables stored in the first decoded image.
+    pub fn luts(&self) -> &[VoiLut] {
+        self.first.get().map_or(&[], |f| f.luts.as_slice())
     }
 
     /// Images dealt with so far (decoded or failed), out of [`Self::len`].
@@ -227,18 +353,26 @@ impl SeriesData {
         self.plan.units.as_deref()
     }
 
-    /// Geometry of the volume the images form: planned from the headers while
-    /// the series loads, that of the assembled volume afterwards.
+    /// Geometry of the volume the images (every stack) form: planned from the
+    /// headers while the series loads, that of the assembled volume afterwards.
     pub fn geometry(&self) -> Option<&VolumeGeometry> {
         match self.outcome.get() {
-            Some(outcome) => outcome.volume.as_ref().map(|v| &v.geometry),
+            Some(outcome) => outcome.volumes.first().map(|v| &v.geometry),
             None => self.plan.geometry.as_ref(),
         }
     }
 
     /// The volume for reformatting, available once the series is complete.
+    /// For a series split into stacks this is the volume of stack 0; code
+    /// that shows a stack uses [`Self::stack_volume`].
     pub fn volume(&self) -> Option<&Volume> {
-        self.outcome.get().and_then(|o| o.volume.as_ref())
+        self.stack_volume(0)
+    }
+
+    /// The volume of stack `stack` (all stacks share one geometry), available
+    /// once the series is complete.
+    pub fn stack_volume(&self, stack: usize) -> Option<&Volume> {
+        self.outcome.get().and_then(|o| o.volumes.get(stack))
     }
 
     /// Why multiplanar reformatting is unavailable, as far as is known: from
@@ -272,6 +406,11 @@ impl SeriesData {
         let slots = self.slots_of(instance);
         match result {
             Ok(mut decoded) => {
+                // A PET series' values become uptake values here, once, before anything reads them.
+                if let Some(Ok(suv)) = &self.plan.suv {
+                    suv.apply(&mut decoded);
+                }
+                let stack_first = self.stack_first_images(slots, &decoded, displayed);
                 let first = (self.first.get().is_none() && !decoded.frames.is_empty()).then(|| {
                     let frame = slots
                         .iter()
@@ -279,15 +418,26 @@ impl SeriesData {
                         .filter(|&frame| frame < decoded.frames.len())
                         .unwrap_or(decoded.frames.len() / 2);
                     let window = decoded.initial_window(frame, self.plan.value_range);
-                    FirstImage { presets: std::mem::take(&mut decoded.presets), window }
+                    let luts = std::mem::take(&mut decoded.extras.voi_luts);
+                    FirstImage { presets: std::mem::take(&mut decoded.presets), window, luts }
                 });
+                let mut extras = std::mem::take(&mut decoded.extras.frames).into_iter();
                 let mut frames = decoded.frames.into_iter();
                 for &slot in slots {
-                    self.set(slot, frames.next().map_or_else(|| Slot::Failed(MISSING_FRAME.to_owned()), Slot::from));
+                    let image = match frames.next() {
+                        Some(frame) => Slot::new(frame, extras.next().unwrap_or_default()),
+                        None => Slot::Failed(missing_frame().to_owned()),
+                    };
+                    self.set(slot, image);
                 }
                 // Published after the pixels, so a viewable series can show its first image.
                 if let Some(first) = first {
                     let _ = self.first.set(first);
+                }
+                for (stack, first) in stack_first {
+                    if let Some(cell) = self.stack_first.get(stack) {
+                        let _ = cell.set(first);
+                    }
                 }
             }
             Err(reason) => {
@@ -299,9 +449,40 @@ impl SeriesData {
         slots
     }
 
+    /// For stacks that keep a window each: the window and presets of every
+    /// stack whose first image is in this file (the frames at `slots`). The
+    /// window comes from the displayed image if the file holds it, else from
+    /// the middle one of the file's frames in that stack.
+    fn stack_first_images(
+        &self,
+        slots: &[usize],
+        decoded: &DecodedInstance,
+        displayed: usize,
+    ) -> Vec<(usize, FirstImage)> {
+        let len = self.stack_len().max(1);
+        let frames = slots.len().min(decoded.frames.len());
+        let mut out: Vec<(usize, FirstImage)> = Vec::new();
+        for stack in slots[..frames].iter().map(|&slot| slot / len) {
+            let known = self.stack_first.get(stack).is_none_or(|cell| cell.get().is_some());
+            if known || out.iter().any(|(s, _)| *s == stack) {
+                continue;
+            }
+            let in_stack: Vec<usize> = (0..frames).filter(|&f| slots[f] / len == stack).collect();
+            let Some(&middle) = in_stack.get(in_stack.len() / 2) else { continue };
+            let frame = in_stack.iter().copied().find(|&f| slots[f] == displayed).unwrap_or(middle);
+            let window = decoded.initial_window(frame, self.plan.value_range);
+            let luts = decoded.extras.voi_luts.clone();
+            out.push((stack, FirstImage { presets: decoded.presets.clone(), window, luts }));
+        }
+        out
+    }
+
     fn set(&self, slot: usize, value: Slot) {
         let Some(cell) = self.slots.get(slot) else { return };
         let size = value.byte_size();
+        if !value.graphics().is_empty() {
+            self.graphics_seen.store(true, Ordering::Relaxed);
+        }
         if cell.set(value).is_ok() {
             self.bytes.fetch_add(size, Ordering::Relaxed);
             self.filled.fetch_add(1, Ordering::Relaxed);
@@ -317,31 +498,52 @@ impl SeriesData {
         let failed = (0..slots.len()).filter(|&i| !decoded(i)).count();
         let first_reason = slots.iter().find_map(|slot| match slot {
             Some(Slot::Failed(reason)) => Some(reason.as_str()),
-            None => Some("the image was not loaded"),
+            None => Some(summrise_i18n::tr!("the image was not loaded")),
             Some(_) => None,
         });
 
-        let value_range = slots
-            .iter()
-            .filter_map(|slot| match slot {
-                Some(Slot::Gray { range, .. }) => *range,
-                _ => None,
-            })
-            .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)))
-            .unwrap_or((0.0, 255.0));
-
-        let mut volume_issue = self.plan.final_volume_issue(decoded);
-        let volume = self.plan.geometry.filter(|_| volume_issue.is_none()).and_then(|geometry| {
-            let slices: Option<Vec<Arc<VoxelBuffer>>> = slots
+        let range_of = |slots: &[Option<&Slot>]| {
+            slots
                 .iter()
-                .map(|slot| match slot {
-                    Some(Slot::Gray { data, .. }) => Some(data.clone()),
+                .filter_map(|slot| match slot {
+                    Some(Slot::Gray { range, .. }) => *range,
                     _ => None,
                 })
-                .collect();
-            Volume::from_shared(geometry, slices?)
-        });
-        if volume.is_none() && volume_issue.is_none() {
+                .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)))
+        };
+        let value_range = range_of(&slots).unwrap_or((0.0, 255.0));
+        let len = self.stack_len().max(1);
+        let stack_ranges = if self.separate_windows() {
+            slots.chunks(len).map(|stack| range_of(stack).unwrap_or(value_range)).collect()
+        } else {
+            Vec::new()
+        };
+
+        let mut volume_issue = self.plan.final_volume_issue(decoded);
+        // One volume per stack, over the shared slots, with the shared geometry; padding
+        // voxels are sampled like the outside of the volume.
+        let volumes: Vec<Volume> = self
+            .plan
+            .geometry
+            .filter(|_| volume_issue.is_none())
+            .and_then(|geometry| {
+                let slices: Option<Vec<(Arc<VoxelBuffer>, Option<Padding>)>> = slots
+                    .iter()
+                    .map(|slot| match slot {
+                        Some(Slot::Gray { data, padding, .. }) => Some((data.clone(), *padding)),
+                        _ => None,
+                    })
+                    .collect();
+                slices?
+                    .chunks(len)
+                    .map(|stack| {
+                        let (data, padding): (Vec<_>, Vec<_>) = stack.iter().cloned().unzip();
+                        Volume::from_shared(geometry, data).map(|volume| volume.with_padding(padding))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if volumes.is_empty() && volume_issue.is_none() {
             // The decoded images do not have the size their headers announce.
             volume_issue = Some(VolumeError::InconsistentGrid);
         }
@@ -349,13 +551,14 @@ impl SeriesData {
         if failed > 0 {
             log::warn!("{failed} of {} images failed to decode", slots.len());
         }
-        let failure = (failed == slots.len())
-            .then(|| DicomError::DecodeFailed(first_reason.unwrap_or("no pixel data").to_owned()).to_string());
+        let failure = (failed == slots.len()).then(|| {
+            DicomError::DecodeFailed(first_reason.unwrap_or(summrise_i18n::tr!("no pixel data")).to_owned()).to_string()
+        });
         let warnings = match first_reason {
             Some(reason) if failure.is_none() => vec![decode_warning(failed, reason)],
             _ => Vec::new(),
         };
-        let _ = self.outcome.set(Outcome { volume, volume_issue, value_range, warnings, failure });
+        let _ = self.outcome.set(Outcome { volumes, volume_issue, value_range, stack_ranges, warnings, failure });
     }
 
     /// Gives up on the whole series, e.g. when its loader could not start.
@@ -371,7 +574,7 @@ impl SeriesData {
 /// the background loader.
 #[cfg(test)]
 pub(crate) mod testing {
-    use summrise_dicom::{Progress, Series, StudyIndex, decode_instance, plan_series, read_instance};
+    use summrise_dicom::{Media, Progress, Series, StudyIndex, decode_instance, plan_series, read_instance};
     use summrise_testkit::{PhantomOptions, write_phantom_study};
 
     use super::SeriesData;
@@ -384,9 +587,10 @@ pub(crate) mod testing {
         (dir, index)
     }
 
-    /// Decodes one file into the store, on the calling thread.
+    /// Decodes one file of the synthetic CD (a folder) into the store, on the calling thread.
     pub(crate) fn fill_from_disc(data: &SeriesData, series: &Series, instance: usize) {
-        let result = read_instance(&series.instances[instance]).and_then(decode_instance).map_err(|e| e.to_string());
+        let file = read_instance(&Media::folder(), &series.instances[instance]);
+        let result = file.and_then(decode_instance).map_err(|e| e.to_string());
         data.fill(instance, result, data.initial_index());
     }
 
@@ -504,7 +708,7 @@ mod tests {
         // The other images display normally, at their own numbers.
         assert!((0..24).filter(|&i| i != 16).all(|i| data.frame(i).is_some()));
         assert_eq!(data.len(), 24);
-        assert_eq!(data.warnings(), ["1 image(s) could not be decoded: unexpected end of pixel data"]);
+        assert_eq!(data.warnings(), ["1 image could not be decoded: unexpected end of pixel data"]);
         assert!(data.failure().is_none());
         // A hole in the stack: no reformats, as with a missing file.
         assert!(data.volume().is_none() && data.geometry().is_none());
@@ -545,6 +749,8 @@ mod tests {
             value_range: (0.0, 255.0),
             geometry: None,
             volume_issue: Some(VolumeError::NoGeometry),
+            stacks: None,
+            suv: None,
         };
         let data = SeriesData::new(plan);
         let image =
@@ -554,6 +760,7 @@ mod tests {
             monochrome1: false,
             presets: Vec::new(),
             rescale_type: None,
+            extras: Default::default(),
         };
         // The second frame is on screen: the automatic window comes from it.
         assert_eq!(data.fill(0, Ok(decoded), 1), [0, 1, 2]);

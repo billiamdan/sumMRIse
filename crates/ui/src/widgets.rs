@@ -1,22 +1,34 @@
 //! Small reusable UI building blocks.
 
 use egui::{
-    Align2, Color32, CornerRadius, FontId, Frame, Margin, Painter, Pos2, Rect, Response, RichText, Stroke, Ui, Vec2,
-    pos2, vec2,
+    Align, Align2, Color32, CornerRadius, FontId, Frame, Id, Layout, Margin, Painter, Pos2, Rect, Response, RichText,
+    Stroke, Ui, Vec2, pos2, vec2,
 };
 use egui_material_icons::MaterialIcon;
+use summrise_i18n::tr_ctx;
 
 use crate::theme;
 
 /// Name of the primary shortcut modifier: "⌘" on macOS, "Ctrl" elsewhere.
 /// (⌘ is only shown on macOS, whose UI font has the glyph.)
 pub(crate) fn command_key() -> &'static str {
-    if cfg!(target_os = "macos") { "⌘" } else { "Ctrl" }
+    // Translators: the names of modifier keys as printed on keyboards of your language (German: Strg).
+    if cfg!(target_os = "macos") { "⌘" } else { tr_ctx!("key name", "Ctrl") }
 }
 
 /// Platform shortcut label: "⌘B" on macOS, "Ctrl+B" on Windows and Linux.
 pub(crate) fn shortcut(key: &str) -> String {
-    if cfg!(target_os = "macos") { format!("⌘{key}") } else { format!("Ctrl+{key}") }
+    if cfg!(target_os = "macos") { format!("⌘{key}") } else { format!("{}+{key}", command_key()) }
+}
+
+/// Name of the Alt modifier key: "Option" on macOS, "Alt" elsewhere.
+pub(crate) fn alt_key() -> &'static str {
+    if cfg!(target_os = "macos") { tr_ctx!("key name", "Option") } else { tr_ctx!("key name", "Alt") }
+}
+
+/// Shortcut label with the Alt modifier: "Option+R" on macOS, "Alt+R" elsewhere.
+pub(crate) fn alt_shortcut(key: &str) -> String {
+    format!("{}+{key}", alt_key())
 }
 
 /// Icon codepoint for inline use in labels (`format!("{} Open", icon(...))`).
@@ -63,6 +75,64 @@ pub(crate) fn primary_button(ui: &mut Ui, text: &str, min_size: Vec2) -> Respons
             .corner_radius(CornerRadius::same(8))
             .min_size(min_size),
     )
+}
+
+/// Width of the widest of `lines` in the overlay font of `size`.
+pub(crate) fn text_width(painter: &Painter, lines: &[String], size: f32) -> f32 {
+    let font = FontId::proportional(size);
+    lines
+        .iter()
+        .map(|line| painter.layout_no_wrap(line.clone(), font.clone(), Color32::WHITE).size().x)
+        .fold(0.0, f32::max)
+}
+
+/// `lines`, each shortened with "…" to at most `max_width` points in the
+/// overlay font of `size` (unchanged when `max_width` is infinite).
+pub(crate) fn elide_lines(painter: &Painter, lines: Vec<String>, size: f32, max_width: f32) -> Vec<String> {
+    if !max_width.is_finite() {
+        return lines;
+    }
+    let font = FontId::proportional(size);
+    let width = |text: String| painter.layout_no_wrap(text, font.clone(), Color32::WHITE).size().x;
+    lines
+        .into_iter()
+        .map(|line| {
+            if width(line.clone()) <= max_width {
+                return line;
+            }
+            // The longest start of the line that fits together with the ellipsis.
+            let chars: Vec<char> = line.chars().collect();
+            let (mut lo, mut hi) = (0, chars.len());
+            while lo < hi {
+                let mid = (lo + hi).div_ceil(2);
+                let candidate: String = chars[..mid].iter().chain(std::iter::once(&'…')).collect();
+                if width(candidate) <= max_width {
+                    lo = mid;
+                } else {
+                    hi = mid - 1;
+                }
+            }
+            let kept: String = chars[..lo].iter().collect();
+            format!("{}…", kept.trim_end())
+        })
+        .collect()
+}
+
+/// How wide a block of text in the left and one in the right corner of the
+/// same rows may be, in a row `available` points wide: as wide as they are
+/// when both fit; else the narrower keeps its width if it takes at most half
+/// and the other gets the rest; else each gets half.
+pub(crate) fn share_row(left: f32, right: f32, available: f32) -> (f32, f32) {
+    let half = (available / 2.0).max(0.0);
+    if left + right <= available {
+        (f32::INFINITY, f32::INFINITY)
+    } else if left <= half {
+        (f32::INFINITY, available - left)
+    } else if right <= half {
+        (available - right, f32::INFINITY)
+    } else {
+        (half, half)
+    }
 }
 
 /// Text with a dark halo so it stays legible over any image.
@@ -122,4 +192,58 @@ pub(crate) fn kv_grid(ui: &mut Ui, id: impl egui::AsIdSalt, rows: &[(String, Str
             ui.end_row();
         }
     });
+}
+
+/// Lays out `add` from left to right as one piece that a wrapping layout
+/// moves to the next row as a whole, so that a label stays with its control:
+/// the piece is given the width it took in the previous frame (`name` tells
+/// the pieces apart).
+pub(crate) fn keep_together<R>(ui: &mut Ui, name: &'static str, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let id = Id::unique("keep together").with(name);
+    let known = ui.ctx().data(|d| d.get_temp::<f32>(id));
+    // Never wider than a whole row: a piece wider than that gets a row of its own and
+    // its widgets the row's width (to shrink into, where they can).
+    let size = vec2(known.unwrap_or(0.0).min(ui.max_rect().width()), ui.spacing().interact_size.y);
+    let inner = ui.allocate_ui_with_layout(size, Layout::left_to_right(Align::Center), add);
+    let width = inner.response.rect.width();
+    if known.is_none_or(|known| (known - width).abs() > 0.5) {
+        ui.ctx().data_mut(|d| d.insert_temp(id, width));
+        ui.ctx().request_discard("toolbar piece width");
+    }
+    inner.inner
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn corner_blocks_share_a_row() {
+        // Both fit: no limit.
+        assert_eq!(share_row(100.0, 80.0, 200.0), (f32::INFINITY, f32::INFINITY));
+        // A narrow block keeps its width; the other gets the rest.
+        assert_eq!(share_row(60.0, 300.0, 200.0), (f32::INFINITY, 140.0));
+        assert_eq!(share_row(300.0, 60.0, 200.0), (140.0, f32::INFINITY));
+        // Both wide: half each.
+        assert_eq!(share_row(300.0, 300.0, 200.0), (100.0, 100.0));
+    }
+
+    #[test]
+    fn a_line_too_long_is_shortened_with_an_ellipsis() {
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let painter = ui.painter();
+            let lines = vec!["S1: CT CHEST 2.5mm (synthetic)".to_owned(), "W 400".to_owned()];
+            let full = text_width(painter, &lines[..1], 12.0);
+            let short = elide_lines(painter, lines.clone(), 12.0, full / 2.0);
+            assert!(short[0].ends_with('…') && short[0].chars().count() < lines[0].chars().count(), "{short:?}");
+            assert!(text_width(painter, &short[..1], 12.0) <= full / 2.0, "{short:?}");
+            assert_eq!(short[1], "W 400", "a line that fits stays as it is");
+            assert_eq!(elide_lines(painter, lines.clone(), 12.0, f32::INFINITY), lines);
+            // Nothing fits: the ellipsis alone.
+            assert_eq!(elide_lines(painter, vec!["Mediastinum".to_owned()], 12.0, 1.0), ["…"]);
+        });
+        // No renderer takes the font texture here.
+        output.textures_delta.clear();
+    }
 }

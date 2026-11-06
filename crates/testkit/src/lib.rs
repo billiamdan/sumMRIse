@@ -10,13 +10,39 @@
 //!
 //! Series:
 //! 1. CT chest phantom, axial, 16-bit with rescale intercept −1024 (HU),
-//!    instance numbers running superior → inferior, files shuffled.
-//! 2. MR T2 sagittal phantom, 16-bit unsigned, multiple window presets.
+//!    instance numbers running superior → inferior, files shuffled; a
+//!    contrast agent is recorded.
+//! 2. MR T2 sagittal phantom (turbo spin echo, TR 4000 / TE 96 ms, with a
+//!    protocol name), 16-bit unsigned, multiple window presets.
 //! 3. Three-plane localizer, 8-bit, **JPEG Baseline** compressed.
 //! 4. RGB secondary capture ("dose report").
 //!
 //! A bright marker sphere sits at [`MARKER_POSITION`] (patient left,
 //! anterior, superior) in the CT and MR so tests can verify orientation.
+//!
+//! The CT holds air around the body (−1000 HU), soft tissue
+//! ([`CT_SOFT_TISSUE_HU`]), two air-filled lungs (about −820 HU), a spine-like
+//! bone cylinder ([`CT_BONE_HU`]) and a contrast-filled vessel
+//! ([`CT_VESSEL_HU`]) running from head to feet in front of it.
+//! [`CtPhantom`] gives the same voxels in memory, without writing files.
+//!
+//! [`archive`] packs such a folder into a ZIP archive or an ISO 9660 disc
+//! image, the forms in which a disc is handed out as a download.
+//!
+//! [`stacks`] writes series with several sets of images at the same slice
+//! positions (time points, echoes, b-values) and a cine of one slice.
+//!
+//! [`fidelity`] writes images that are standard but unusual: palette colour,
+//! contrast tables, a Modality LUT, padding, overlay planes, lossy and
+//! burned-in facts.
+//!
+//! [`pet`] writes a PET/CT study: this CT and PET series in its Frame of
+//! Reference with a hot sphere of known uptake (SUV 5) at the marker.
+
+pub mod archive;
+pub mod fidelity;
+pub mod pet;
+pub mod stacks;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -38,6 +64,17 @@ pub const MARKER_RADIUS_MM: f64 = 10.0;
 /// HU of the CT marker.
 pub const CT_MARKER_HU: f64 = 300.0;
 pub const CT_SOFT_TISSUE_HU: f64 = 40.0;
+/// HU of the spine-like bone cylinder of the CT.
+pub const CT_BONE_HU: f64 = 700.0;
+/// Axis of the bone cylinder (patient x and y in mm; it runs along z) and its radius.
+pub const CT_BONE_AXIS_MM: [f64; 2] = [0.0, 55.0];
+pub const CT_BONE_RADIUS_MM: f64 = 14.0;
+/// HU of the contrast-filled vessel of the CT.
+pub const CT_VESSEL_HU: f64 = 300.0;
+/// Axis of the vessel (patient x and y in mm: left of the midline, in front of
+/// the bone cylinder; it runs along z) and its radius.
+pub const CT_VESSEL_AXIS_MM: [f64; 2] = [10.0, 25.0];
+pub const CT_VESSEL_RADIUS_MM: f64 = 8.0;
 
 #[derive(Debug, thiserror::Error)]
 pub enum FixtureError {
@@ -147,6 +184,11 @@ fn in_ellipsoid(p: [f64; 3], c: [f64; 3], r: [f64; 3]) -> bool {
     (0..3).map(|i| ((p[i] - c[i]) / r[i]).powi(2)).sum::<f64>() <= 1.0
 }
 
+/// Inside the cylinder of radius `r` along z through (`axis[0]`, `axis[1]`).
+fn in_cylinder(p: [f64; 3], axis: [f64; 2], r: f64) -> bool {
+    ((p[0] - axis[0]) / r).powi(2) + ((p[1] - axis[1]) / r).powi(2) <= 1.0
+}
+
 fn in_marker(p: [f64; 3]) -> bool {
     (0..3).map(|i| (p[i] - MARKER_POSITION[i]).powi(2)).sum::<f64>().sqrt() <= MARKER_RADIUS_MM
 }
@@ -163,8 +205,11 @@ fn ct_hu(p: [f64; 3]) -> f64 {
             hu = -820.0 + 15.0 * noise(p);
         }
     }
-    if (x / 14.0).powi(2) + ((y - 55.0) / 14.0).powi(2) <= 1.0 {
-        hu = 700.0;
+    if in_cylinder(p, CT_BONE_AXIS_MM, CT_BONE_RADIUS_MM) {
+        hu = CT_BONE_HU;
+    }
+    if in_cylinder(p, CT_VESSEL_AXIS_MM, CT_VESSEL_RADIUS_MM) {
+        hu = CT_VESSEL_HU;
     }
     if in_marker(p) {
         hu = CT_MARKER_HU;
@@ -208,6 +253,54 @@ impl Geometry {
     }
 }
 
+/// Slice `k` (counted from the feet) of the CT series: 240 mm field of view,
+/// 200 mm covered by `n` slices.
+fn ct_slice_geometry(size: u32, n: u32, k: u32) -> Geometry {
+    let spacing = FOV_MM / f64::from(size);
+    let thickness = 200.0 / f64::from(n);
+    let half = (f64::from(size) - 1.0) * spacing / 2.0;
+    let z = -100.0 + thickness / 2.0 + f64::from(k) * thickness;
+    Geometry { position: [-half, -half, z], orientation: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0], spacing }
+}
+
+/// The CT series of [`write_phantom_study`] in memory: the same voxels, in
+/// Hounsfield units, without writing or decoding files.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CtPhantom {
+    size: u32,
+    slices: u32,
+}
+
+impl CtPhantom {
+    pub fn new(opts: &PhantomOptions) -> Self {
+        Self { size: opts.ct_size, slices: opts.ct_slices }
+    }
+
+    /// Columns, rows and slices.
+    pub fn dims(&self) -> [usize; 3] {
+        [self.size as usize, self.size as usize, self.slices as usize]
+    }
+
+    /// Patient position (mm, LPS) of the first voxel of the lowest slice.
+    pub fn origin(&self) -> [f64; 3] {
+        ct_slice_geometry(self.size, self.slices, 0).position
+    }
+
+    /// Voxel size in mm: columns run to the patient's left (+x), rows to the
+    /// back (+y) and slices from the feet to the head (+z).
+    pub fn spacing(&self) -> [f64; 3] {
+        let geometry = ct_slice_geometry(self.size, self.slices, 0);
+        [geometry.spacing, geometry.spacing, 200.0 / f64::from(self.slices)]
+    }
+
+    /// Hounsfield units of slice `k` (counted from the feet), row by row.
+    pub fn slice(&self, k: usize) -> Vec<i16> {
+        let geometry = ct_slice_geometry(self.size, self.slices, k as u32);
+        let size = self.size;
+        (0..size * size).map(|i| ct_hu(geometry.pixel(i % size, i / size)).round() as i16).collect()
+    }
+}
+
 fn write_ct_series(study_dir: &Path, study_uid: &str, opts: &PhantomOptions) -> Result<WrittenSeries, FixtureError> {
     let number = 1;
     let uid = format!("{UID_ROOT}{number}");
@@ -215,16 +308,14 @@ fn write_ct_series(study_dir: &Path, study_uid: &str, opts: &PhantomOptions) -> 
     fs::create_dir_all(&dir)?;
     let n = opts.ct_slices;
     let size = opts.ct_size;
-    let spacing = FOV_MM / f64::from(size);
     let thickness = 200.0 / f64::from(n);
-    let half = (f64::from(size) - 1.0) * spacing / 2.0;
     let mut files = Vec::new();
     // Write slices in a scrambled order to make sure readers sort spatially.
     let mut order: Vec<u32> = (0..n).collect();
     order.sort_by_key(|k| (k * 7919) % n);
     for (file_index, k) in order.into_iter().enumerate() {
-        let z = -100.0 + thickness / 2.0 + f64::from(k) * thickness;
-        let geom = Geometry { position: [-half, -half, z], orientation: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0], spacing };
+        let geom = ct_slice_geometry(size, n, k);
+        let z = geom.position[2];
         let pixels: Vec<u16> =
             (0..size * size).map(|i| (ct_hu(geom.pixel(i % size, i / size)).round() + 1024.0) as u16).collect();
         // Instance 1 is the most superior slice.
@@ -247,6 +338,7 @@ fn write_ct_series(study_dir: &Path, study_uid: &str, opts: &PhantomOptions) -> 
         put_str(&mut obj, tags::X_RAY_TUBE_CURRENT, VR::IS, &["210"]);
         put_str(&mut obj, tags::EXPOSURE, VR::IS, &["150"]);
         put_str(&mut obj, tags::CONVOLUTION_KERNEL, VR::SH, &["STANDARD"]);
+        put_str(&mut obj, tags::CONTRAST_BOLUS_AGENT, VR::LO, &["Iodinated contrast (synthetic)"]);
         put_str(&mut obj, tags::BODY_PART_EXAMINED, VR::CS, &["CHEST"]);
         put_ds(&mut obj, tags::RESCALE_INTERCEPT, &[-1024.0]);
         put_ds(&mut obj, tags::RESCALE_SLOPE, &[1.0]);
@@ -305,6 +397,7 @@ fn write_mr_series(study_dir: &Path, study_uid: &str, opts: &PhantomOptions) -> 
         put_str(&mut obj, tags::SEQUENCE_VARIANT, VR::CS, &["SK", "SP"]);
         put_str(&mut obj, tags::MR_ACQUISITION_TYPE, VR::CS, &["2D"]);
         put_str(&mut obj, tags::SEQUENCE_NAME, VR::SH, &["*tse2d1_15"]);
+        put_str(&mut obj, tags::PROTOCOL_NAME, VR::LO, &["t2_tse_sag"]);
         put_str(&mut obj, tags::BODY_PART_EXAMINED, VR::CS, &["CHEST"]);
         put_ds(&mut obj, tags::WINDOW_CENTER, &[700.0, 900.0]);
         put_ds(&mut obj, tags::WINDOW_WIDTH, &[1400.0, 1000.0]);
