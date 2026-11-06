@@ -668,16 +668,26 @@ mod tests {
         fs::remove_dir_all(&dir).expect("cleanup");
     }
 
-    /// libarchive (the `tar` of macOS and of many Linux systems) reads ISO
-    /// 9660 images: it finds every file of the images written here, and the
-    /// content it extracts is the content of the file.
+    /// The `tar` of libarchive (`bsdtar`; the `tar` of macOS), if there is one.
+    /// GNU tar, the `tar` of most Linux systems, does not read ISO 9660: it
+    /// takes the empty first 32 KiB of an image for the end of an archive and
+    /// lists nothing.
+    fn libarchive_tar(dir: &Path) -> Option<&'static str> {
+        ["bsdtar", "tar"]
+            .into_iter()
+            .find(|tool| output_of(tool, &["--version"], dir).is_some_and(|version| version.contains("libarchive")))
+    }
+
+    /// libarchive reads ISO 9660 images: it finds every file of the images
+    /// written here, and the content it extracts is the content of the file.
     #[test]
     fn iso_of_the_synthetic_cd_is_read_by_libarchive() {
         let dir = synthetic_cd("iso");
         let expected = fs::read(dir.join("CD/DICOM/ST000001/SE000002/IM000007")).expect("read");
         for (name, names) in [("level1.iso", IsoNames::Level1), ("joliet.iso", IsoNames::Joliet)] {
             fs::write(dir.join(name), iso_image(&dir.join("CD"), names).expect("iso")).expect("write");
-            let Some(listing) = output_of("tar", &["-tf", name], &dir) else { break };
+            let Some(tar) = libarchive_tar(&dir) else { break };
+            let Some(listing) = output_of(tar, &["-tf", name], &dir) else { break };
             let listed: Vec<String> = listing.lines().map(|line| line.trim_end_matches('/').to_uppercase()).collect();
             for file in ["DICOMDIR", "AUTORUN.INF", "VIEWER/VIEWER.EXE", "DICOM/ST000001/SE000099/IM000001"] {
                 assert!(listed.iter().any(|line| line == file), "{name}: {file} is missing from {listed:?}");
@@ -686,7 +696,7 @@ mod tests {
             // Extract one file to a pipe (nothing is written) and compare.
             let member =
                 listing.lines().find(|line| line.to_uppercase().ends_with("SE000002/IM000007")).expect("listed");
-            let output = std::process::Command::new("tar").args(["-xOf", name, member]).current_dir(&dir).output();
+            let output = std::process::Command::new(tar).args(["-xOf", name, member]).current_dir(&dir).output();
             assert_eq!(output.expect("tar").stdout, expected, "{name}");
         }
         fs::remove_dir_all(&dir).expect("cleanup");
