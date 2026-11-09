@@ -7,7 +7,7 @@
 ## 2. Packages
 
 - [x] 2.1 Tarball from `cargo xtask package-linux`, with `LICENSE.txt` and `THIRD-PARTY-NOTICES.txt`
-- [x] 2.2 AppImage built on Ubuntu 22.04 with appimagetool 1.9.1 and the type2 runtime 20251108, both pinned by SHA-256 (`package-linux --appimagetool … --appimage-runtime …`); the CI package job starts it with `--version` (extract-and-run, no FUSE)
+- [x] 2.2 AppImage built on Ubuntu 22.04 with appimagetool 1.9.1 and the type2 runtime 20251108, both pinned by SHA-256 (`package-linux --appimagetool … --appimage-runtime …`); the CI package job starts it with `--version` (extract-and-run, no FUSE; it printed `SumMRIse 0.3.0`, and the binary links only libstdc++, libgcc_s, libm and libc)
 - [x] 2.3 `desktop-file-validate` and `appstreamcli validate --no-net` in the CI package job (passed with Ubuntu 22.04's appstream 0.15.2: one pedantic note, no warnings)
 - [ ] 2.4 Flatpak manifest — not written: building and testing one needs flatpak-builder with the freedesktop SDK and the Rust extension on a Linux machine, and offline cargo sources for Flathub; left for a Linux session
 

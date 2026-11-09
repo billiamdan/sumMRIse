@@ -94,7 +94,7 @@ single Rust code base. Everything happens on your computer — nothing is upload
 
 ## Download
 
-Packages for every version are on the
+From version 0.3.0 on, packages for every version are published on the
 [releases page](https://github.com/billiamdan/sumMRIse/releases), with a `SHA256SUMS` file
 to check them:
 

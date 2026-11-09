@@ -7,7 +7,7 @@
 ## 2. Distribution
 
 - [x] 2.1 Portable zip from `cargo xtask package-windows`, with `LICENSE.txt` and `THIRD-PARTY-NOTICES.txt`
-- [x] 2.2 MSI via WiX 5 (`packaging/windows/SumMRIse.wxs`, `cargo xtask package-windows --msi`): per user in `%LOCALAPPDATA%\Programs\SumMRIse`, Start-menu shortcut, uninstall, upgrades; the CI package job installs it silently, checks the program, the notices and the shortcut, removes it and checks that they are gone
+- [x] 2.2 MSI via WiX 5 (`packaging/windows/SumMRIse.wxs`, `cargo xtask package-windows --msi`): per user in `%LOCALAPPDATA%\Programs\SumMRIse`, Start-menu shortcut, uninstall, upgrades; the CI package job installs it silently, checks the program, the notices and the shortcut, removes it and checks that they are gone (passed in CI run 42684689436, with ProductVersion 0.3.0 in the version resource)
 - [ ] 2.3 Authenticode signing step gated on secrets — implemented (`package-windows --sign`, signtool with a SHA-256 timestamp and `signtool verify`, run when `WINDOWS_CERT_PFX` and `WINDOWS_CERT_PASSWORD` exist), but never run: there is no code-signing certificate yet
 
 ## 3. Verification (requires Windows)
