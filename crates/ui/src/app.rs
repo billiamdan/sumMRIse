@@ -12,6 +12,7 @@ use summrise_i18n::{tr, tr_ctx, tr_n};
 
 use crate::display_check::{self, DisplayCheckScreen};
 use crate::language;
+use crate::licences;
 use crate::theme;
 use crate::viewer::Viewer;
 use crate::welcome;
@@ -136,6 +137,8 @@ pub struct SumMRIseApp {
     pending: Vec<Action>,
     show_settings: bool,
     show_about: bool,
+    /// The licences of the third-party software, opened from the About dialog.
+    show_licences: bool,
     /// The display check, while it is open.
     display_check: Option<DisplayCheckScreen>,
     applied_appearance: Option<Appearance>,
@@ -165,6 +168,7 @@ impl SumMRIseApp {
             pending,
             show_settings: false,
             show_about: false,
+            show_licences: false,
             display_check: None,
             applied_appearance: None,
             title: String::new(),
@@ -433,20 +437,30 @@ impl SumMRIseApp {
             ui.label(RichText::new(disclaimer).color(theme::palette(ui).warn));
             ui.add_space(6.0);
             ui.label(
-                RichText::new(tr!("Built with dicom-rs, egui/eframe and wgpu. Licensed under the MIT licence."))
-                    .small()
-                    .weak(),
+                RichText::new(tr!(
+                    "Licensed under the MIT licence. Built with dicom-rs, egui/eframe, wgpu and other software \
+                     by others, under their own licences."
+                ))
+                .small()
+                .weak(),
             );
             ui.add_space(8.0);
-            let check = ui.vertical_centered(|ui| display_check::open_button(ui).clicked()).inner;
+            let (check, licences) = ui
+                .vertical_centered(|ui| {
+                    let check = display_check::open_button(ui).clicked();
+                    (check, ui.button(tr!("Third-party licences…")).clicked())
+                })
+                .inner;
             ui.add_space(4.0);
-            (ui.vertical_centered(|ui| ui.button(tr!("Close")).clicked()).inner, check)
+            (ui.vertical_centered(|ui| ui.button(tr!("Close")).clicked()).inner, check, licences)
         });
-        let (close, check) = response.inner;
+        let (close, check, licences) = response.inner;
         if check {
             self.display_check = Some(DisplayCheckScreen::default());
         }
-        if close || check || response.should_close() {
+        // In place of the About dialog: one modal at a time.
+        self.show_licences |= licences;
+        if close || check || licences || response.should_close() {
             self.show_about = false;
         }
     }
@@ -524,6 +538,9 @@ impl eframe::App for SumMRIseApp {
         }
         if self.show_about {
             self.about_modal(&ctx);
+        }
+        if self.show_licences {
+            self.show_licences = licences::show(&ctx);
         }
         if let Some(check) = &mut self.display_check
             && !check.show(&ctx)

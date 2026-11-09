@@ -13,6 +13,7 @@ mod fidelity;
 mod guide;
 mod inspector;
 mod language;
+mod licences;
 mod measure;
 mod orient;
 mod pet;

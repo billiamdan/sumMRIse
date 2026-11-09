@@ -13,11 +13,19 @@ default-run = "summrise"
 name = "summrise"
 path = "src/main.rs"
 
+[features]
+default = []
+# JPEG-LS decoding through CharLS, a C++ library built from source (needs CMake and a
+# C++ compiler). Release packages enable it; developer builds work without it.
+jpeg-ls = ["summrise-dicom/jpeg-ls"]
+
 [dependencies]
 anyhow.workspace = true
 eframe.workspace = true
 env_logger.workspace = true
 log.workspace = true
+# Only for the `jpeg-ls` feature: the decoders live in summrise-dicom.
+summrise-dicom.workspace = true
 summrise-ui.workspace = true
 
 [lints]

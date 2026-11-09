@@ -10,6 +10,7 @@ publish = false
 [dependencies]
 anyhow.workspace = true
 image.workspace = true
+serde_json.workspace = true
 summrise-i18n.workspace = true
 summrise-testkit.workspace = true
 

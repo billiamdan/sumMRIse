@@ -8,8 +8,9 @@
 //!       --dmg                     also create a compressed disk image
 //!       --notarize <profile>      notarize + staple the DMG (xcrun notarytool keychain profile)
 //!   fixtures <dir> [--small]      Write a synthetic, PHI-free DICOM test CD to <dir>
-//!   ci                            fmt check, clippy (deny warnings) and tests
+//!   ci                            fmt check, clippy (deny warnings), tests, notices check
 //!   i18n                          Bring the translation catalogues up to date with the source code
+//!   notices [--check]             Write THIRD-PARTY-NOTICES.txt (--check: fail if out of date)
 
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
@@ -19,6 +20,8 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail, ensure};
 use image::{Rgba, RgbaImage};
+
+mod notices;
 
 const APP_NAME: &str = "SumMRIse";
 const BUNDLE_ID: &str = "com.summrise.Viewer";
@@ -37,6 +40,7 @@ fn main() -> Result<()> {
         "fixtures" => fixtures(rest),
         "ci" => ci(),
         "i18n" => i18n(),
+        "notices" => notices::run(&root(), rest),
         "-h" | "--help" | "help" => {
             print_help();
             Ok(())
@@ -51,7 +55,7 @@ fn print_help() {
         include_str!("main.rs")
             .lines()
             .skip(2)
-            .take(11)
+            .take(12)
             .map(|l| l.trim_start_matches("//!"))
             .collect::<Vec<_>>()
             .join("\n")
@@ -325,6 +329,9 @@ fn ci() -> Result<()> {
         "warnings",
     ]))?;
     run(Command::new(cargo).current_dir(&root).args(["test", "--workspace", "--locked"]))?;
+    // The tests of xtask itself (not a default member of the workspace).
+    run(Command::new(cargo).current_dir(&root).args(["test", "-p", "xtask", "--locked"]))?;
+    notices::run(&root, &["--check".to_owned()])?;
     Ok(())
 }
 

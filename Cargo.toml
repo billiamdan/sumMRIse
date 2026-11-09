@@ -65,6 +65,8 @@ image = { version = "0.25.10", default-features = false, features = ["png", "ico
 log = "0.4.35"
 rayon = "1.12.0"
 serde = { version = "1.0.229", features = ["derive"] }
+# `cargo metadata` output for the third-party notices (xtask only, never in the application).
+serde_json = "1.0.151"
 # The languages the operating system prefers, for the "System language" setting (translations).
 # Not a new crate in the tree: eframe's system-font provider uses it already.
 sys-locale = "0.3.2"
