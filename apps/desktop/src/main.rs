@@ -1,6 +1,7 @@
 //! SumMRIse desktop entry point (macOS, Windows, Linux).
 //!
-//! Usage: `summrise [FOLDER | DICOMDIR | FILE | ARCHIVE.zip | IMAGE.iso]`
+//! Usage: `summrise [FOLDER | DICOMDIR | FILE | ARCHIVE.zip | IMAGE.iso]`, or
+//! `summrise --version` (prints the version and exits; packaging checks use it).
 //!
 //! `SUMMRISE_TEST_CRASH=window` (or `background`) makes the program fail on
 //! purpose as the window opens (or in a background thread), to check the crash
@@ -19,6 +20,13 @@ use summrise_ui::{APP_ID, APP_NAME, AppOptions, SumMRIseApp, system_languages};
 const ICON_PNG: &[u8] = include_bytes!("../../../packaging/icons/icon-256.png");
 
 fn main() -> anyhow::Result<()> {
+    if std::env::args_os().nth(1).is_some_and(|a| a == "--version") {
+        #[allow(clippy::print_stdout)]
+        {
+            println!("{APP_NAME} {}", env!("CARGO_PKG_VERSION"));
+        }
+        return Ok(());
+    }
     env_logger::Builder::from_env(
         env_logger::Env::default()
             .default_filter_or("warn,summrise=info,summrise_core=info,summrise_dicom=info,summrise_ui=info"),

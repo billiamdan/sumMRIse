@@ -45,6 +45,28 @@ wildcards = "deny"
 # Internal crates are path dependencies without a version requirement; they are
 # never published (`publish = false`), so path wildcards are safe.
 allow-wildcard-paths = true
+# SumMRIse opens no network connection (privacy spec "No network client
+# dependencies"): HTTP, WebSocket and TLS client crates may not enter the graph,
+# not even through another dependency.
+deny = [
+    { name = "attohttpc", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "curl", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "curl-sys", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "ehttp", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "h2", reason = "HTTP/2 client: SumMRIse has no network access" },
+    { name = "hyper", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "hyper-util", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "isahc", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "minreq", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "native-tls", reason = "TLS client: SumMRIse has no network access" },
+    { name = "openssl", reason = "TLS client: SumMRIse has no network access" },
+    { name = "openssl-sys", reason = "TLS client: SumMRIse has no network access" },
+    { name = "reqwest", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "rustls", reason = "TLS client: SumMRIse has no network access" },
+    { name = "surf", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "tungstenite", reason = "WebSocket client: SumMRIse has no network access" },
+    { name = "ureq", reason = "HTTP client: SumMRIse has no network access" },
+]
 
 [sources]
 unknown-registry = "deny"

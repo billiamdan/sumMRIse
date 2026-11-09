@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Per-user MSI installer for SumMRIse (OpenSpec change `windows-distribution`).
+  Built with WiX 5 by `cargo xtask package-windows` (option msi):
+
+    wix build -arch x64 -d Version=0.3.0 -d Stage=dist\windows\SumMRIse
+              -d Icon=packaging\windows\summrise.ico -o SumMRIse.msi SumMRIse.wxs
+
+  Installs for the current user only, without administrator rights: the program
+  goes to %LOCALAPPDATA%\Programs\SumMRIse, the shortcut to the user's Start menu,
+  and Settings > Apps lists it for removal. Removal leaves the settings in
+  %APPDATA%\SumMRIse. A newer version replaces an older one.
+
+  Keep the UpgradeCode: it ties every version of SumMRIse together.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+      Name="SumMRIse"
+      Manufacturer="SumMRIse"
+      Version="$(var.Version)"
+      UpgradeCode="6022E016-6597-4307-A01A-DE852CE60E65"
+      Scope="perUser"
+      Compressed="yes"
+      Language="1033">
+    <SummaryInformation Description="SumMRIse — viewer for the MRI, CT and PET scans on patient discs. Not a medical device." />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of SumMRIse is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="SumMRIse.ico" SourceFile="$(var.Icon)" />
+    <Property Id="ARPPRODUCTICON" Value="SumMRIse.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/billiamdan/sumMRIse" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/billiamdan/sumMRIse/issues" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <!-- %LOCALAPPDATA%\Programs\SumMRIse, where per-user programs go. -->
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="UserProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="SumMRIse" />
+      </Directory>
+    </StandardDirectory>
+
+    <!-- Files in the user's profile: a registry key under HKCU is the key path, and the
+         folders are removed on uninstall (ICE38, ICE64). -->
+    <ComponentGroup Id="ProgramFiles" Directory="INSTALLFOLDER">
+      <Component Id="Program">
+        <File Id="SumMRIseExe" Source="$(var.Stage)\SumMRIse.exe" />
+        <File Id="LicenseTxt" Source="$(var.Stage)\LICENSE.txt" />
+        <File Id="NoticesTxt" Source="$(var.Stage)\THIRD-PARTY-NOTICES.txt" />
+        <RemoveFolder Id="RemoveInstallFolder" On="uninstall" />
+        <RemoveFolder Id="RemoveUserProgramsFolder" Directory="UserProgramsFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\SumMRIse\Installer" Name="Program" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Component Id="StartMenuShortcut">
+        <Shortcut
+            Id="SumMRIseShortcut"
+            Name="SumMRIse"
+            Description="View the MRI, CT and PET scans on patient discs"
+            Target="[INSTALLFOLDER]SumMRIse.exe"
+            WorkingDirectory="INSTALLFOLDER"
+            Icon="SumMRIse.ico" />
+        <!-- A per-user component needs a registry key as its key path. -->
+        <RegistryValue Root="HKCU" Key="Software\SumMRIse\Installer" Name="StartMenuShortcut" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main">
+      <ComponentGroupRef Id="ProgramFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+    </Feature>
+  </Package>
+</Wix>
