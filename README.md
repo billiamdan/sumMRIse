@@ -31,7 +31,8 @@ single Rust code base. Everything happens on your computer — nothing is upload
   in place: nothing is unpacked to disk; password-protected archives and UDF-only
   images are refused with a reason.
 - **Correct images** — dicom-rs 0.10 decoding of uncompressed, deflate, JPEG
-  (baseline/extended/lossless), JPEG 2000 and RLE data; Hounsfield units for CT;
+  (baseline/extended/lossless), JPEG-LS (CharLS, in release builds), JPEG 2000 and RLE
+  data; Hounsfield units for CT;
   MONOCHROME1/2, colour and palette colour; Modality and VOI lookup tables
   ("contrast tables"); padding outside the scanned area; scanner graphics (overlay
   planes, G); a mark on images that were compressed lossily; multi-frame and Enhanced

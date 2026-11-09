@@ -41,11 +41,13 @@ jobs:
       - name: Format
         if: runner.os == 'macOS'
         run: cargo fmt --all --check
+      # With the features of the release packages: JPEG-LS builds CharLS (C++) with CMake,
+      # which every runner image has.
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo clippy --workspace --all-targets --locked --features summrise/jpeg-ls -- -D warnings
       - name: Tests
         # All failures in one run: a platform-specific failure should not hide the next one.
-        run: cargo test --workspace --locked --no-fail-fast
+        run: cargo test --workspace --locked --no-fail-fast --features summrise/jpeg-ls
 
   supply-chain:
     name: Licences & advisories

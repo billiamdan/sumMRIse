@@ -215,6 +215,8 @@ fn bundle_macos(args: &[String]) -> Result<()> {
             "--locked",
             "-p",
             BIN,
+            "--features",
+            notices::RELEASE_FEATURES,
             "--target",
             target,
         ]))?;
@@ -315,22 +317,25 @@ fn fixtures(args: &[String]) -> Result<()> {
     Ok(())
 }
 
+/// The checks of CI, with the features of the release packages (JPEG-LS needs
+/// CMake and a C++ compiler; plain `cargo test` works without them).
 fn ci() -> Result<()> {
     let cargo = env!("CARGO");
     let root = root();
+    let features = format!("{BIN}/{}", notices::RELEASE_FEATURES);
     run(Command::new(cargo).current_dir(&root).args(["fmt", "--all", "--check"]))?;
     run(Command::new(cargo).current_dir(&root).args([
         "clippy",
         "--workspace",
         "--all-targets",
         "--locked",
+        "--features",
+        &features,
         "--",
         "-D",
         "warnings",
     ]))?;
-    run(Command::new(cargo).current_dir(&root).args(["test", "--workspace", "--locked"]))?;
-    // The tests of xtask itself (not a default member of the workspace).
-    run(Command::new(cargo).current_dir(&root).args(["test", "-p", "xtask", "--locked"]))?;
+    run(Command::new(cargo).current_dir(&root).args(["test", "--workspace", "--locked", "--features", &features]))?;
     notices::run(&root, &["--check".to_owned()])?;
     Ok(())
 }

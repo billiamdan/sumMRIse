@@ -11,6 +11,7 @@ publish.workspace = true
 [dependencies]
 dicom-core.workspace = true
 dicom-dictionary-std.workspace = true
+dicom-encoding.workspace = true
 dicom-object.workspace = true
 dicom-pixeldata.workspace = true
 dicom-transfer-syntax-registry.workspace = true
