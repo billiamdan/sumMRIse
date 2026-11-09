@@ -215,33 +215,30 @@ checked with `cargo deny check`. See [CONTRIBUTING.md](CONTRIBUTING.md) and
 Work is organised as [OpenSpec](https://github.com/Fission-AI/OpenSpec) changes
 (`openspec list`, `openspec show <change>`; in Claude Code use `/opsx:propose`,
 `/opsx:apply`, `/opsx:archive`). Shipped changes are archived in
-`openspec/changes/archive/`, and their requirements form the baseline specifications in
-`openspec/specs/`: build system, application shell, DICOM import, image decoding, image
-viewing, contrast windowing, metadata inspector, privacy, macOS packaging and continuous
-integration.
+`openspec/changes/archive/`, and their requirements form the specifications in
+`openspec/specs/`, which describe what the application does: build system, continuous
+integration, application shell, DICOM import, image decoding, image viewing, contrast
+windowing, metadata inspector, privacy, macOS packaging, DICOM conformance, translations,
+plain-language guide, series comparison, measurements, 3D view, PET, reports and export.
 
-**Shipped** (PR #1, archived 2026-11-05): `restructure-monorepo`,
+**Shipped:** 0.2.0 (archived 2026-11-05): `restructure-monorepo`,
 `adopt-cross-platform-ui`, `dicom-media-import`, `image-decoding-and-volumes`,
 `multiplanar-viewing`, `contrast-windowing`, `metadata-inspector`, `privacy-safeguards`,
-`macos-distribution`, `ci-quality-gates`.
+`macos-distribution`, `ci-quality-gates`. 0.3.0 (archived 2026-11-09):
+`progressive-loading`, `archive-import`, `oblique-reformats`, `plain-language-guide`,
+`multi-phase-cine`, `volume-rendering`, `display-fidelity`, `pet-support`, `translations`,
+`series-comparison`, `measurement-tools`, `report-viewer`, `export-and-share`,
+`jpeg-ls-support`, `crash-reports`, `third-party-notices`. See [CHANGELOG.md](CHANGELOG.md).
 
-**Implemented, not yet archived:** `progressive-loading`, `archive-import`,
-`oblique-reformats`, `plain-language-guide`, `multi-phase-cine`, `volume-rendering`,
-`display-fidelity`, `pet-support`, `translations`, `series-comparison`,
-`measurement-tools`, `report-viewer`, `export-and-share`. Their open tasks — above all
-checks with real vendor discs, a real printer and the real window on every platform —
-are listed in each change's `tasks.md`.
+**Open:**
 
-**Planned — releases and platforms:**
-
-| Change | Scope |
-| --- | --- |
-| `signed-releases` | Developer ID signing and notarization, Intel check, tagged GitHub Releases with checksums, no-network dependency gate |
-| `macos-integration` | Native menu bar; open folders from the Dock and Finder ("Open With") |
-| `jpeg-ls-support` | JPEG-LS decoding (CharLS) in release builds |
-| `field-validation` | Real vendor CDs, screen readers, usability sessions, log privacy review |
-| `windows-distribution` | Executable resources, MSI installer, Authenticode signing; re-enable the Windows CI check (paused to save CI time) |
-| `linux-distribution` | AppImage and Flatpak |
+| Change | Scope | What is left |
+| --- | --- | --- |
+| `signed-releases` | Tagged GitHub Releases with checksums, signing and notarization, no-network dependency gate | Built; needs an Apple Developer ID and notarization credentials, a second Mac, an Intel Mac or Rosetta, and the first tag |
+| `windows-distribution` | Executable resources, per-user MSI, Authenticode signing | Built; needs a code-signing certificate and checks on Windows 10 and 11 desktops |
+| `linux-distribution` | AppImage, tarball, Flatpak | AppImage and tarball built; Flatpak manifest and checks on GNOME and KDE left |
+| `field-validation` | Real vendor discs, screen readers, usability sessions, log and crash-report privacy review, and every check of the shipped features that needs the real window, a drive, a printer or people | Needs people, discs and machines |
+| `macos-integration` | Native menu bar; open folders from the Dock and Finder ("Open With") | Not started |
 
 Later ideas (not yet proposed): de-identified DICOM export, and — only with
 de-identification and explicit consent — AI explanations.

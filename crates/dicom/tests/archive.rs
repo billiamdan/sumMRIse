@@ -594,6 +594,13 @@ fn reading_from_many_threads_at_once_gives_the_same_as_reading_alone() {
 
 #[allow(clippy::print_stderr)]
 fn skipped(tool: &str) {
+    // CI names the tools its runners have (SUMMRISE_REQUIRE_TOOLS=mkisofs,zip): there a
+    // missing tool fails the test instead of skipping it.
+    let required = std::env::var("SUMMRISE_REQUIRE_TOOLS").unwrap_or_default();
+    assert!(
+        !required.split(',').any(|name| name.trim() == tool),
+        "`{tool}` should be available here (SUMMRISE_REQUIRE_TOOLS={required})"
+    );
     eprintln!("skipped: `{tool}` is not available on this machine");
 }
 
