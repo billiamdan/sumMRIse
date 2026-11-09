@@ -10,6 +10,7 @@ use summrise_core::dicom::{DicomError, StudyIndex};
 use summrise_core::{Appearance, Job, MediaWatcher, RecentStudies, Session, Settings, Waker, recent_label};
 use summrise_i18n::{tr, tr_ctx, tr_n};
 
+use crate::crash_notice::{CrashNotice, When};
 use crate::display_check::{self, DisplayCheckScreen};
 use crate::language;
 use crate::licences;
@@ -30,6 +31,9 @@ pub struct AppOptions {
     /// ([`crate::system_languages`]): "System language" stands for the first
     /// one the interface has. Empty (the default, and in tests): English.
     pub system_languages: Vec<String>,
+    /// The crash report of a fault that ended the previous run, which the user
+    /// has not been told about (`summrise_core::crash::report_of_last_run`).
+    pub crash_report: Option<PathBuf>,
 }
 
 /// User intents raised by screens and handled centrally.
@@ -141,6 +145,8 @@ pub struct SumMRIseApp {
     show_licences: bool,
     /// The display check, while it is open.
     display_check: Option<DisplayCheckScreen>,
+    /// A crash report the user is being told about.
+    crash_notice: Option<CrashNotice>,
     applied_appearance: Option<Appearance>,
     title: String,
     /// See [`AppOptions::system_languages`].
@@ -170,6 +176,7 @@ impl SumMRIseApp {
             show_about: false,
             show_licences: false,
             display_check: None,
+            crash_notice: options.crash_report.map(|report| CrashNotice { when: When::LastRun, report }),
             applied_appearance: None,
             title: String::new(),
             system_languages: options.system_languages,
@@ -546,6 +553,17 @@ impl eframe::App for SumMRIseApp {
             && !check.show(&ctx)
         {
             self.display_check = None;
+        }
+        // A fault that stopped part of the program while the window lives on.
+        if self.crash_notice.is_none()
+            && let Some(report) = summrise_core::crash::take_new_report()
+        {
+            self.crash_notice = Some(CrashNotice { when: When::ThisRun, report });
+        }
+        if let Some(notice) = &self.crash_notice
+            && !notice.show(&ctx)
+        {
+            self.crash_notice = None;
         }
         self.toasts.show(&ctx);
         Self::drop_overlay(&ctx);

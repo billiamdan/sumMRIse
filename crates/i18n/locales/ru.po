@@ -2940,11 +2940,17 @@ msgid "Not a medical device. Not for diagnostic use."
 msgstr "Не является медицинским изделием. Не использовать для диагностики."
 
 #: crates/ui/src/app.rs
-msgid "Built with dicom-rs, egui/eframe and wgpu. Licensed under the MIT licence."
-msgstr "Создано с использованием dicom-rs, egui/eframe и wgpu. Распространяется по лицензии MIT."
+msgid "Licensed under the MIT licence. Built with dicom-rs, egui/eframe, wgpu and other software by others, under their own licences."
+msgstr "Распространяется по лицензии MIT. Создано с использованием dicom-rs, egui/eframe, wgpu и другого программного обеспечения сторонних авторов, на условиях их собственных лицензий."
 
 #: crates/ui/src/app.rs
+msgid "Third-party licences…"
+msgstr "Лицензии сторонних компонентов…"
+
+#: crates/ui/src/app.rs
+#: crates/ui/src/crash_notice.rs
 #: crates/ui/src/display_check.rs
+#: crates/ui/src/licences.rs
 msgid "Close"
 msgstr "Закрыть"
 
@@ -3267,6 +3273,46 @@ msgstr "Сравнить исследования от {earlier} и {later}"
 #: crates/ui/src/compare.rs
 msgid "Matching series of the studies of {earlier} and {later} side by side, the earlier one on the left. Replace either side by dropping another series on it."
 msgstr "Соответствующие серии исследований от {earlier} и {later} рядом, более раннее слева. Чтобы заменить одну из сторон, перетащите на неё другую серию."
+
+#: crates/ui/src/crash_notice.rs
+msgid "SumMRIse closed unexpectedly"
+msgstr "Работа SumMRIse неожиданно прервана"
+
+#: crates/ui/src/crash_notice.rs
+msgid "The last time SumMRIse was used, it stopped because of a fault in the program."
+msgstr "При последнем использовании работа SumMRIse была прервана из-за ошибки в программе."
+
+#: crates/ui/src/crash_notice.rs
+msgid "Something went wrong"
+msgstr "Что-то пошло не так"
+
+#: crates/ui/src/crash_notice.rs
+msgid "Part of SumMRIse stopped because of a fault in the program, and what it was doing may be incomplete. If something looks wrong, close SumMRIse and open it again."
+msgstr "Часть SumMRIse остановилась из-за ошибки в программе, и то, что она выполняла, может быть не завершено. Если что-то выглядит неправильно, закройте SumMRIse и откройте снова."
+
+#: crates/ui/src/crash_notice.rs
+msgid "Copy path"
+msgstr "Скопировать путь"
+
+#: crates/ui/src/crash_notice.rs
+msgid "A report was saved. It contains no patient data: no names, IDs, dates of birth, file names or values from the images. You can send it with a bug report to help fix the fault."
+msgstr "Отчёт сохранён. Он не содержит данных пациента: ни имён, ни идентификаторов, ни дат рождения, ни имён файлов, ни значений из изображений. Вы можете отправить его вместе с сообщением об ошибке, чтобы помочь её исправить."
+
+#: crates/ui/src/crash_notice.rs
+msgid "SumMRIse stopped because of a fault in the program."
+msgstr "Работа SumMRIse прервана из-за ошибки в программе."
+
+#: crates/ui/src/crash_notice.rs
+msgid "No report could be saved."
+msgstr "Не удалось сохранить отчёт."
+
+#: crates/ui/src/crash_notice.rs
+msgid "SumMRIse could not start"
+msgstr "Не удалось запустить SumMRIse"
+
+#: crates/ui/src/crash_notice.rs
+msgid "The window could not be opened: {reason}"
+msgstr "Не удалось открыть окно: {reason}"
 
 #: crates/ui/src/crosshair.rs
 msgid "Tilt handle of the {plane} plane in the {view} view"
@@ -3943,6 +3989,14 @@ msgstr "Элемент {number}"
 #: crates/ui/src/language.rs
 msgid "System language ({language})"
 msgstr "Язык системы ({language})"
+
+#: crates/ui/src/licences.rs
+msgid "Third-party licences"
+msgstr "Лицензии сторонних компонентов"
+
+#: crates/ui/src/licences.rs
+msgid "SumMRIse is built with software by others. Their licences follow in their original wording, in English. The same text is in the file THIRD-PARTY-NOTICES.txt that comes with the application."
+msgstr "SumMRIse использует программное обеспечение других авторов. Их лицензии приведены ниже в оригинальной формулировке на английском языке. Тот же текст содержится в файле THIRD-PARTY-NOTICES.txt, который поставляется вместе с приложением."
 
 #: crates/ui/src/measure.rs
 msgid "Length: drag from one point to the other (D)"

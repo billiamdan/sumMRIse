@@ -81,7 +81,8 @@ single Rust code base. Everything happens on your computer — nothing is upload
   only written where you explicitly export it, and printing hands the pages to the
   system's print queue (which may keep a copy until they are printed) without a temporary
   file of the app's own. Privacy mode for screenshots, with a warning on images whose
-  pixels contain patient details. Minimal recent-studies list.
+  pixels contain patient details. Minimal recent-studies list. If SumMRIse stops because of
+  a fault, it says so and saves a crash report without patient data in your log folder.
 - **Five languages** — English, German, Spanish, French and Russian; the interface
   follows the language of the system and can be changed in the settings. Text from the
   disc is never translated. The translations are machine-made and have not yet been

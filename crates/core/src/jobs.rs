@@ -7,7 +7,6 @@
 //! * [`SeriesLoader`] — the images of a series, nearest to the displayed one
 //!   first, into a [`SeriesData`] that the UI reads while it fills.
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
@@ -37,7 +36,7 @@ impl<T: Send + 'static> Job<T> {
         let (tx, rx) = mpsc::channel();
         let worker_progress = progress.clone();
         let spawned = std::thread::Builder::new().name(format!("summrise-{name}")).spawn(move || {
-            let result = work(&worker_progress);
+            let result = crate::crash::watch(|| work(&worker_progress));
             let _ = tx.send(result);
             if let Some(wake) = waker {
                 wake();
@@ -103,7 +102,7 @@ impl<T: Send + 'static> Stream<T> {
                     wake();
                 }
             };
-            work(&worker_progress, &emit);
+            crate::crash::watch(|| work(&worker_progress, &emit));
         });
         if let Err(e) = spawned {
             log::error!("failed to spawn worker thread: {e}");
@@ -186,7 +185,10 @@ impl Decoders {
                 rayon::ThreadPoolBuilder::new()
                     .num_threads(1)
                     .thread_name(move |_| format!("summrise-decode-{i}"))
-                    .panic_handler(|_| log::error!("a decoding task panicked"))
+                    .panic_handler(|_| {
+                        log::error!("a decoding task panicked");
+                        crate::crash::flush_held(false);
+                    })
                     .build()
                     .map_err(|e| log::error!("failed to start a decoding thread: {e}"))
                     .ok()
@@ -424,7 +426,7 @@ impl SeriesLoader {
         let coordinator = shared.clone();
         let spawned = std::thread::Builder::new()
             .name("summrise-load".to_owned())
-            .spawn(move || coordinate(&coordinator, &series, &source, decoders.as_deref()));
+            .spawn(move || crate::crash::watch(|| coordinate(&coordinator, &series, &source, decoders.as_deref())));
         if let Err(e) = spawned {
             log::error!("failed to spawn the loader thread: {e}");
             shared.data.abort(tr!("the loader could not be started"));
@@ -479,7 +481,7 @@ impl Drop for SeriesLoader {
 
 /// Runs one step of an image source; a panic inside it becomes a failed image.
 fn guarded<T>(step: impl FnOnce() -> Result<T, DicomError>) -> Result<T, String> {
-    catch_unwind(AssertUnwindSafe(step))
+    summrise_dicom::panics::catch(step)
         .unwrap_or_else(|_| Err(DicomError::Image(tr!("the image source panicked").to_owned())))
         .map_err(|e| e.to_string())
 }

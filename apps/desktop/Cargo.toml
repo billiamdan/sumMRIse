@@ -24,6 +24,9 @@ anyhow.workspace = true
 eframe.workspace = true
 env_logger.workspace = true
 log.workspace = true
+# The message box after a crash, when the window is gone.
+rfd.workspace = true
+summrise-core.workspace = true
 # Only for the `jpeg-ls` feature: the decoders live in summrise-dicom.
 summrise-dicom.workspace = true
 summrise-ui.workspace = true

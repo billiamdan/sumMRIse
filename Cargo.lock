@@ -4864,6 +4864,8 @@ dependencies = [
  "eframe",
  "env_logger",
  "log",
+ "rfd",
+ "summrise-core",
  "summrise-dicom",
  "summrise-ui",
 ]

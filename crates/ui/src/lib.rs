@@ -5,6 +5,7 @@ mod app;
 mod browser;
 mod cine;
 mod compare;
+mod crash_notice;
 mod crosshair;
 mod display_check;
 mod documents;
@@ -30,6 +31,7 @@ mod welcome;
 mod widgets;
 
 pub use app::{AppOptions, SumMRIseApp};
+pub use crash_notice::{fatal_message, start_failure_message};
 pub use language::system_languages;
 
 /// Application identifier (reverse-DNS), used for the macOS bundle, the

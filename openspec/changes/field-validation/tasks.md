@@ -17,3 +17,5 @@
 ## 4. Privacy
 
 - [ ] 4.1 Review info-level logs produced while opening the validation set (from `privacy-safeguards` 3.3)
+- [ ] 4.2 Start a release build with `SUMMRISE_TEST_CRASH=window` on macOS, Windows 10 and 11, and Linux (GNOME and KDE, with and without zenity): the message box "SumMRIse closed unexpectedly" names the report, the report holds no patient data, and the next start shows no notice once the box was closed (without zenity: it shows it once) (from `crash-reports`)
+- [ ] 4.3 `SUMMRISE_TEST_CRASH=background` with a study open: "Something went wrong" appears in the window with the path of the report; a release build prints no panic message to standard error (from `crash-reports`)

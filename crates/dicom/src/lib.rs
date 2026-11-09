@@ -39,6 +39,7 @@ mod iso9660;
 pub mod media;
 pub mod metadata;
 mod nesting;
+pub mod panics;
 pub mod pet;
 mod pixels;
 mod progress;

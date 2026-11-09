@@ -303,8 +303,8 @@ order prefix, given, middle, family name, suffix.
 
 ### 7.1 Security profiles
 
-No DICOM security profile is supported. There is no network and no file is written, so
-none applies.
+No DICOM security profile is supported. There is no network and no DICOM file is
+written, so none applies.
 
 ### 7.2 Association-level security
 
@@ -324,6 +324,11 @@ Not applicable.
 - The list of recently opened folders stores the path, the study description and date
   and the modalities only — never names, IDs or birth dates; it can be switched off.
 - Patient-identifying values are never written to logs above debug level.
+- When a fault in the program stops it, a crash report is written to the user's log
+  folder. It holds the version, the system, the time, the place in the program's source
+  code and the functions that were running — no names, IDs, birth dates, file or folder
+  names, and no values read from DICOM files. A panic message composed while the program
+  ran is withheld.
 - Privacy mode hides the patient's name, ID and birth date everywhere in the interface.
   When an image records Burned In Annotation (0028,0301) as YES, privacy mode says that
   patient details may be part of the picture itself and cannot be hidden.

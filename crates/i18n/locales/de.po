@@ -2899,11 +2899,17 @@ msgid "Not a medical device. Not for diagnostic use."
 msgstr "Kein Medizinprodukt. Nicht zur Diagnose verwenden."
 
 #: crates/ui/src/app.rs
-msgid "Built with dicom-rs, egui/eframe and wgpu. Licensed under the MIT licence."
-msgstr "Erstellt mit dicom-rs, egui/eframe und wgpu. Lizenziert unter der MIT-Lizenz."
+msgid "Licensed under the MIT licence. Built with dicom-rs, egui/eframe, wgpu and other software by others, under their own licences."
+msgstr "Lizenziert unter der MIT-Lizenz. Erstellt mit dicom-rs, egui/eframe, wgpu und weiterer Software anderer Autoren, unter deren eigenen Lizenzen."
 
 #: crates/ui/src/app.rs
+msgid "Third-party licences…"
+msgstr "Lizenzen von Drittanbietern…"
+
+#: crates/ui/src/app.rs
+#: crates/ui/src/crash_notice.rs
 #: crates/ui/src/display_check.rs
+#: crates/ui/src/licences.rs
 msgid "Close"
 msgstr "Schließen"
 
@@ -3224,6 +3230,46 @@ msgstr "Untersuchungen vom {earlier} und {later} vergleichen"
 #: crates/ui/src/compare.rs
 msgid "Matching series of the studies of {earlier} and {later} side by side, the earlier one on the left. Replace either side by dropping another series on it."
 msgstr "Passende Serien der Untersuchungen vom {earlier} und {later} nebeneinander, die frühere links. Ziehen Sie eine andere Serie auf eine Seite, um sie zu ersetzen."
+
+#: crates/ui/src/crash_notice.rs
+msgid "SumMRIse closed unexpectedly"
+msgstr "SumMRIse wurde unerwartet beendet"
+
+#: crates/ui/src/crash_notice.rs
+msgid "The last time SumMRIse was used, it stopped because of a fault in the program."
+msgstr "Bei der letzten Verwendung wurde SumMRIse wegen eines Programmfehlers beendet."
+
+#: crates/ui/src/crash_notice.rs
+msgid "Something went wrong"
+msgstr "Etwas ist schiefgelaufen"
+
+#: crates/ui/src/crash_notice.rs
+msgid "Part of SumMRIse stopped because of a fault in the program, and what it was doing may be incomplete. If something looks wrong, close SumMRIse and open it again."
+msgstr "Ein Teil von SumMRIse wurde wegen eines Programmfehlers angehalten; was er gerade tat, ist möglicherweise unvollständig. Wenn etwas nicht stimmt, schließen Sie SumMRIse und öffnen Sie es erneut."
+
+#: crates/ui/src/crash_notice.rs
+msgid "Copy path"
+msgstr "Pfad kopieren"
+
+#: crates/ui/src/crash_notice.rs
+msgid "A report was saved. It contains no patient data: no names, IDs, dates of birth, file names or values from the images. You can send it with a bug report to help fix the fault."
+msgstr "Ein Bericht wurde gespeichert. Er enthält keine Patientendaten: keine Namen, IDs, Geburtsdaten, Dateinamen oder Werte aus den Bildern. Sie können ihn mit einer Fehlermeldung senden, um bei der Behebung des Fehlers zu helfen."
+
+#: crates/ui/src/crash_notice.rs
+msgid "SumMRIse stopped because of a fault in the program."
+msgstr "SumMRIse wurde wegen eines Programmfehlers beendet."
+
+#: crates/ui/src/crash_notice.rs
+msgid "No report could be saved."
+msgstr "Es konnte kein Bericht gespeichert werden."
+
+#: crates/ui/src/crash_notice.rs
+msgid "SumMRIse could not start"
+msgstr "SumMRIse konnte nicht gestartet werden"
+
+#: crates/ui/src/crash_notice.rs
+msgid "The window could not be opened: {reason}"
+msgstr "Das Fenster konnte nicht geöffnet werden: {reason}"
 
 #: crates/ui/src/crosshair.rs
 msgid "Tilt handle of the {plane} plane in the {view} view"
@@ -3892,6 +3938,14 @@ msgstr "Element {number}"
 #: crates/ui/src/language.rs
 msgid "System language ({language})"
 msgstr "Systemsprache ({language})"
+
+#: crates/ui/src/licences.rs
+msgid "Third-party licences"
+msgstr "Lizenzen von Drittanbietern"
+
+#: crates/ui/src/licences.rs
+msgid "SumMRIse is built with software by others. Their licences follow in their original wording, in English. The same text is in the file THIRD-PARTY-NOTICES.txt that comes with the application."
+msgstr "SumMRIse verwendet Software anderer Autoren. Deren Lizenzen folgen im Originalwortlaut auf Englisch. Derselbe Text steht in der Datei THIRD-PARTY-NOTICES.txt, die mit der Anwendung geliefert wird."
 
 #: crates/ui/src/measure.rs
 msgid "Length: drag from one point to the other (D)"

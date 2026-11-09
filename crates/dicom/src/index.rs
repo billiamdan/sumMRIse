@@ -1,7 +1,6 @@
 //! Header-only indexing of DICOM files into patients' studies and series.
 
 use std::collections::HashMap;
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 
 use dicom_core::Tag;
@@ -317,8 +316,8 @@ pub fn index_files(media: &Media, files: &[PathBuf], progress: &Progress) -> Res
             if progress.is_cancelled() {
                 return Err("cancelled".to_owned());
             }
-            let record = catch_unwind(AssertUnwindSafe(|| read_header(media, path)))
-                .unwrap_or_else(|_| Err("parser panicked".to_owned()));
+            let record =
+                crate::panics::catch(|| read_header(media, path)).unwrap_or_else(|_| Err("parser panicked".to_owned()));
             progress.advance();
             record.map_err(|e| {
                 debug!("skipping {}: {e}", path.display());

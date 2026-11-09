@@ -68,25 +68,27 @@ impl MediaWatcher {
         let stop = Arc::new(AtomicBool::new(false));
         let stop_flag = stop.clone();
         let spawned = std::thread::Builder::new().name("summrise-media".into()).spawn(move || {
-            let mut last: Option<Vec<PathBuf>> = None;
-            while !stop_flag.load(Ordering::Relaxed) {
-                let found = find_dicom_media();
-                if last.as_ref() != Some(&found) {
-                    if tx.send(found.clone()).is_err() {
-                        break;
+            crate::crash::watch(|| {
+                let mut last: Option<Vec<PathBuf>> = None;
+                while !stop_flag.load(Ordering::Relaxed) {
+                    let found = find_dicom_media();
+                    if last.as_ref() != Some(&found) {
+                        if tx.send(found.clone()).is_err() {
+                            break;
+                        }
+                        if let Some(w) = &waker {
+                            w();
+                        }
+                        last = Some(found);
                     }
-                    if let Some(w) = &waker {
-                        w();
+                    for _ in 0..20 {
+                        if stop_flag.load(Ordering::Relaxed) {
+                            return;
+                        }
+                        std::thread::sleep(Duration::from_millis(200));
                     }
-                    last = Some(found);
                 }
-                for _ in 0..20 {
-                    if stop_flag.load(Ordering::Relaxed) {
-                        return;
-                    }
-                    std::thread::sleep(Duration::from_millis(200));
-                }
-            }
+            })
         });
         if let Err(e) = spawned {
             log::warn!("media watcher unavailable: {e}");
