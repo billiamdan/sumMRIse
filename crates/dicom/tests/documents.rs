@@ -9,7 +9,8 @@ use dicom_object::InMemDicomObject;
 use dicom_object::meta::FileMetaTableBuilder;
 use summrise_dicom::documents::ReportContent;
 use summrise_dicom::{
-    DicomError, DiscoverySource, DocumentContent, DocumentKind, DocumentRef, Progress, StudyIndex, read_document, scan,
+    DicomError, DiscoverySource, DocumentContent, DocumentKind, DocumentRef, Media, Progress, StudyIndex, index_files,
+    read_document, scan,
 };
 use summrise_testkit::PhantomOptions;
 use summrise_testkit::archive::{IsoNames, iso_image, zip_folder};
@@ -239,6 +240,9 @@ fn a_report_that_nests_deeply_is_read_as_far_as_it_is_followed() {
     std::fs::write(dir.path().join("DEEP"), deeply_nested_report(100, "Deep down").expect("bytes")).expect("write");
     let index = index_of(dir.path());
     assert_eq!(index.stats.unreadable, 0);
+    // Not a duplicate of a report of the CD: which of two the index keeps depends on how the
+    // file system lists them, which differs between computers.
+    assert_eq!(index.stats.duplicates, 0);
     let deep = by_title(&index, "Deep report");
     match read_document(&index.media, deep).expect("read") {
         DocumentContent::Report(report) => {
@@ -248,6 +252,43 @@ fn a_report_that_nests_deeply_is_read_as_far_as_it_is_followed() {
         }
         other => panic!("{other:?}"),
     }
+}
+
+/// Two studies of the same date and time: their order does not depend on the
+/// order the file system lists the files in, which differs between computers.
+#[test]
+fn the_order_of_studies_does_not_depend_on_the_order_of_the_files() {
+    fn files_in(folder: &Path, files: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(folder).expect("folder") {
+            let path = entry.expect("entry").path();
+            if path.is_dir() {
+                files_in(&path, files);
+            } else {
+                files.push(path);
+            }
+        }
+    }
+    let dir = tempfile::tempdir().expect("tempdir");
+    write_reports_cd(dir.path(), &PhantomOptions { write_dicomdir: false, ..PhantomOptions::small() })
+        .expect("fixture");
+    // A report of another study, of the same date and time.
+    let spec = ReportSpec {
+        study_uid: "2.25.999".to_owned(),
+        series: 191,
+        ..ReportSpec::new(uids::BASIC_TEXT_SR_STORAGE, "Other study", Vec::new())
+    };
+    write_structured_report(&dir.path().join("OTHER"), &spec).expect("fixture");
+    let mut files = Vec::new();
+    files_in(dir.path(), &mut files);
+    files.sort();
+    let studies = |files: &[PathBuf]| -> Vec<String> {
+        let index = index_files(&Media::folder(), files, &Progress::new()).expect("index");
+        index.studies.into_iter().map(|study| study.uid).collect()
+    };
+    let forwards = studies(&files);
+    assert_eq!(forwards.len(), 2, "{forwards:?}");
+    files.reverse();
+    assert_eq!(studies(&files), forwards);
 }
 
 #[test]

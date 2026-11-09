@@ -391,9 +391,11 @@ pub fn index_files(media: &Media, files: &[PathBuf], progress: &Progress) -> Res
                 .unwrap_or(i32::MAX)
                 .cmp(&b.number.unwrap_or(i32::MAX))
                 .then_with(|| a.description.cmp(&b.description))
+                // Whatever order the file system lists the files in, the same order here.
+                .then_with(|| a.uid.cmp(&b.uid))
         });
     }
-    studies.sort_by(|a, b| (&a.date, &a.time).cmp(&(&b.date, &b.time)));
+    studies.sort_by(|a, b| (&a.date, &a.time, &a.uid).cmp(&(&b.date, &b.time, &b.uid)));
 
     let mut warnings = Vec::new();
     if stats.unreadable > 0 {

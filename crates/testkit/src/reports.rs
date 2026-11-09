@@ -475,6 +475,8 @@ pub fn write_structured_report(path: &Path, spec: &ReportSpec) -> Result<(), Fix
 pub fn deeply_nested_report(depth: usize, innermost_text: &str) -> Result<Vec<u8>, FixtureError> {
     let mut spec = ReportSpec::new(uids::COMPREHENSIVE_SR_STORAGE, "Deep report", Vec::new());
     spec.content_date = Some(REPORT_DATE);
+    // Its own SOP Instance UID: beside the reports of the CD it is not a duplicate of one.
+    spec.series = 190;
     let mut obj = spec.object();
     // (0040,A730) goes back on at the end, written by hand. Nothing after it remains in the file.
     obj.remove_element(tags::CONTENT_SEQUENCE);
