@@ -20,8 +20,10 @@ dicom-core.workspace = true
 dicom-dictionary-std = { workspace = true, features = ["sop-class"] }
 dicom-encoding.workspace = true
 dicom-object.workspace = true
+dicom-parser.workspace = true
 dicom-pixeldata.workspace = true
 dicom-transfer-syntax-registry.workspace = true
+encoding_rs.workspace = true
 glam.workspace = true
 log.workspace = true
 rayon.workspace = true

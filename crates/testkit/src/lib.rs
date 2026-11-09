@@ -36,12 +36,27 @@
 //! contrast tables, a Modality LUT, padding, overlay planes, lossy and
 //! burned-in facts.
 //!
+//! [`comparison`] writes two studies of one patient, a year apart, with series
+//! whose slice positions are known exactly.
+//!
 //! [`pet`] writes a PET/CT study: this CT and PET series in its Frame of
 //! Reference with a hot sphere of known uptake (SUV 5) at the marker.
+//!
+//! [`measure`] writes images of known size and known values for measuring.
+//!
+//! [`reports`] adds structured reports, a dose report, a PDF stored in DICOM
+//! and loose report files to this CD, and writes PDF files.
+//!
+//! [`export`] writes images whose grey values and proportions can be checked
+//! in the files that come out of saving, exporting and printing.
 
 pub mod archive;
+pub mod comparison;
+pub mod export;
 pub mod fidelity;
+pub mod measure;
 pub mod pet;
+pub mod reports;
 pub mod stacks;
 
 use std::fs;

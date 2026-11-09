@@ -8,9 +8,10 @@ use egui::{
 };
 use egui_material_icons::icons::{ICON_ERROR, ICON_LAYERS, ICON_WARNING};
 use summrise_core::dicom::{Study, format};
-use summrise_core::{SeriesKey, SeriesState, Session, Settings};
+use summrise_core::{SeriesKey, SeriesState, Session, Settings, Waker};
 use summrise_i18n::{tr, tr_n};
 
+use crate::documents::{self, DocumentPane};
 use crate::theme;
 use crate::widgets::{chip, icon, section_title};
 
@@ -49,8 +50,19 @@ pub(crate) fn modality_color(modality: &str) -> Color32 {
     }
 }
 
-/// Draws the browser. Selecting a study or series updates the session.
-pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thumbs: &mut ThumbnailTextures) {
+/// Draws the browser. Selecting a study or series updates the session. In a
+/// multi-series layout `shown` holds the series on screen: a series can then
+/// be dragged onto a viewport, and choosing another study only lists its
+/// series, without replacing what the active viewport shows.
+pub(crate) fn show(
+    ui: &mut Ui,
+    session: &mut Session,
+    settings: &Settings,
+    thumbs: &mut ThumbnailTextures,
+    shown: Option<&[SeriesKey]>,
+    document_pane: &mut DocumentPane,
+    waker: &Waker,
+) {
     let p = theme::palette(ui);
     ui.add_space(6.0);
 
@@ -66,9 +78,16 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
                         pick = Some(i);
                     }
                 }
-            });
+            })
+            .response
+            // Translators: the list of the studies on the medium.
+            .accessible_name(tr!("Study"));
         if let Some(i) = pick {
-            session.select_study(i);
+            if shown.is_some() {
+                session.active_study = i;
+            } else {
+                session.select_study(i);
+            }
         }
         ui.add_space(4.0);
     }
@@ -97,7 +116,13 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
     });
     ui.add_space(4.0);
     ui.separator();
+    documents::browser_section(ui, session, settings, document_pane, waker);
     section_title(ui, tr!("Series"));
+    if shown.is_some() {
+        let hint = tr!("Drag a series onto a viewport, or click it to show it in the active viewport.");
+        ui.add(Label::new(RichText::new(hint).small().color(p.text_weak)).wrap());
+        ui.add_space(2.0);
+    }
 
     let active_study = session.active_study;
     let mut clicked = None;
@@ -207,9 +232,16 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
                 });
             });
             let rect = inner.response.rect.expand2(vec2(2.0, 4.0));
-            let response = ui.interact(rect, ui.scope_id().with(("series", i)), Sense::click());
+            let sense = if shown.is_some() { Sense::click_and_drag() } else { Sense::click() };
+            let response = ui.interact(rect, ui.scope_id().with(("series", i)), sense);
+            if shown.is_some() {
+                crate::compare::drag_source(ui, &response, key, &series.title());
+            }
             let fill = if selected {
                 p.accent.gamma_multiply(0.25)
+            } else if shown.is_some_and(|shown| shown.contains(&key)) {
+                // On screen in another viewport.
+                p.accent.gamma_multiply(0.1)
             } else if response.hovered() {
                 p.surface_hover
             } else {
@@ -224,6 +256,7 @@ pub(crate) fn show(ui: &mut Ui, session: &mut Session, settings: &Settings, thum
         }
     });
     if let Some(key) = clicked {
+        document_pane.close();
         session.select_series(key);
     }
 }

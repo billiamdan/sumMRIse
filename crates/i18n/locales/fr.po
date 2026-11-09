@@ -11,6 +11,27 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+#: crates/core/src/documents/pdf.rs
+msgid "It is protected by a password."
+msgstr "Il est protégé par un mot de passe."
+
+#: crates/core/src/documents/pdf.rs
+msgid "It is damaged or uses a feature that is not supported."
+msgstr "Il est endommagé ou utilise une fonction non prise en charge."
+
+#: crates/core/src/documents.rs
+msgid "Reading this document failed unexpectedly."
+msgstr "Une erreur inattendue s'est produite lors de la lecture de ce document."
+
+#: crates/core/src/export.rs
+msgid "PNG (no loss of quality)"
+msgstr "PNG (sans perte de qualité)"
+
+#: crates/core/src/export.rs
+#: crates/ui/src/export.rs
+msgid "Exporting images"
+msgstr "Exportation des images"
+
 #: crates/core/src/guide.rs
 msgid "General information about how these images were made, not an interpretation of the images."
 msgstr "Informations générales sur la façon dont ces images ont été réalisées ; il ne s'agit pas d'une interprétation des images."
@@ -951,6 +972,110 @@ msgstr "la source d'images s'est arrêtée de façon inattendue"
 msgid "the image is missing from the index"
 msgstr "l'image est absente de l'index"
 
+#. the measuring tools: a distance, an angle and two shapes of a region.
+#: crates/core/src/measure.rs
+msgctxt "measuring tool"
+msgid "Length"
+msgstr "Longueur"
+
+#: crates/core/src/measure.rs
+msgctxt "measuring tool"
+msgid "Angle"
+msgstr "Angle"
+
+#: crates/core/src/measure.rs
+msgctxt "measuring tool"
+msgid "Ellipse"
+msgstr "Ellipse"
+
+#: crates/core/src/measure.rs
+msgctxt "measuring tool"
+msgid "Rectangle"
+msgstr "Rectangle"
+
+#. keep this statement unambiguous and at least as strong as the English.
+#: crates/core/src/measure.rs
+msgid "Approximate — not for diagnosis"
+msgstr "Approximatif — ne pas utiliser à des fins de diagnostic"
+
+#. a result in pixels of an image without a scale, such as "123 px (uncalibrated)".
+#: crates/core/src/measure.rs
+msgid "{value} (uncalibrated)"
+msgstr "{value} (non étalonné)"
+
+#. a size on an X-ray image is the size at the detector; the body part itself may be smaller.
+#: crates/core/src/measure.rs
+msgid "at detector — true size may be smaller"
+msgstr "au détecteur — la taille réelle peut être plus petite"
+
+#. the area of a region, with its unit, such as "Area 2.0 cm²".
+#: crates/core/src/measure.rs
+msgid "Area {value}"
+msgstr "Surface {value}"
+
+#: crates/core/src/measure.rs
+msgid "Computed on a reformat, so approximate: the slices of this series are {spacing} mm apart, and detail across them is coarser than within them."
+msgstr "Calculé sur une reconstruction, donc approximatif : les coupes de cette série sont espacées de {spacing} mm, et le détail est moins fin à travers les coupes que dans les coupes."
+
+#: crates/core/src/measure.rs
+msgid "Scale from the Pixel Spacing recorded in the image."
+msgstr "Échelle d'après l'espacement des pixels (Pixel Spacing) indiqué dans l'image."
+
+#: crates/core/src/measure.rs
+msgid "Scale from the Imager Pixel Spacing recorded in the image: sizes at the detector. What lies in front of the detector appears larger on the image, so its true size may be smaller."
+msgstr "Échelle d'après l'espacement des pixels au détecteur (Imager Pixel Spacing) indiqué dans l'image : tailles au détecteur. Ce qui se trouve devant le détecteur apparaît plus grand sur l'image, sa taille réelle peut donc être plus petite."
+
+#: crates/core/src/measure.rs
+msgid "This image records no pixel spacing: the result is in pixels, assumes square pixels and says nothing about true size."
+msgstr "Cette image n'indique pas l'espacement des pixels : le résultat est en pixels, suppose des pixels carrés et ne dit rien de la taille réelle."
+
+#: crates/core/src/measure.rs
+msgid "Statistics not available for colour images"
+msgstr "Statistiques non disponibles pour les images en couleur"
+
+#: crates/core/src/measure.rs
+msgid "Values not loaded yet"
+msgstr "Valeurs pas encore chargées"
+
+#: crates/core/src/measure.rs
+msgid "No values: the image could not be decoded"
+msgstr "Aucune valeur : l'image n'a pas pu être décodée"
+
+#. statistics of a thick slab: {mode} is MIP, MinIP or Average.
+#: crates/core/src/measure.rs
+msgid "{mode} values"
+msgstr "Valeurs de la projection {mode}"
+
+#. statistics of a region: the mean and the standard deviation (SD) of its values.
+#: crates/core/src/measure.rs
+msgid "Mean {mean} · SD {sd}"
+msgstr "Moyenne {mean} · ÉT {sd}"
+
+#. statistics of a region: the smallest and the largest of its values.
+#: crates/core/src/measure.rs
+msgid "Min {min} · Max {max}"
+msgstr "Min {min} · Max {max}"
+
+#: crates/core/src/measure.rs
+msgid "No values: outside the scanned area"
+msgstr "Aucune valeur : hors de la zone mesurée"
+
+#: crates/core/src/measure.rs
+msgid "Too small: no pixel centre lies inside"
+msgstr "Trop petit : aucun centre de pixel à l'intérieur"
+
+#: crates/core/src/measure.rs
+msgid "Values of {n} pixel."
+msgid_plural "Values of {n} pixels."
+msgstr[0] "Valeurs de {n} pixel."
+msgstr[1] "Valeurs de {n} pixels."
+
+#: crates/core/src/measure.rs
+msgid "{n} pixel outside the scanned area is left out."
+msgid_plural "{n} pixels outside the scanned area are left out."
+msgstr[0] "{n} pixel hors de la zone mesurée est exclu."
+msgstr[1] "{n} pixels hors de la zone mesurée sont exclus."
+
 #: crates/core/src/pet.rs
 msgid "SUV {value}"
 msgstr "SUV {value}"
@@ -1067,6 +1192,35 @@ msgstr "{minutes} min"
 msgid "{hours} h {minutes} min"
 msgstr "{hours} h {minutes} min"
 
+#: crates/core/src/print/system.rs
+msgid "The print system could not be started: {reason}"
+msgstr "Impossible de démarrer le système d'impression : {reason}"
+
+#. the paper size of North America (8.5 × 11 inches).
+#: crates/core/src/print.rs
+msgctxt "paper"
+msgid "Letter"
+msgstr "Lettre US"
+
+#. the orientation of a printed page.
+#: crates/core/src/print.rs
+msgid "Portrait"
+msgstr "Portrait"
+
+#: crates/core/src/print.rs
+msgid "Landscape"
+msgstr "Paysage"
+
+#: crates/core/src/print.rs
+#: crates/ui/src/print.rs
+msgid "Page {page} of {pages}"
+msgstr "Page {page} sur {pages}"
+
+#: crates/core/src/print.rs
+#: crates/ui/src/export/annotated.rs
+msgid "Not for diagnostic use"
+msgstr "Ne pas utiliser à des fins de diagnostic"
+
 #: crates/core/src/series.rs
 msgid "the file holds fewer frames than its header announces"
 msgstr "le fichier contient moins de trames que n'en annonce son en-tête"
@@ -1156,6 +1310,19 @@ msgctxt "mouse tool"
 msgid "Zoom"
 msgstr "Zoom"
 
+#. layouts of the Compare menu: how many series are shown at once and how they are arranged.
+#: crates/core/src/workspace.rs
+msgid "Two series side by side"
+msgstr "Deux séries côte à côte"
+
+#: crates/core/src/workspace.rs
+msgid "Two series, one above the other"
+msgstr "Deux séries l'une au-dessus de l'autre"
+
+#: crates/core/src/workspace.rs
+msgid "Four series"
+msgstr "Quatre séries"
+
 #: crates/dicom/src/decode.rs
 msgid "{n} image could not be decoded: {reason}"
 msgid_plural "{n} images could not be decoded: {reason}"
@@ -1220,6 +1387,114 @@ msgstr "Analyse de l'archive"
 #: crates/dicom/src/discovery.rs
 msgid "Scanning folder"
 msgstr "Analyse du dossier"
+
+#: crates/dicom/src/documents/rtf.rs
+msgid "this file is nested too deeply"
+msgstr "ce fichier comporte trop de niveaux d'imbrication"
+
+#: crates/dicom/src/documents/rtf.rs
+msgid "this file is not an RTF document"
+msgstr "ce fichier n'est pas un document RTF"
+
+#. the status of a report in the header of the document view. "Preliminary" must not read as final, and "not verified" means that no physician has confirmed the report.
+#: crates/dicom/src/documents/sr.rs
+msgid "Final — verified"
+msgstr "Définitif — vérifié"
+
+#: crates/dicom/src/documents/sr.rs
+msgid "Complete — not verified"
+msgstr "Complet — non vérifié"
+
+#: crates/dicom/src/documents/sr.rs
+msgid "Complete — verification not recorded"
+msgstr "Complet — vérification non enregistrée"
+
+#: crates/dicom/src/documents/sr.rs
+msgid "Preliminary — verified"
+msgstr "Préliminaire — vérifié"
+
+#: crates/dicom/src/documents/sr.rs
+msgid "Preliminary — not verified"
+msgstr "Préliminaire — non vérifié"
+
+#: crates/dicom/src/documents/sr.rs
+msgid "Preliminary — verification not recorded"
+msgstr "Préliminaire — vérification non enregistrée"
+
+#: crates/dicom/src/documents/sr.rs
+msgid "Verified — completion not recorded"
+msgstr "Vérifié — achèvement non enregistré"
+
+#: crates/dicom/src/documents/sr.rs
+msgid "Not verified — completion not recorded"
+msgstr "Non vérifié — achèvement non enregistré"
+
+#: crates/dicom/src/documents/sr.rs
+msgid "Status not recorded"
+msgstr "Statut non enregistré"
+
+#. an item of a report that records no value.
+#: crates/dicom/src/documents/sr.rs
+msgid "no value recorded"
+msgstr "aucune valeur enregistrée"
+
+#: crates/dicom/src/documents/text.rs
+msgid "this file does not hold text"
+msgstr "ce fichier ne contient pas de texte"
+
+#. the types of the documents on a disc, as the list of documents shows them.
+#: crates/dicom/src/documents.rs
+msgctxt "document type"
+msgid "Report"
+msgstr "Compte rendu"
+
+#: crates/dicom/src/documents.rs
+msgctxt "document type"
+msgid "Dose report"
+msgstr "Rapport de dose"
+
+#: crates/dicom/src/documents.rs
+msgctxt "document type"
+msgid "PDF document"
+msgstr "Document PDF"
+
+#: crates/dicom/src/documents.rs
+msgctxt "document type"
+msgid "PDF file"
+msgstr "Fichier PDF"
+
+#: crates/dicom/src/documents.rs
+msgctxt "document type"
+msgid "RTF file"
+msgstr "Fichier RTF"
+
+#: crates/dicom/src/documents.rs
+msgctxt "document type"
+msgid "Text file"
+msgstr "Fichier texte"
+
+#: crates/dicom/src/documents.rs
+msgctxt "document type"
+msgid "HTML file"
+msgstr "Fichier HTML"
+
+#: crates/dicom/src/documents.rs
+msgid "Looking for report files"
+msgstr "Recherche des fichiers de comptes rendus"
+
+#: crates/dicom/src/documents.rs
+msgid "{n} more report file on this medium is not listed"
+msgid_plural "{n} more report files on this medium are not listed"
+msgstr[0] "{n} autre fichier de compte rendu sur ce support n'est pas affiché"
+msgstr[1] "{n} autres fichiers de comptes rendus sur ce support ne sont pas affichés"
+
+#: crates/dicom/src/documents.rs
+msgid "This document is larger than {limit}, the most that is displayed."
+msgstr "Ce document dépasse {limit}, la taille maximale affichable."
+
+#: crates/dicom/src/documents.rs
+msgid "this object holds no document"
+msgstr "cet objet ne contient aucun document"
 
 #: crates/dicom/src/error.rs
 msgid "cannot read {path}: {reason}"
@@ -1443,6 +1718,11 @@ msgstr "Écho planaire"
 msgid "Research mode"
 msgstr "Mode recherche"
 
+#. the name of a study of which the disc holds only reports.
+#: crates/dicom/src/index.rs
+msgid "Study without images"
+msgstr "Examen sans images"
+
 #. the name of a study without a description, such as "CT/MR study".
 #: crates/dicom/src/index.rs
 msgid "{modalities} study"
@@ -1467,10 +1747,10 @@ msgstr[0] "{n} fichier n'a pas pu être lu et a été ignoré"
 msgstr[1] "{n} fichiers n'ont pas pu être lus et ont été ignorés"
 
 #: crates/dicom/src/index.rs
-msgid "{n} object that is not an image (a report or an annotation) is not shown"
-msgid_plural "{n} objects that are not images (reports, annotations) are not shown"
-msgstr[0] "{n} objet qui n'est pas une image (rapport ou annotation) n'est pas affiché"
-msgstr[1] "{n} objets qui ne sont pas des images (rapports, annotations) ne sont pas affichés"
+msgid "{n} object that is not an image (such as an annotation) is not shown"
+msgid_plural "{n} objects that are not images (such as annotations) are not shown"
+msgstr[0] "{n} objet qui n'est pas une image (par exemple une annotation) n'est pas affiché"
+msgstr[1] "{n} objets qui ne sont pas des images (par exemple des annotations) ne sont pas affichés"
 
 #: crates/dicom/src/media.rs
 msgid "{name} is protected by a password. Unpack it with the password, then open the unpacked folder."
@@ -1820,6 +2100,7 @@ msgstr "Temps d'exposition"
 
 #. CTDIvol, the CT dose index; the abbreviation is international.
 #: crates/dicom/src/metadata.rs
+#: crates/ui/src/documents.rs
 msgid "CTDIvol"
 msgstr "CTDIvol"
 
@@ -2010,6 +2291,10 @@ msgstr "Référentiel"
 msgctxt "inspector section"
 msgid "Identifiers"
 msgstr "Identifiants"
+
+#: crates/dicom/src/nesting.rs
+msgid "its data is nested too deeply"
+msgstr "ses données comportent trop de niveaux d'imbrication"
 
 #: crates/dicom/src/pet.rs
 msgid "The images do not record the unit of their values."
@@ -2499,6 +2784,8 @@ msgstr[0] "{n} fichier trouvé"
 msgstr[1] "{n} fichiers trouvés"
 
 #: crates/ui/src/app.rs
+#: crates/ui/src/export.rs
+#: crates/ui/src/print.rs
 msgid "Cancel"
 msgstr "Annuler"
 
@@ -2626,8 +2913,14 @@ msgstr "Déposer pour ouvrir"
 
 #. a study without a date.
 #: crates/ui/src/browser.rs
+#: crates/ui/src/compare.rs
 msgid "Undated"
 msgstr "Sans date"
+
+#. the list of the studies on the medium.
+#: crates/ui/src/browser.rs
+msgid "Study"
+msgstr "Examen"
 
 #: crates/ui/src/browser.rs
 msgid "{n} series"
@@ -2636,6 +2929,8 @@ msgstr[0] "{n} série"
 msgstr[1] "{n} séries"
 
 #: crates/ui/src/browser.rs
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/tiles.rs
 #: crates/ui/src/viewport.rs
 msgid "Unknown patient"
 msgstr "Patient inconnu"
@@ -2643,6 +2938,10 @@ msgstr "Patient inconnu"
 #: crates/ui/src/browser.rs
 msgid "Series"
 msgstr "Séries"
+
+#: crates/ui/src/browser.rs
+msgid "Drag a series onto a viewport, or click it to show it in the active viewport."
+msgstr "Faites glisser une série sur une zone d'affichage, ou cliquez dessus pour l'afficher dans la zone active."
 
 #: crates/ui/src/browser.rs
 msgid "Mixed planes"
@@ -2742,6 +3041,190 @@ msgstr "Aller-retour : lire jusqu'à la dernière image, puis revenir à la pre
 msgid "Waiting for images to load"
 msgstr "En attente du chargement des images"
 
+#. the link indicator of a viewport: it moves with the active viewport.
+#: crates/ui/src/compare.rs
+msgctxt "link indicator"
+msgid "linked"
+msgstr "lié"
+
+#. the link indicator of a viewport: it moves by equal distances, aligned by hand.
+#: crates/ui/src/compare.rs
+msgctxt "link indicator"
+msgid "manual"
+msgstr "manuel"
+
+#: crates/ui/src/compare.rs
+msgctxt "link indicator"
+msgid "link off"
+msgstr "lien désactivé"
+
+#: crates/ui/src/compare.rs
+msgctxt "link indicator"
+msgid "not linked"
+msgstr "non lié"
+
+#: crates/ui/src/compare.rs
+msgid "This viewport follows the active one by the position in the body: scrolling, zoom and pan. Click, or K in the active viewport, to switch the link off."
+msgstr "Cette zone suit la zone active selon la position dans le corps : défilement, zoom et déplacement. Cliquez ici, ou appuyez sur K dans la zone active, pour désactiver le lien."
+
+#: crates/ui/src/compare.rs
+msgid "This viewport moves by the same distances as the active one, from where you aligned them. It rests on your alignment, not on scanner positions. Click, or K in the active viewport, to switch the link off."
+msgstr "Cette zone se déplace des mêmes distances que la zone active, à partir de l'endroit où vous les avez alignées. Cela repose sur votre alignement, non sur les positions de l'appareil. Cliquez ici, ou appuyez sur K dans la zone active, pour désactiver le lien."
+
+#: crates/ui/src/compare.rs
+msgid "The link of this viewport is off: it stays where it is. Click, or K in the active viewport, to switch it on."
+msgstr "Le lien de cette zone est désactivé : elle reste où elle est. Cliquez ici, ou appuyez sur K dans la zone active, pour l'activer."
+
+#: crates/ui/src/compare.rs
+msgid "There is no other series to follow."
+msgstr "Il n'y a pas d'autre série à suivre."
+
+#: crates/ui/src/compare.rs
+msgid "These series do not share scanner positions, for example because they are from two examinations. Scroll both to the same place and choose Link from here in the Compare menu."
+msgstr "Ces séries ne partagent pas les positions de l'appareil, par exemple parce qu'elles viennent de deux examens. Faites défiler les deux jusqu'au même endroit et choisissez « Lier à partir d'ici » dans le menu « Comparer »."
+
+#: crates/ui/src/compare.rs
+msgid "The slices of these series run in directions 30° or more apart, so they do not scroll together. A line shows where the active image cuts this one."
+msgstr "Les coupes de ces séries suivent des directions écartées de 30° ou plus : elles ne défilent donc pas ensemble. Une ligne indique où l'image active coupe celle-ci."
+
+#: crates/ui/src/compare.rs
+msgid "These images do not record where they lie in the body."
+msgstr "Ces images n'indiquent pas où elles se situent dans le corps."
+
+#: crates/ui/src/compare.rs
+msgid "The link of the other viewport is off, so this one follows nothing."
+msgstr "Le lien de l'autre zone est désactivé : celle-ci ne suit donc rien."
+
+#: crates/ui/src/compare.rs
+msgid "Link: {state}"
+msgstr "Lien : {state}"
+
+#. the active viewport is scrolled beyond the slices of this series.
+#: crates/ui/src/compare.rs
+msgid "outside range"
+msgstr "hors plage"
+
+#: crates/ui/src/compare.rs
+msgid "The active viewport shows a position beyond the slices of this series. This viewport stays on its nearest end image."
+msgstr "La zone active montre une position au-delà des coupes de cette série. Cette zone reste sur son image d'extrémité la plus proche."
+
+#: crates/ui/src/compare.rs
+msgid "Drop a series here"
+msgstr "Déposez une série ici"
+
+#: crates/ui/src/compare.rs
+msgid "or click this viewport and then a series in the browser"
+msgstr "ou cliquez sur cette zone, puis sur une série dans la liste"
+
+#. the toolbar menu with several series at once and comparing two studies.
+#: crates/ui/src/compare.rs
+msgid "Compare"
+msgstr "Comparer"
+
+#: crates/ui/src/compare.rs
+msgid "Several series at once, several images of a series at once, and comparing two studies (T, K, N)"
+msgstr "Plusieurs séries à la fois, plusieurs images d'une série à la fois, et la comparaison de deux examens (T, K, N)"
+
+#. the layouts of several series at once, in the Compare menu.
+#: crates/ui/src/compare.rs
+msgid "Viewports"
+msgstr "Zones d'affichage"
+
+#: crates/ui/src/compare.rs
+msgid "One series"
+msgstr "Une série"
+
+#: crates/ui/src/compare.rs
+msgid "Back to the layouts of one series: Images, MPR, 2 × 2 and 3D"
+msgstr "Revenir aux dispositions d'une série : Images, MPR, 2 × 2 et 3D"
+
+#: crates/ui/src/compare.rs
+msgid "Each viewport shows a series of your choice; the active one has the highlight"
+msgstr "Chaque zone affiche la série de votre choix ; la zone active est mise en évidence"
+
+#. the window of the program on the screen, not a contrast window.
+#: crates/ui/src/compare.rs
+msgid "The window is too small for this: hide a panel or enlarge the window"
+msgstr "La fenêtre du programme est trop petite pour cela : masquez un panneau ou agrandissez la fenêtre du programme"
+
+#: crates/ui/src/compare.rs
+msgid "Next viewport"
+msgstr "Zone suivante"
+
+#: crates/ui/src/compare.rs
+msgid "Make the next viewport the active one; a series clicked in the browser then goes there"
+msgstr "Rend active la zone suivante ; une série cliquée dans la liste s'y affichera"
+
+#: crates/ui/src/compare.rs
+msgid "There is only one viewport"
+msgstr "Il n'y a qu'une seule zone d'affichage"
+
+#. how many images of a series a viewport shows at the same time (key T).
+#: crates/ui/src/compare.rs
+msgid "Images at once (T)"
+msgstr "Images à la fois (T)"
+
+#: crates/ui/src/compare.rs
+msgid "{grid} images"
+msgstr "{grid} images"
+
+#: crates/ui/src/compare.rs
+msgid "The current image in the first tile, the next images after it"
+msgstr "L'image actuelle dans la première case, puis les images suivantes"
+
+#: crates/ui/src/compare.rs
+msgid "Only for acquired images, and only while each image stays large enough on screen"
+msgstr "Uniquement pour les images acquises, et tant que chaque image reste assez grande à l'écran"
+
+#. viewports that move together.
+#: crates/ui/src/compare.rs
+msgid "Link"
+msgstr "Lien"
+
+#: crates/ui/src/compare.rs
+msgid "Link this viewport"
+msgstr "Lier cette zone"
+
+#: crates/ui/src/compare.rs
+msgid "Linked viewports follow each other's position, zoom and pan; contrast, turn and mirror stay their own"
+msgstr "Les zones liées se suivent en position, zoom et déplacement ; contraste, rotation et miroir restent propres à chacune"
+
+#: crates/ui/src/compare.rs
+msgid "Link from here"
+msgstr "Lier à partir d'ici"
+
+#: crates/ui/src/compare.rs
+msgid "Keeps the present offset between the viewports and moves them by equal distances from now on. Scroll them to the same place first."
+msgstr "Conserve le décalage actuel entre les zones et les déplace désormais des mêmes distances. Faites-les d'abord défiler jusqu'au même endroit."
+
+#: crates/ui/src/compare.rs
+msgid "Needs another viewport with its link on, showing another series in a similar slice direction"
+msgstr "Il faut une autre zone dont le lien est activé, affichant une autre série dans une direction de coupe semblable"
+
+#: crates/ui/src/compare.rs
+msgid "Link by scanner position"
+msgstr "Lier selon la position de l'appareil"
+
+#: crates/ui/src/compare.rs
+msgid "Ends the manual link: series with common scanner positions follow by them again"
+msgstr "Met fin au lien manuel : les séries ayant des positions communes de l'appareil se suivent de nouveau d'après celles-ci"
+
+#: crates/ui/src/compare.rs
+msgid "Linking uses the positions the scanner recorded. Nothing is aligned afterwards: if the patient moved between two series, they can be shifted against each other. The lines on the images show where the active image cuts them; they are a guide, not a measurement."
+msgstr "Le lien utilise les positions enregistrées par l'appareil. Rien n'est réaligné ensuite : si le patient a bougé entre deux séries, elles peuvent être décalées l'une par rapport à l'autre. Les lignes sur les images indiquent où l'image active les coupe ; ce sont des repères, pas une mesure."
+
+#: crates/ui/src/compare.rs
+msgid "Compare studies"
+msgstr "Comparer les examens"
+
+#: crates/ui/src/compare.rs
+msgid "Compare studies of {earlier} and {later}"
+msgstr "Comparer les examens du {earlier} et du {later}"
+
+#: crates/ui/src/compare.rs
+msgid "Matching series of the studies of {earlier} and {later} side by side, the earlier one on the left. Replace either side by dropping another series on it."
+msgstr "Les séries correspondantes des examens du {earlier} et du {later} côte à côte, le plus ancien à gauche. Déposez une autre série sur un côté pour le remplacer."
+
 #: crates/ui/src/crosshair.rs
 msgid "Tilt handle of the {plane} plane in the {view} view"
 msgstr "Poignée d'inclinaison du plan {plane} dans la vue {view}"
@@ -2821,6 +3304,451 @@ msgstr "Paliers confondus ou dégradé rayé : désactivez les modes « vif �
 #: crates/ui/src/display_check.rs
 msgid "The fine lines look blurred: set the screen to its native resolution and switch off scaling."
 msgstr "Les lignes fines paraissent floues : réglez l'écran sur sa résolution native et désactivez la mise à l'échelle."
+
+#: crates/ui/src/documents.rs
+msgid "Back to images"
+msgstr "Retour aux images"
+
+#: crates/ui/src/documents.rs
+msgid "Back to images (Esc)"
+msgstr "Retour aux images (Échap)"
+
+#: crates/ui/src/documents.rs
+msgid "Show in folder"
+msgstr "Afficher dans le dossier"
+
+#: crates/ui/src/documents.rs
+msgid "Opens the folder of this file in your file manager. The file itself is not opened."
+msgstr "Ouvre le dossier de ce fichier dans votre gestionnaire de fichiers. Le fichier lui-même n'est pas ouvert."
+
+#: crates/ui/src/documents.rs
+msgid "The folder could not be opened."
+msgstr "Impossible d'ouvrir le dossier."
+
+#: crates/ui/src/documents.rs
+msgid "Hidden in privacy mode — reports contain personal details"
+msgstr "Masqué en mode confidentialité — les comptes rendus contiennent des données personnelles"
+
+#: crates/ui/src/documents.rs
+msgid "Show anyway"
+msgstr "Afficher quand même"
+
+#: crates/ui/src/documents.rs
+msgid "Loading the document…"
+msgstr "Chargement du document…"
+
+#: crates/ui/src/documents.rs
+msgid "This report holds no text."
+msgstr "Ce compte rendu ne contient pas de texte."
+
+#: crates/ui/src/documents.rs
+msgid "Part of this report is not shown: it is nested too deeply or is too long."
+msgstr "Une partie de ce compte rendu n'est pas affichée : elle est trop imbriquée ou trop longue."
+
+#. an item of a report, such as "Diameter: 12 mm". Both come from the report.
+#: crates/ui/src/documents.rs
+msgid "{name}: {value}"
+msgstr "{name} : {value}"
+
+#. a link in a report to an image; {series} is the name of the series.
+#: crates/ui/src/documents.rs
+msgid "Image in {series}"
+msgstr "Image dans {series}"
+
+#: crates/ui/src/documents.rs
+msgid "image not on this disc"
+msgstr "image absente de ce disque"
+
+#: crates/ui/src/documents.rs
+msgid "These are the values the scanner recorded. SumMRIse calculates nothing from them."
+msgstr "Ce sont les valeurs enregistrées par l'appareil. SumMRIse ne calcule rien à partir de celles-ci."
+
+#. the columns of the table of a dose report. CTDIvol and DLP (dose-length product) are international abbreviations.
+#: crates/ui/src/documents.rs
+msgid "Acquisition"
+msgstr "Acquisition"
+
+#: crates/ui/src/documents.rs
+msgid "DLP"
+msgstr "DLP"
+
+#: crates/ui/src/documents.rs
+msgid "not recorded"
+msgstr "non enregistré"
+
+#: crates/ui/src/documents.rs
+msgid "Acquisition {number}"
+msgstr "Acquisition {number}"
+
+#: crates/ui/src/documents.rs
+msgid "Total DLP {value} (as recorded by the scanner)"
+msgstr "DLP total {value} (tel qu'enregistré par l'appareil)"
+
+#: crates/ui/src/documents.rs
+msgid "The scanner recorded no total."
+msgstr "L'appareil n'a enregistré aucun total."
+
+#: crates/ui/src/documents.rs
+msgid "All values in this report"
+msgstr "Toutes les valeurs de ce rapport"
+
+#: crates/ui/src/documents.rs
+msgid "Only the first {count} of {total} pages can be shown."
+msgstr "Seules les {count} premières pages sur {total} peuvent être affichées."
+
+#: crates/ui/src/documents.rs
+msgid "Part of this page could not be drawn, such as a font or a picture. Something may be missing."
+msgstr "Une partie de cette page, comme une police ou une image, n'a pas pu être affichée. Il peut manquer quelque chose."
+
+#: crates/ui/src/documents.rs
+msgid "Page {number}"
+msgstr "Page {number}"
+
+#: crates/ui/src/documents.rs
+msgid "Previous page"
+msgstr "Page précédente"
+
+#: crates/ui/src/documents.rs
+msgid "Previous page (Page Up)"
+msgstr "Page précédente (Page préc.)"
+
+#: crates/ui/src/documents.rs
+msgid "Page {number} of {count}"
+msgstr "Page {number} sur {count}"
+
+#: crates/ui/src/documents.rs
+msgid "Next page"
+msgstr "Page suivante"
+
+#: crates/ui/src/documents.rs
+msgid "Next page (Page Down)"
+msgstr "Page suivante (Page suiv.)"
+
+#: crates/ui/src/documents.rs
+msgid "Zoom out"
+msgstr "Réduire"
+
+#: crates/ui/src/documents.rs
+msgid "Zoom in"
+msgstr "Agrandir"
+
+#: crates/ui/src/documents.rs
+msgid "Fit to width"
+msgstr "Ajuster à la largeur"
+
+#: crates/ui/src/documents.rs
+msgid "This file does not say which character set it uses. It is shown as {encoding}, so some letters may be wrong."
+msgstr "Ce fichier n'indique pas son jeu de caractères. Il est affiché en {encoding}, certaines lettres peuvent donc être erronées."
+
+#: crates/ui/src/documents.rs
+msgid "This document holds no text."
+msgstr "Ce document ne contient pas de texte."
+
+#: crates/ui/src/documents.rs
+msgid "This document is longer than can be shown; the rest is cut off."
+msgstr "Ce document est trop long pour être affiché ; la suite est coupée."
+
+#: crates/ui/src/documents.rs
+msgid "This document could not be displayed."
+msgstr "Impossible d'afficher ce document."
+
+#: crates/ui/src/documents.rs
+msgid "Esc: back to the images · Page Up/Down: move through the document"
+msgstr "Échap : retour aux images · Page préc./suiv. : parcourir le document"
+
+#: crates/ui/src/documents.rs
+msgid "Documents"
+msgstr "Documents"
+
+#: crates/ui/src/documents.rs
+msgid "Other files on the disc"
+msgstr "Autres fichiers du disque"
+
+#: crates/ui/src/documents.rs
+msgid "too large to display"
+msgstr "trop volumineux pour être affiché"
+
+#. S is short for series, followed by the series number; {title} is the series' name.
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/tiles.rs
+#: crates/ui/src/viewport.rs
+msgid "S{number}: {title}"
+msgstr "S{number} : {title}"
+
+#. the patient ID on the image.
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/viewport.rs
+msgid "ID {id}"
+msgstr "ID {id}"
+
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/viewport.rs
+msgid "Born {date}"
+msgstr "Né(e) le {date}"
+
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/viewport.rs
+msgid "Image {number} / {count}"
+msgstr "Image {number} / {count}"
+
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/viewport.rs
+msgid "Image {number} could not be decoded"
+msgstr "L'image {number} n'a pas pu être décodée"
+
+#. {view} is the name of a view, such as Axial or Coronal.
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/viewport.rs
+msgid "{view} {number} / {count}"
+msgstr "{view} {number} / {count}"
+
+#. a reformat is an image computed through the volume in another plane; {view} names it.
+#: crates/ui/src/export/picture.rs
+msgid "Reformat: {view}"
+msgstr "Reconstruction : {view}"
+
+#. {mode} is MIP, MinIP or Average; the slab's thickness follows in millimetres.
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/viewport.rs
+msgid "{mode} slab {thickness} mm"
+msgstr "{mode} sur {thickness} mm"
+
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/volume_view.rs
+msgid "3D view: {look}"
+msgstr "Vue 3D : {look}"
+
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/export.rs
+#: crates/ui/src/volume_view.rs
+msgid "Illustration: colours and surfaces are computed"
+msgstr "Illustration : couleurs et surfaces calculées"
+
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/orient.rs
+msgid "Mirrored"
+msgstr "En miroir"
+
+#: crates/ui/src/export/picture.rs
+#: crates/ui/src/volume_view.rs
+msgid "Inverted"
+msgstr "Inversé"
+
+#: crates/ui/src/export/picture.rs
+msgid "Contrast table: {name}"
+msgstr "Table de contraste : {name}"
+
+#: crates/ui/src/export.rs
+msgid "Available when the image on screen has loaded"
+msgstr "Disponible une fois l'image affichée chargée"
+
+#: crates/ui/src/export.rs
+msgid "Available when all images of the series have loaded"
+msgstr "Disponible une fois toutes les images de la série chargées"
+
+#: crates/ui/src/export.rs
+#: crates/ui/src/volume_view.rs
+#: crates/ui/src/welcome.rs
+msgid "Shift+{key}"
+msgstr "Maj+{key}"
+
+#: crates/ui/src/export.rs
+msgid "Save image…"
+msgstr "Enregistrer l'image…"
+
+#: crates/ui/src/export.rs
+msgid "Save the view as a PNG or JPEG file ({shortcut})"
+msgstr "Enregistrer la vue en fichier PNG ou JPEG ({shortcut})"
+
+#: crates/ui/src/export.rs
+msgid "Copy image"
+msgstr "Copier l'image"
+
+#: crates/ui/src/export.rs
+msgid "Copy the picture, without patient details, to the clipboard ({shortcut})"
+msgstr "Copier l'image, sans informations sur le patient, dans le presse-papiers ({shortcut})"
+
+#: crates/ui/src/export.rs
+msgid "Export series…"
+msgstr "Exporter la série…"
+
+#: crates/ui/src/export.rs
+msgid "Save all images of the series as numbered files ({shortcut})"
+msgstr "Enregistrer toutes les images de la série en fichiers numérotés ({shortcut})"
+
+#: crates/ui/src/export.rs
+msgid "Print…"
+msgstr "Imprimer…"
+
+#: crates/ui/src/export.rs
+msgid "Print the image or the series, or save them as a PDF ({shortcut})"
+msgstr "Imprimer l'image ou la série, ou les enregistrer en PDF ({shortcut})"
+
+#: crates/ui/src/export.rs
+msgid "Save, copy or print"
+msgstr "Enregistrer, copier ou imprimer"
+
+#: crates/ui/src/export.rs
+msgid "Save or copy the image, export the series, or print"
+msgstr "Enregistrer ou copier l'image, exporter la série ou imprimer"
+
+#: crates/ui/src/export.rs
+msgid "Save image"
+msgstr "Enregistrer l'image"
+
+#: crates/ui/src/export.rs
+msgid "Image only"
+msgstr "Image seule"
+
+#: crates/ui/src/export.rs
+msgid "The 3D picture as computed for the screen, with its caption that it is an illustration."
+msgstr "L'image 3D telle qu'elle est calculée pour l'écran, avec la mention qu'il s'agit d'une illustration."
+
+#: crates/ui/src/export.rs
+msgid "The picture itself at its own resolution, in the current contrast, without any text. Zoom and pan are left out; it is turned and flipped like the view."
+msgstr "L'image elle-même à sa propre résolution, avec le contraste actuel, sans aucun texte. Le zoom et le déplacement sont ignorés ; elle est pivotée et retournée comme la vue."
+
+#: crates/ui/src/export.rs
+msgid "With annotations"
+msgstr "Avec annotations"
+
+#: crates/ui/src/export.rs
+msgid "The view as on screen, with orientation letters, scale bar and contrast values, marked as not for diagnostic use."
+msgstr "La vue telle qu'à l'écran, avec lettres d'orientation, barre d'échelle et valeurs de contraste, marquée comme ne devant pas servir au diagnostic."
+
+#: crates/ui/src/export.rs
+msgid "This view is mirrored, and the file will be too. An image-only file has no letters to show the true directions."
+msgstr "Cette vue est en miroir, le fichier le sera aussi. Un fichier avec l'image seule n'a pas de lettres pour indiquer les vraies directions."
+
+#: crates/ui/src/export.rs
+msgid "Save…"
+msgstr "Enregistrer…"
+
+#: crates/ui/src/export.rs
+msgid "Export series"
+msgstr "Exporter la série"
+
+#: crates/ui/src/export.rs
+msgid "Saves {n} image as a numbered file, in the current contrast, without any text."
+msgid_plural "Saves all {n} images as numbered files, in the current contrast, without any text."
+msgstr[0] "Enregistre {n} image en fichier numéroté, avec le contraste actuel, sans aucun texte."
+msgstr[1] "Enregistre les {n} images en fichiers numérotés, avec le contraste actuel, sans aucun texte."
+
+#: crates/ui/src/export.rs
+msgid "These images are shown mirrored, and the files will be too. They have no letters to show the true directions."
+msgstr "Ces images sont affichées en miroir, les fichiers le seront aussi. Ils n'ont pas de lettres pour indiquer les vraies directions."
+
+#: crates/ui/src/export.rs
+msgid "Choose folder…"
+msgstr "Choisir un dossier…"
+
+#: crates/ui/src/export.rs
+msgid "Choose a folder for the images"
+msgstr "Choisissez un dossier pour les images"
+
+#: crates/ui/src/export.rs
+msgid "Export anyway"
+msgstr "Exporter quand même"
+
+#: crates/ui/src/export.rs
+msgid "Copy anyway"
+msgstr "Copier quand même"
+
+#: crates/ui/src/export.rs
+msgid "Replace existing files?"
+msgstr "Remplacer les fichiers existants ?"
+
+#: crates/ui/src/export.rs
+msgid "{n} file with the same name already exists in this folder."
+msgid_plural "{n} files with the same names already exist in this folder."
+msgstr[0] "{n} fichier du même nom existe déjà dans ce dossier."
+msgstr[1] "{n} fichiers de mêmes noms existent déjà dans ce dossier."
+
+#: crates/ui/src/export.rs
+msgid "Replace"
+msgstr "Remplacer"
+
+#. the file format of a saved image.
+#: crates/ui/src/export.rs
+msgid "Format"
+msgstr "Format"
+
+#: crates/ui/src/export.rs
+msgid "Include patient details"
+msgstr "Inclure les informations sur le patient"
+
+#: crates/ui/src/export.rs
+msgid "Adds the patient's name, ID and birth date, for this time only"
+msgstr "Ajoute le nom, l'ID et la date de naissance du patient, pour cette fois seulement"
+
+#: crates/ui/src/export.rs
+msgid "Privacy mode is on: patient details stay hidden"
+msgstr "Le mode confidentialité est activé : les informations sur le patient restent masquées"
+
+#: crates/ui/src/export.rs
+msgid "An image-only file has no text"
+msgstr "Un fichier avec l'image seule ne contient pas de texte"
+
+#: crates/ui/src/export.rs
+msgid "The picture itself may show personal details"
+msgstr "L'image elle-même peut montrer des données personnelles"
+
+#: crates/ui/src/export.rs
+msgid "Names or other personal details can be part of this picture, as in a scanned page or an ultrasound image. SumMRIse cannot remove them."
+msgstr "Des noms ou d'autres données personnelles peuvent faire partie de cette image, comme dans une page numérisée ou une image d'échographie. SumMRIse ne peut pas les supprimer."
+
+#: crates/ui/src/export.rs
+msgid "Could not save the image: the picture is not available."
+msgstr "Impossible d'enregistrer l'image : elle n'est pas disponible."
+
+#: crates/ui/src/export.rs
+#: crates/ui/src/print.rs
+msgid "Saved {name}"
+msgstr "{name} enregistré"
+
+#: crates/ui/src/export.rs
+msgid "Could not save the image: {reason}"
+msgstr "Impossible d'enregistrer l'image : {reason}"
+
+#: crates/ui/src/export.rs
+msgid "Could not copy the image: the picture is not available."
+msgstr "Impossible de copier l'image : elle n'est pas disponible."
+
+#: crates/ui/src/export.rs
+msgid "Image copied. If it does not paste, the clipboard of this system does not take images: use Save image… instead."
+msgstr "Image copiée. Si elle ne se colle pas, le presse-papiers de ce système n'accepte pas les images : utilisez plutôt « Enregistrer l'image… »."
+
+#: crates/ui/src/export.rs
+msgid "Image copied to the clipboard."
+msgstr "Image copiée dans le presse-papiers."
+
+#: crates/ui/src/export.rs
+msgid "The export stopped unexpectedly."
+msgstr "L'exportation s'est arrêtée de façon inattendue."
+
+#: crates/ui/src/export.rs
+msgid "{done} of {n} image was exported: {reason}"
+msgid_plural "{done} of {n} images were exported: {reason}"
+msgstr[0] "{done} image sur {n} a été exportée : {reason}"
+msgstr[1] "{done} images sur {n} ont été exportées : {reason}"
+
+#: crates/ui/src/export.rs
+msgid "{done} of {n} image was exported."
+msgid_plural "{done} of {n} images were exported."
+msgstr[0] "{done} image sur {n} a été exportée."
+msgstr[1] "{done} images sur {n} ont été exportées."
+
+#: crates/ui/src/export.rs
+msgid "{done} of {n} image was exported. The rest could not be decoded."
+msgid_plural "{done} of {n} images were exported. The rest could not be decoded."
+msgstr[0] "{done} image sur {n} a été exportée. Le reste n'a pas pu être décodé."
+msgstr[1] "{done} images sur {n} ont été exportées. Le reste n'a pas pu être décodé."
+
+#: crates/ui/src/export.rs
+msgid "{n} image exported to {folder}."
+msgid_plural "{n} images exported to {folder}."
+msgstr[0] "{n} image exportée vers {folder}."
+msgstr[1] "{n} images exportées vers {folder}."
 
 #: crates/ui/src/fidelity.rs
 msgid "This image is or was compressed in a way that discards some detail to save space. Fine detail can differ from what the scanner recorded."
@@ -2965,6 +3893,95 @@ msgstr "Élément {number}"
 msgid "System language ({language})"
 msgstr "Langue du système ({language})"
 
+#: crates/ui/src/measure.rs
+msgid "Length: drag from one point to the other (D)"
+msgstr "Longueur : glisser d'un point à l'autre (D)"
+
+#: crates/ui/src/measure.rs
+msgid "Angle: click three points, the corner second (Y)"
+msgstr "Angle : cliquer sur trois points, le sommet en deuxième (Y)"
+
+#: crates/ui/src/measure.rs
+msgid "Ellipse: drag across a region for its area and values (E)"
+msgstr "Ellipse : glisser sur une région pour obtenir sa surface et ses valeurs (E)"
+
+#: crates/ui/src/measure.rs
+msgid "Rectangle: drag across a region for its area and values (Q)"
+msgstr "Rectangle : glisser sur une région pour obtenir sa surface et ses valeurs (Q)"
+
+#. the toolbar menu with the tools that measure lengths, angles and regions.
+#: crates/ui/src/measure.rs
+msgid "Measure"
+msgstr "Mesurer"
+
+#: crates/ui/src/measure.rs
+msgid "Measure: {tool}"
+msgstr "Mesurer : {tool}"
+
+#: crates/ui/src/measure.rs
+msgid "Measure lengths, angles and regions (D, Y, E, Q). Approximate — not for diagnosis."
+msgstr "Mesurer des longueurs, des angles et des régions (D, Y, E, Q). Valeurs approximatives — ne pas utiliser à des fins de diagnostic."
+
+#. the Delete key, as printed on keyboards of your language.
+#: crates/ui/src/measure.rs
+msgctxt "key name"
+msgid "Del"
+msgstr "Suppr"
+
+#: crates/ui/src/measure.rs
+msgid "Delete the selected one"
+msgstr "Supprimer la mesure sélectionnée"
+
+#: crates/ui/src/measure.rs
+msgid "Remove the selected measurement (Delete or Backspace)"
+msgstr "Retirer la mesure sélectionnée (Suppr ou Retour arrière)"
+
+#: crates/ui/src/measure.rs
+msgid "With a measuring tool chosen, click a measurement to select it"
+msgstr "Avec un outil de mesure choisi, cliquer sur une mesure pour la sélectionner"
+
+#: crates/ui/src/measure.rs
+msgid "Delete all in this series"
+msgstr "Supprimer toutes celles de cette série"
+
+#: crates/ui/src/measure.rs
+msgid "Remove every measurement on every image of this series"
+msgstr "Retirer toutes les mesures de toutes les images de cette série"
+
+#: crates/ui/src/measure.rs
+msgid "Click three points, the corner second · Drag a handle to adjust · Delete: remove · Esc: cancel"
+msgstr "Cliquer sur trois points, le sommet en deuxième · Glisser une poignée pour ajuster · Suppr : retirer · Échap : annuler"
+
+#: crates/ui/src/measure.rs
+msgid "Drag to draw · Drag a handle to adjust · Delete: remove · Esc: cancel"
+msgstr "Glisser pour tracer · Glisser une poignée pour ajuster · Suppr : retirer · Échap : annuler"
+
+#: crates/ui/src/measure.rs
+msgid "Measurements are approximate"
+msgstr "Les mesures sont approximatives"
+
+#. keep this statement unambiguous and at least as strong as the English.
+#: crates/ui/src/measure.rs
+msgid "They are not for diagnosis."
+msgstr "Elles ne doivent pas être utilisées à des fins de diagnostic."
+
+#: crates/ui/src/measure.rs
+msgid "A result depends on where you place the points, on the contrast you see them in and on the scale recorded in the images. Each label says where its scale comes from. Ask your doctor about any size that matters to you."
+msgstr "Un résultat dépend de l'endroit où vous placez les points, du contraste dans lequel vous les voyez et de l'échelle indiquée dans les images. Chaque étiquette indique d'où vient son échelle. Interrogez votre médecin sur toute taille qui compte pour vous."
+
+#: crates/ui/src/measure.rs
+msgid "Measurements are not saved: they are gone when the study is closed."
+msgstr "Les mesures ne sont pas enregistrées : elles disparaissent à la fermeture de l'examen."
+
+#: crates/ui/src/measure.rs
+msgid "Understood"
+msgstr "Compris"
+
+#. the label of the scale bar on an X-ray image, whose scale holds at the detector only.
+#: crates/ui/src/measure.rs
+msgid "{length} mm at detector"
+msgstr "{length} mm au détecteur"
+
 #: crates/ui/src/orient.rs
 msgid "Rotate and flip"
 msgstr "Pivoter et retourner"
@@ -3035,10 +4052,6 @@ msgid "Oblique {degrees}° · near {plane}"
 msgstr "Oblique {degrees}° · proche du plan {plane}"
 
 #: crates/ui/src/orient.rs
-msgid "Mirrored"
-msgstr "En miroir"
-
-#: crates/ui/src/orient.rs
 msgid "This picture is shown mirrored. The letters at its edges give the true directions. Flip it again or reset (R) to return to the standard view."
 msgstr "Cette image est affichée en miroir. Les lettres sur ses bords indiquent les vraies directions. Retournez-la de nouveau ou réinitialisez (R) pour revenir à la vue standard."
 
@@ -3057,6 +4070,14 @@ msgstr "Superposition TEP indisponible : {why}"
 #: crates/ui/src/pet.rs
 msgid "PET overlay {opacity} % · {colours} · {scale}"
 msgstr "Superposition TEP {opacity} % · {colours} · {scale}"
+
+#: crates/ui/src/pet.rs
+msgid "PET overlay only in the active viewport"
+msgstr "Superposition TEP uniquement dans la zone active"
+
+#: crates/ui/src/pet.rs
+msgid "A PET is drawn over one viewport at a time. Click this viewport to see its PET overlay."
+msgstr "Une TEP est superposée à une seule zone à la fois. Cliquez sur cette zone pour voir sa superposition TEP."
 
 #. a window set by hand, shown in brackets after its values.
 #: crates/ui/src/pet.rs
@@ -3192,6 +4213,131 @@ msgstr "Masquer sous"
 msgid "PET values below this are not drawn, so the images show through"
 msgstr "Les valeurs TEP inférieures à ce seuil ne sont pas dessinées, pour laisser voir les images"
 
+#: crates/ui/src/print.rs
+msgid "Composing pages"
+msgstr "Composition des pages"
+
+#: crates/ui/src/print.rs
+msgid "Sent to {printer}."
+msgstr "Envoyé à {printer}."
+
+#: crates/ui/src/print.rs
+msgid "Sent to the printer."
+msgstr "Envoyé à l'imprimante."
+
+#: crates/ui/src/print.rs
+msgid "Saved {name}. Printing continues in the application that opened it."
+msgstr "{name} enregistré. L'impression se poursuit dans l'application qui l'a ouvert."
+
+#: crates/ui/src/print.rs
+msgid "Saved {name}, but it could not be opened: {reason}"
+msgstr "{name} enregistré, mais impossible de l'ouvrir : {reason}"
+
+#: crates/ui/src/print.rs
+msgid "Could not print: {reason}"
+msgstr "Impossible d'imprimer : {reason}"
+
+#: crates/ui/src/print.rs
+msgid "the job stopped unexpectedly"
+msgstr "la tâche s'est arrêtée de façon inattendue"
+
+#: crates/ui/src/print.rs
+msgid "Print anyway"
+msgstr "Imprimer quand même"
+
+#. the title of the print window; "Print" on its button is an instruction.
+#: crates/ui/src/print.rs
+msgctxt "print window"
+msgid "Print"
+msgstr "Impression"
+
+#: crates/ui/src/print.rs
+msgid "This image"
+msgstr "Cette image"
+
+#: crates/ui/src/print.rs
+msgid "Whole series ({n} image)"
+msgid_plural "Whole series ({n} images)"
+msgstr[0] "Toute la série ({n} image)"
+msgstr[1] "Toute la série ({n} images)"
+
+#: crates/ui/src/print.rs
+msgid "The whole series can be printed when it has loaded."
+msgstr "Toute la série pourra être imprimée une fois chargée."
+
+#: crates/ui/src/print.rs
+msgid "Copies"
+msgstr "Copies"
+
+#: crates/ui/src/print.rs
+msgid "This view is mirrored, and the print will be too. The letters give the true directions."
+msgstr "Cette vue est en miroir, l'impression le sera aussi. Les lettres indiquent les vraies directions."
+
+#: crates/ui/src/print.rs
+msgid "Printed images are not at true size. The scale bar gives the scale."
+msgstr "Les images imprimées ne sont pas à taille réelle. La barre d'échelle indique l'échelle."
+
+#: crates/ui/src/print.rs
+msgid "The system's print queue may keep a copy until it has printed."
+msgstr "La file d'impression du système peut conserver une copie jusqu'à l'impression."
+
+#: crates/ui/src/print.rs
+msgid "This computer has no print system SumMRIse can use. Printing continues in the application that opens the PDF."
+msgstr "Cet ordinateur n'a pas de système d'impression utilisable par SumMRIse. L'impression se poursuit dans l'application qui ouvre le PDF."
+
+#: crates/ui/src/print.rs
+msgid "Printer"
+msgstr "Imprimante"
+
+#: crates/ui/src/print.rs
+msgid "Looking for printers…"
+msgstr "Recherche des imprimantes…"
+
+#: crates/ui/src/print.rs
+msgid "No printer is set up on this computer."
+msgstr "Aucune imprimante n'est configurée sur cet ordinateur."
+
+#: crates/ui/src/print.rs
+msgid "The system's default printer"
+msgstr "Imprimante par défaut du système"
+
+#: crates/ui/src/print.rs
+msgid "The list of printers is not available: {reason}"
+msgstr "La liste des imprimantes n'est pas disponible : {reason}"
+
+#: crates/ui/src/print.rs
+msgid "Paper"
+msgstr "Papier"
+
+#. how a printed page lies: upright or on its side.
+#: crates/ui/src/print.rs
+msgid "Page"
+msgstr "Orientation"
+
+#: crates/ui/src/print.rs
+msgid "Images per page"
+msgstr "Images par page"
+
+#: crates/ui/src/print.rs
+msgid "Preview of the first page"
+msgstr "Aperçu de la première page"
+
+#: crates/ui/src/print.rs
+msgid "Composing the preview…"
+msgstr "Composition de l'aperçu…"
+
+#: crates/ui/src/print.rs
+msgid "Print"
+msgstr "Imprimer"
+
+#: crates/ui/src/print.rs
+msgid "Save PDF and open…"
+msgstr "Enregistrer le PDF et ouvrir…"
+
+#: crates/ui/src/print.rs
+msgid "Save as PDF…"
+msgstr "Enregistrer en PDF…"
+
 #: crates/ui/src/stacks.rs
 #: crates/ui/src/viewer.rs
 msgid "Image set"
@@ -3224,6 +4370,31 @@ msgstr "Jeu d'images suivant (touche flèche droite)"
 #: crates/ui/src/stacks.rs
 msgid "This is the last image set"
 msgstr "C'est le dernier jeu d'images"
+
+#: crates/ui/src/tiles.rs
+msgid "Images {first} to {last} / {count}"
+msgstr "Images {first} à {last} / {count}"
+
+#: crates/ui/src/tiles.rs
+#: crates/ui/src/viewport.rs
+#: crates/ui/src/volume_view.rs
+msgid "Custom window"
+msgstr "Fenêtre personnalisée"
+
+#: crates/ui/src/tiles.rs
+#: crates/ui/src/viewport.rs
+msgid "Zoom {percent}% · Inverted"
+msgstr "Zoom {percent} % · Inversé"
+
+#: crates/ui/src/tiles.rs
+#: crates/ui/src/viewport.rs
+#: crates/ui/src/volume_view.rs
+msgid "Zoom {percent}%"
+msgstr "Zoom {percent} %"
+
+#: crates/ui/src/viewer/workspace.rs
+msgid "The series on screen need about {needed} MB together, more than the memory limit of {limit} MB. They stay loaded; the limit can be raised in Settings."
+msgstr "Les séries à l'écran nécessitent ensemble environ {needed} MB, plus que la limite de mémoire de {limit} MB. Elles restent chargées ; la limite peut être augmentée dans les Réglages."
 
 #: crates/ui/src/viewer.rs
 msgid "Could not open series: {reason}"
@@ -3331,8 +4502,16 @@ msgstr ""
 "{reason}"
 
 #: crates/ui/src/viewer.rs
+msgid "This study has no images on this disc."
+msgstr "Cet examen n'a pas d'images sur ce disque."
+
+#: crates/ui/src/viewer.rs
 msgid "Select a series"
 msgstr "Sélectionnez une série"
+
+#: crates/ui/src/viewer.rs
+msgid "Image {number}"
+msgstr "Image {number}"
 
 #: crates/ui/src/viewer.rs
 msgid "Outside the scanned area"
@@ -3371,6 +4550,10 @@ msgid "{n} image · {source}"
 msgid_plural "{n} images · {source}"
 msgstr[0] "{n} image · {source}"
 msgstr[1] "{n} images · {source}"
+
+#: crates/ui/src/viewer.rs
+msgid "Over the memory limit"
+msgstr "Au-delà de la limite de mémoire"
 
 #. the reformats (MPR) are not available for this series.
 #: crates/ui/src/viewer.rs
@@ -3499,33 +4682,6 @@ msgstr ""
 msgid "No image"
 msgstr "Aucune image"
 
-#: crates/ui/src/viewport.rs
-msgid "Image {number} could not be decoded"
-msgstr "L'image {number} n'a pas pu être décodée"
-
-#: crates/ui/src/viewport.rs
-msgid "Image {number} / {count}"
-msgstr "Image {number} / {count}"
-
-#. {view} is the name of a view, such as Axial or Coronal.
-#: crates/ui/src/viewport.rs
-msgid "{view} {number} / {count}"
-msgstr "{view} {number} / {count}"
-
-#. the patient ID on the image.
-#: crates/ui/src/viewport.rs
-msgid "ID {id}"
-msgstr "ID {id}"
-
-#: crates/ui/src/viewport.rs
-msgid "Born {date}"
-msgstr "Né(e) le {date}"
-
-#. S is short for series, followed by the series number; {title} is the series' name.
-#: crates/ui/src/viewport.rs
-msgid "S{number}: {title}"
-msgstr "S{number} : {title}"
-
 #. the number of the image file (DICOM Instance Number) and of the frame in it.
 #: crates/ui/src/viewport.rs
 msgid "Instance {number} · frame {frame}"
@@ -3535,45 +4691,14 @@ msgstr "Instance {number} · trame {frame}"
 msgid "Instance {number}"
 msgstr "Instance {number}"
 
-#. {mode} is MIP, MinIP or Average; the slab's thickness follows in millimetres.
-#: crates/ui/src/viewport.rs
-msgid "{mode} slab {thickness} mm"
-msgstr "{mode} sur {thickness} mm"
-
-#: crates/ui/src/viewport.rs
-#: crates/ui/src/volume_view.rs
-msgid "Custom window"
-msgstr "Fenêtre personnalisée"
-
-#: crates/ui/src/viewport.rs
-msgid "Zoom {percent}% · Inverted"
-msgstr "Zoom {percent} % · Inversé"
-
-#: crates/ui/src/viewport.rs
-#: crates/ui/src/volume_view.rs
-msgid "Zoom {percent}%"
-msgstr "Zoom {percent} %"
-
 #: crates/ui/src/volume_view.rs
 msgid "There is no volume to show in 3D."
 msgstr "Il n'y a aucun volume à afficher en 3D."
-
-#: crates/ui/src/volume_view.rs
-msgid "3D view: {look}"
-msgstr "Vue 3D : {look}"
 
 #. the 3D view is computing a sharper picture.
 #: crates/ui/src/volume_view.rs
 msgid "Refining…"
 msgstr "Affinage…"
-
-#: crates/ui/src/volume_view.rs
-msgid "Inverted"
-msgstr "Inversé"
-
-#: crates/ui/src/volume_view.rs
-msgid "Illustration: colours and surfaces are computed"
-msgstr "Illustration : couleurs et surfaces calculées"
 
 #: crates/ui/src/volume_view.rs
 msgid "This 3D picture is computed from the scan to show its shape. Its colours are not those of the body, and which parts appear depends on the look and the contrast. It is an illustration, not a basis for diagnosis."
@@ -3587,11 +4712,6 @@ msgstr "Rendu"
 #: crates/ui/src/volume_view.rs
 msgid "Standard views"
 msgstr "Vues standard"
-
-#: crates/ui/src/volume_view.rs
-#: crates/ui/src/welcome.rs
-msgid "Shift+{key}"
-msgstr "Maj+{key}"
 
 #: crates/ui/src/volume_view.rs
 msgid "Turn the object to this view"

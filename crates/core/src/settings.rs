@@ -40,6 +40,9 @@ pub struct Settings {
     /// The language of the interface (a code of `summrise_i18n::LANGUAGES`,
     /// such as `"de"`); `None` follows the language of the system.
     pub language: Option<String>,
+    /// The notice that measurements are approximate and not for diagnosis was
+    /// shown. Nothing about the measurements themselves is ever stored.
+    pub measure_notice_shown: bool,
 }
 
 impl Default for Settings {
@@ -56,6 +59,7 @@ impl Default for Settings {
             show_inspector: true,
             show_explanations: true,
             language: None,
+            measure_notice_shown: false,
         }
     }
 }

@@ -68,6 +68,18 @@ impl Toasts {
         self.items.push((Level::Error, text.into(), Instant::now()));
     }
 
+    /// How many notifications are waiting to be shown.
+    #[cfg(test)]
+    pub(crate) fn count_for_test(&self) -> usize {
+        self.items.len()
+    }
+
+    /// What is being said.
+    #[cfg(test)]
+    pub(crate) fn texts(&self) -> Vec<&str> {
+        self.items.iter().map(|(_, text, _)| text.as_str()).collect()
+    }
+
     fn show(&mut self, ctx: &egui::Context) {
         const TTL: Duration = Duration::from_secs(7);
         self.items.retain(|(_, _, t)| t.elapsed() < TTL);

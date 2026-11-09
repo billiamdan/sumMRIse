@@ -28,6 +28,8 @@ pub enum DicomError {
         path: PathBuf,
         problem: ArchiveProblem,
     },
+    /// A document that cannot be read; the text says why.
+    Document(String),
 }
 
 impl std::fmt::Display for DicomError {
@@ -42,7 +44,7 @@ impl std::fmt::Display for DicomError {
             Self::DecodeFailed(reason) => {
                 tr!("none of the images in this series could be decoded: {reason}", reason = reason)
             }
-            Self::Image(reason) => reason.clone(),
+            Self::Image(reason) | Self::Document(reason) => reason.clone(),
             Self::Archive { path, problem } => problem.message(path),
         };
         f.write_str(&text)

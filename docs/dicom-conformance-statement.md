@@ -14,9 +14,10 @@ only reads files: it has no network services and creates no DICOM objects.
 ## 1 Conformance Statement Overview
 
 SumMRIse reads DICOM media — CDs, DVDs, USB drives and folders, as well as ZIP archives
-and ISO 9660 images of such media — and displays the images on them. It acts as a
-File-set Reader only. It neither writes nor changes DICOM files and has no DICOM network
-functions.
+and ISO 9660 images of such media — and displays the images and reports on them. It acts
+as a File-set Reader only. It neither writes nor changes DICOM files and has no DICOM
+network functions. Exported pictures and PDFs are ordinary files, not DICOM objects, and
+printing goes through the computer's print system, not DICOM Basic Print.
 
 ### Network services
 
@@ -56,6 +57,7 @@ File-set Creator (FSC) and File-set Updater (FSU) are not supported.
 | Version | Date | Changes |
 | --- | --- | --- |
 | 1 | 2026-11-06 | First statement (OpenSpec change `display-fidelity`) |
+| 2 | 2026-11-09 | Structured reports, dose reports and encapsulated PDF are displayed (`report-viewer`); images can be exported and printed by the user (`export-and-share`) |
 
 ### 3.2 Audience
 
@@ -107,20 +109,23 @@ no network connection of any kind, and nothing it reads is sent anywhere.
 
 The user opens a disc, a folder, a single file, a ZIP archive or an ISO 9660 image.
 SumMRIse finds the DICOM files, reads their headers, groups them into patients' studies
-and series, and decodes and displays the images of the series the user selects. All of
-it happens in memory: no decoded image, thumbnail, extracted file or other data derived
-from patient data is written to disk.
+and series, and decodes and displays the images of the series and the documents the user
+selects. All of it happens in memory: no decoded image, thumbnail, extracted file or other
+data derived from patient data is written to disk, unless the user explicitly saves
+pictures or a PDF to a place they choose.
 
 #### 5.1.2 Functional definition of the Application Entity
 
 One Application Entity, **SumMRIse**, with the File-set Reader role:
 
 - When the medium has a `DICOMDIR`, the files it references are read (directory records
-  of the types PATIENT, STUDY, SERIES and IMAGE and the other image-level records); files
-  not in the `DICOMDIR` are not read. Without a `DICOMDIR`, the folder is scanned and
+  of the types PATIENT, STUDY, SERIES and IMAGE, the other image-level records, SR
+  DOCUMENT and ENCAP DOC); DICOM files not in the `DICOMDIR` are not read. Without a `DICOMDIR`, the folder is scanned and
   every file with the 128-byte preamble and the `DICM` prefix of PS3.10 is read.
 - ZIP archives and ISO 9660 images are read in memory, never unpacked; they are searched
   the same way.
+- PDF, RTF, HTML and text files on the medium are listed as documents, up to 50 MB each,
+  except in folders of viewer software. They are not DICOM objects.
 
 #### 5.1.3 Sequencing of real-world activities
 
@@ -178,10 +183,20 @@ classes found on patient discs; those marked "tested" are covered by synthetic t
 | Multi-frame Grayscale Byte / Word Secondary Capture Image Storage | 1.2.840.10008.5.1.4.1.1.7.2, 1.2.840.10008.5.1.4.1.1.7.3 | Yes | No |
 | Multi-frame True Color Secondary Capture Image Storage | 1.2.840.10008.5.1.4.1.1.7.4 | Yes | No |
 
-Objects without pixel data — structured reports, presentation states, key object
-selections, encapsulated PDF and others — are counted ("non-image objects are not
-shown") and not displayed. "For Processing" X-ray images are displayed like "For
-Presentation" ones, without the processing a workstation would apply.
+"For Processing" X-ray images are displayed like "For Presentation" ones, without the
+processing a workstation would apply.
+
+Documents are listed with their study and displayed as written:
+
+| SOP class | SOP class UID | Displayed as | Tested |
+| --- | --- | --- | --- |
+| Basic Text SR | 1.2.840.10008.5.1.4.1.1.88.11 | Headed text with status and links to the images cited | Yes |
+| Enhanced, Comprehensive, Comprehensive 3D and Extensible SR, Procedure Log, CAD, Implantation Plan, Acquisition Context, Simplified Adult Echo, and Radiopharmaceutical and Patient Radiation Dose SR | 1.2.840.10008.5.1.4.1.1.88.22, .33, .34, .35, .40, .50, .65, .68, .69, .70, .71, .72, .73 | The same | No |
+| X-Ray Radiation Dose SR, Enhanced X-Ray Radiation Dose SR | 1.2.840.10008.5.1.4.1.1.88.67, .76 | A table of the values recorded, with the recorded total | Yes (the first) |
+| Encapsulated PDF | 1.2.840.10008.5.1.4.1.1.104.1 | PDF pages, drawn by the application | Yes |
+
+Other objects without pixel data — presentation states, key object selections and others
+— are counted ("not shown") and not displayed.
 
 ### 5.6 Transfer syntaxes
 
@@ -300,6 +315,12 @@ Not applicable.
 - No network access of any kind.
 - Nothing derived from patient data is written to disk: no caches, temporary files,
   thumbnails or extracted archive entries. Archives and disc images are read in memory.
+  The exceptions are what the user explicitly asks for: pictures and PDFs saved to a place
+  they choose. Printing hands the pages to the computer's print system without a file of
+  the application's own; that system may keep a copy until they are printed.
+- Exports and printed pages leave out the patient's name, ID and birth date unless the
+  user ticks them for that export; a warning comes first when the picture itself may show
+  personal details.
 - The list of recently opened folders stores the path, the study description and date
   and the modalities only — never names, IDs or birth dates; it can be switched off.
 - Patient-identifying values are never written to logs above debug level.
@@ -308,7 +329,9 @@ Not applicable.
   patient details may be part of the picture itself and cannot be hidden.
 - Malformed files yield an error message for the image concerned, never a crash. ZIP
   archives and disc images are treated as untrusted: offsets and sizes are checked,
-  directories are read once, and depth and counts are bounded.
+  directories are read once, and depth and counts are bounded. DICOM files nested deeper
+  than 128 sequences are reported as unreadable. Documents are never executed or handed to
+  another application; HTML is shown as text, without scripts or remote content.
 
 ## 8 Annexes
 

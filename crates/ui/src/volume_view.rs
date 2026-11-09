@@ -19,9 +19,10 @@ use egui::{
     TextureOptions, Ui, Vec2, WidgetInfo, pos2, vec2,
 };
 use egui_material_icons::icons::ICON_3D_ROTATION;
+use summrise_core::export::Picture;
 use summrise_core::imaging::colormap::Colormap;
 use summrise_core::imaging::render3d::{Look, Quality, StandardView, Style};
-use summrise_core::imaging::{DVec3, Volume};
+use summrise_core::imaging::{DVec3, EdgeLabels, Rendering, Volume};
 use summrise_core::{PictureRequest, SeriesData, SeriesKey, Ticket, ViewKind, ViewState, VolumePictures, Waker};
 use summrise_i18n::tr;
 
@@ -91,6 +92,20 @@ impl VolumeView {
         self.slot.as_ref()?.uploaded.map(|(_, colormap)| colormap)
     }
 
+    /// The 3D picture on screen for `series`, when `view` is the 3D view: what
+    /// saving and printing take.
+    pub(crate) fn shown_picture(&self, series: SeriesKey, view: ViewKind, state: &ViewState) -> Option<ShownPicture> {
+        let slot = self.slot.as_ref().filter(|slot| slot.series == series && view == ViewKind::Volume)?;
+        let shown = slot.pictures.shown()?;
+        let colormap = if shown.request.style.look == Look::Mip { state.colormap() } else { Colormap::Grey };
+        Some(ShownPicture {
+            rendering: shown.picture.clone(),
+            colormap,
+            request: shown.request.clone(),
+            quality: shown.quality,
+        })
+    }
+
     /// Shows the 3D view of `volume` in `rect` and handles its pointer input.
     pub(crate) fn show(
         &mut self,
@@ -102,6 +117,7 @@ impl VolumeView {
         volume: Option<&Volume>,
     ) -> ViewportResult {
         let mut result = ViewportResult::default();
+        crate::export::note_view(ui.ctx(), rect, input.is_active);
         let response = ui.interact(rect, input.id, Sense::click_and_drag());
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, 0.0, VIEWPORT_BG);
@@ -157,6 +173,53 @@ impl VolumeView {
         caption(ui, &painter, rect, input);
         result
     }
+}
+
+/// A 3D picture as it was on screen, for saving and printing.
+#[derive(Clone)]
+pub(crate) struct ShownPicture {
+    rendering: Arc<Rendering>,
+    colormap: Colormap,
+    request: PictureRequest,
+    quality: Quality,
+}
+
+impl ShownPicture {
+    /// Whether it is the full picture, not a preview on the way to it.
+    pub(crate) fn is_final(&self) -> bool {
+        self.quality == Quality::Full
+    }
+
+    /// The picture, on black.
+    pub(crate) fn picture(&self) -> Option<Picture> {
+        let rgba = coloured(&self.rendering.rgba, self.colormap);
+        Picture::from_rgba(self.rendering.width, self.rendering.height, &rgba)
+    }
+
+    /// The letters at its edges, from the camera it was made with.
+    pub(crate) fn letters(&self) -> EdgeLabels {
+        self.request.camera.edge_labels()
+    }
+}
+
+/// Draws the picture `shown` as the view would, with its overlays and its
+/// caption: the export pass. Keep the texture until the pass has been painted.
+pub(crate) fn paint_shown(
+    ui: &mut Ui,
+    rect: Rect,
+    input: &ViewportInput<'_>,
+    state: &ViewState,
+    shown: &ShownPicture,
+) -> TextureHandle {
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(rect, 0.0, VIEWPORT_BG);
+    let size = [shown.rendering.width, shown.rendering.height];
+    let image = ColorImage::from_rgba_premultiplied(size, &coloured(&shown.rendering.rgba, shown.colormap));
+    let texture = ui.ctx().load_texture("volume-3d-export", image, TextureOptions::LINEAR);
+    painter.image(texture.id(), rect, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+    draw_overlays(&painter, rect, input, state, &shown.request, false);
+    caption(ui, &painter, rect, input);
+    texture
 }
 
 /// Pointer input: a primary-button drag turns the object whatever the tool;

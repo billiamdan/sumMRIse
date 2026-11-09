@@ -107,6 +107,7 @@ impl Session {
         }
         if let Some(previous) = self.overlay.take()
             && Some(previous) != self.active_series
+            && !self.shown.contains(&previous)
             && let Some(SeriesState::Loading(loading)) = self.series.get(&previous)
         {
             loading.loader.pause();

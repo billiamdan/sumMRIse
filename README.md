@@ -3,8 +3,9 @@
 A native desktop viewer for the **MRI, CT and PET scans hospitals give patients on CDs,
 DVDs and USB sticks**. Open the disc — or the ZIP file or disc image you were sent — see
 every series in the correct anatomical orientation, adjust contrast with clinical
-presets, reformat volumes into any plane, look at them in 3D, and read what each series
-and parameter means in plain language.
+presets, compare series side by side, measure, reformat volumes into any plane, look at
+them in 3D, read the reports on the disc, and read what each series and parameter means
+in plain language.
 
 Runs on **macOS** (Apple Silicon and Intel, macOS 11+), **Windows** and **Linux** from a
 single Rust code base. Everything happens on your computer — nothing is uploaded.
@@ -51,6 +52,22 @@ single Rust code base. Everything happens on your computer — nothing is upload
   every input listed and the reason when they cannot be computed; inverted grey, hot
   iron and rainbow colour maps; a PET drawn over the CT or MR of the same scan,
   aligned by the scanner's positions only.
+- **Comparison** — two to four series side by side, with scrolling, zoom and pan linked by
+  patient position, cross-reference lines, and "Compare studies" for two examinations of
+  the same patient, the earlier one on the left. Tile grids show up to 5 × 5 consecutive
+  images of a series.
+- **Measurements** — length, angle, and ellipse and rectangle regions with mean, standard
+  deviation, minimum and maximum, in the unit of the series. Honest about their
+  calibration: "≈" on reformats, "at detector" on X-rays, "uncalibrated" without a scale,
+  and "Approximate — not for diagnosis" while measuring. They are never saved.
+- **Reports and documents** — structured reports with their status and links to the images
+  they cite, PDF pages (drawn inside the app), dose reports, and RTF, HTML and text files
+  from the disc as plain text. Reports are shown as written; nothing on the disc is ever
+  run or handed to another application.
+- **Save, copy, print** — PNG or JPEG of the view, with or without annotations; the
+  picture to the clipboard; a whole series as numbered files; printed sheets of 1 to 12
+  images per page, or the same pages as a PDF. Patient details stay out unless you tick
+  them for that export.
 - **Contrast** — DICOM VOI functions (LINEAR, LINEAR_EXACT, SIGMOID), windows stored by
   the scanner, 11 clinical CT presets, SUV windows for PET, robust auto window,
   drag/numeric adjustment, invert.
@@ -60,9 +77,11 @@ single Rust code base. Everything happens on your computer — nothing is upload
 - **Metadata** — curated overview (patient, study, series, equipment, MR/CT/PET
   acquisition parameters with units, image geometry) and the complete searchable
   attribute tree.
-- **Private by default** — no network access, no image cache on disk, privacy mode for
-  screenshots (with a warning on images whose pixels contain patient details),
-  minimal recent-studies list.
+- **Private by default** — no network access and no image cache on disk: image data is
+  only written where you explicitly export it, and printing hands the pages to the
+  system's print queue (which may keep a copy until they are printed) without a temporary
+  file of the app's own. Privacy mode for screenshots, with a warning on images whose
+  pixels contain patient details. Minimal recent-studies list.
 - **Five languages** — English, German, Spanish, French and Russian; the interface
   follows the language of the system and can be changed in the settings. Text from the
   disc is never translated. The translations are machine-made and have not yet been
@@ -118,6 +137,11 @@ and a Linux tarball; installers (MSI, AppImage, Flatpak) are planned — see the
 | PET | *PET colours and fusion* menu | C = next colour map, F = PET over CT/MR and back |
 | Scanner graphics | toggle in the status bar | G |
 | Layouts | toolbar *Images / MPR / 2 × 2 / 3D* | M toggles MPR |
+| Several series | *Compare* menu; drag a series onto a view, or select a view and click a series | N next view, K link on or off |
+| Tile grid | *Compare* menu; double-click opens a tile | T next grid, Page Up/Down a whole grid |
+| Measure | *Measure* menu; drag (angle: three clicks) | D length, Y angle, E ellipse, Q rectangle, Delete removes, Esc cancels |
+| Documents | click one in the series browser | Esc back to the images, Page Up/Down |
+| Save, copy, print | share icon in the toolbar | ⌘S save image, ⇧⌘S export series, ⌘C copy image, ⌘P print |
 | Panels | | ⌘B browser, ⌘I inspector, O annotations, ⌘, settings, F1 about |
 | Open | drop a folder, ZIP or disc image on the window | ⌘O folder or disc, ⇧⌘O archive or disc image |
 
@@ -130,9 +154,9 @@ sumMRIse/
 ├── apps/desktop/        summrise binary: window, logging, CLI argument
 ├── crates/
 │   ├── i18n/            translation macros, PO catalogues (de, es, fr, ru), completeness checks
-│   ├── imaging/         pure maths: LPS geometry, volumes, MPR, 3D rendering, VOI windowing, colour maps
-│   ├── dicom/           DICOM I/O (dicom-rs): DICOMDIR/scan, ZIP/ISO media, indexing, decoding, metadata, SUV
-│   ├── core/            UI-agnostic app layer: session, background jobs, view state, settings, guide texts
+│   ├── imaging/         pure maths: LPS geometry, volumes, MPR, 3D rendering, VOI windowing, colour maps, measuring
+│   ├── dicom/           DICOM I/O (dicom-rs): DICOMDIR/scan, ZIP/ISO media, indexing, decoding, metadata, SUV, documents
+│   ├── core/            UI-agnostic app layer: session, viewports, view state, jobs, measurements, export and print, settings, guide texts
 │   ├── ui/              egui/eframe interface (wgpu → Metal / DirectX 12 / Vulkan)
 │   └── testkit/         synthetic, PHI-free DICOM CDs for tests and QA
 ├── xtask/               cargo xtask: icons, bundle-macos, fixtures, ci
@@ -177,21 +201,12 @@ integration.
 `multiplanar-viewing`, `contrast-windowing`, `metadata-inspector`, `privacy-safeguards`,
 `macos-distribution`, `ci-quality-gates`.
 
-**Implemented, not yet archived:** `progressive-loading` (PR #4, #5); `archive-import`,
+**Implemented, not yet archived:** `progressive-loading`, `archive-import`,
 `oblique-reformats`, `plain-language-guide`, `multi-phase-cine`, `volume-rendering`,
-`display-fidelity`, `pet-support`, `translations` (branch `feat/tier2-tier3`). Their open tasks — above
-all checks with real vendor discs and in the real window on every platform — are
-listed in each change's `tasks.md`.
-
-**Planned — viewing features** (from a comparison with professional viewers; suggested
-order as listed, `series-comparison` before `measurement-tools`):
-
-| Change | Scope |
-| --- | --- |
-| `report-viewer` | Structured reports, PDF and text documents, dose reports |
-| `series-comparison` | Side-by-side layouts, synchronised scrolling, cross-reference lines, compare studies |
-| `measurement-tools` | Length, angle and region statistics, presented as approximate |
-| `export-and-share` | Save and copy views, export a series as images, private by default |
+`display-fidelity`, `pet-support`, `translations`, `series-comparison`,
+`measurement-tools`, `report-viewer`, `export-and-share`. Their open tasks — above all
+checks with real vendor discs, a real printer and the real window on every platform —
+are listed in each change's `tasks.md`.
 
 **Planned — releases and platforms:**
 

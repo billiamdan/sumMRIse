@@ -70,6 +70,12 @@ impl Look {
         let overlay = overlay.and_then(|o| Some((o.key, o.drawn(state)?.1)));
         Self { colormap: state.colormap(), overlay }
     }
+
+    /// Whether a PET is drawn into the picture.
+    #[cfg(test)]
+    pub(crate) fn draws_overlay(&self) -> bool {
+        self.overlay.is_some()
+    }
 }
 
 /// The colour map of the series and the PET drawn over it, applied to the
@@ -154,9 +160,10 @@ pub(crate) fn show_over(session: &mut Session, pending: &mut Pending, (base, fus
 // What the viewport says
 
 /// What a viewport says about the PET drawn over it.
+#[derive(Clone)]
 pub(crate) struct Shown {
-    /// The annotation: "PET overlay 50 % · Hot iron · SUV 0–5".
-    line: String,
+    /// The annotation: "PET overlay 50 % · Hot iron · SUV 0–5", when it is drawn.
+    line: Option<String>,
     /// Loading progress, or that the overlay is unavailable, for a badge on
     /// the picture (shown whether annotations are on or not), and its
     /// explanation: the full reason.
@@ -184,7 +191,19 @@ pub(crate) fn shown(session: &Session, state: Option<&ViewState>) -> Option<Show
         colours = fusion.colormap.label(),
         scale = scale
     );
-    Some(Shown { line, status })
+    Some(Shown { line: Some(line), status })
+}
+
+/// What a viewport of a multi-series layout says that is not the active one,
+/// when a PET was set to be drawn over its series. The session keeps one
+/// overlay, that of the active viewport's series, so this viewport shows its
+/// images alone, and says so rather than show an overlay that may be out of
+/// date.
+pub(crate) fn shown_elsewhere(state: Option<&ViewState>) -> Option<Shown> {
+    state?.fusion()?;
+    let badge = tr!("PET overlay only in the active viewport");
+    let hint = tr!("A PET is drawn over one viewport at a time. Click this viewport to see its PET overlay.");
+    Some(Shown { line: None, status: Some((badge.to_owned(), hint.to_owned())) })
 }
 
 /// The name of the scale of a PET overlay as shown: a window stored in the
@@ -205,8 +224,8 @@ pub(crate) fn annotation_lines(series: &SeriesData, state: &ViewState, shown: Op
     if has_colormaps(series.modality()) && !series.is_color() {
         lines.push(tr!("Colours: {map}", map = state.colormap().label()));
     }
-    if let Some(shown) = shown {
-        lines.push(shown.line.clone());
+    if let Some(line) = shown.and_then(|shown| shown.line.as_ref()) {
+        lines.push(line.clone());
         lines.push(tr!("Aligned by scanner positions only").to_owned());
     }
     lines

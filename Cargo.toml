@@ -27,6 +27,9 @@ dicom-core = "0.10.1"
 dicom-dictionary-std = "0.10.1"
 dicom-encoding = "0.10.1"
 dicom-object = "0.10.1"
+# The token stream under dicom-object: it is not recursive, so it can tell that a file nests too
+# deeply for the object parser (report-viewer). Not a new crate in the tree.
+dicom-parser = "0.10.1"
 # `native` = baseline/extended JPEG, RLE, deflate; `openjp2` = pure-Rust JPEG 2000.
 dicom-pixeldata = { version = "0.10.1", default-features = false, features = ["rayon", "native", "openjp2"] }
 dicom-transfer-syntax-registry = "0.10.1"
@@ -41,11 +44,24 @@ rfd = "0.17"
 # General purpose
 anyhow = "1.0.104"
 env_logger = "0.11.11"
-# Deflate for the synthetic ZIP archives the testkit writes (archive-import). Not a new
-# crate in the tree: dicom-rs, png and zip use it already.
+# A TrueType font for the synthetic PDF with an embedded font (report-viewer, testkit only). Not a
+# new crate in the tree: egui's text layout uses it already.
+epaint_default_fonts = "0.37"
+# The code pages of RTF, HTML and text documents (report-viewer): Windows code pages, Shift-JIS, GBK…
+# Pure Rust, maintained; `encoding`, which dicom-rs uses, is unmaintained.
+encoding_rs = "0.8.35"
+# Deflate for the synthetic ZIP archives the testkit writes (archive-import) and the pictures
+# of exported PDF pages (export-and-share). Not a new crate in the tree: dicom-rs, png and zip
+# use it already.
 flate2 = "1.1.10"
 glam = "0.34.2"
-image = { version = "0.25.10", default-features = false, features = ["png", "ico"] }
+# PDF pages inside the application (report-viewer, design.md D3): pure Rust, forbids unsafe code,
+# does not touch the disk or the network. The default features embed the 14 standard fonts and the
+# predefined CMaps, which PDFs may rely on without embedding them.
+hayro = "0.9.0"
+# `jpeg` for exported pictures (export-and-share): the encoder is part of `image`, and its
+# decoder crate (zune-jpeg) is in the tree already through dicom-rs.
+image = { version = "0.25.10", default-features = false, features = ["png", "ico", "jpeg"] }
 log = "0.4.35"
 rayon = "1.12.0"
 serde = { version = "1.0.229", features = ["derive"] }

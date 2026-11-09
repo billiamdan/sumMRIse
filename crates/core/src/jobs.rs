@@ -291,6 +291,11 @@ impl Schedule {
         self.waiting == 0
     }
 
+    /// Whether the file of image `slot` has not been handed out yet.
+    fn waits_for(&self, slot: usize) -> bool {
+        self.requested.get(slot) == Some(&false)
+    }
+
     /// The file to read next while image `displayed` is on screen, or `None`
     /// when every file has been handed out.
     fn next(&mut self, displayed: usize) -> Option<usize> {
@@ -329,6 +334,8 @@ struct Control {
     /// The image on screen; loading concentrates around it.
     displayed: usize,
     paused: bool,
+    /// Another series comes first: only the image on screen is read.
+    background: bool,
     cancelled: bool,
     /// Files read but not yet decoded, and their size.
     in_flight: usize,
@@ -411,7 +418,8 @@ impl SeriesLoader {
         displayed: usize,
         waker: Option<Waker>,
     ) -> Self {
-        let control = Control { displayed, paused: false, cancelled: false, in_flight: 0, in_flight_bytes: 0 };
+        let control =
+            Control { displayed, paused: false, background: false, cancelled: false, in_flight: 0, in_flight_bytes: 0 };
         let shared = Arc::new(Shared { data, media, control: Mutex::new(control), changed: Condvar::new(), waker });
         let coordinator = shared.clone();
         let spawned = std::thread::Builder::new()
@@ -428,6 +436,19 @@ impl SeriesLoader {
     /// yet, it is read next, before the rest of the current run.
     pub fn set_displayed(&self, index: usize) {
         self.shared.control().displayed = index;
+        self.shared.changed.notify_all();
+    }
+
+    /// While another series comes first, reads only the image on screen, so
+    /// that the viewport shows something and follows; the rest waits. Cheap
+    /// when nothing changes, so it can be called every frame.
+    pub fn set_background(&self, background: bool) {
+        let mut control = self.shared.control();
+        if control.background != background {
+            control.background = background;
+            drop(control);
+            self.shared.changed.notify_all();
+        }
     }
 
     /// Stops handing out work after the file in progress. Loaded images are kept.
@@ -435,9 +456,12 @@ impl SeriesLoader {
         self.shared.control().paused = true;
     }
 
-    /// Continues where [`Self::pause`] stopped.
+    /// Continues where [`Self::pause`] stopped, also out of the background.
     pub fn resume(&self) {
-        self.shared.control().paused = false;
+        let mut control = self.shared.control();
+        control.paused = false;
+        control.background = false;
+        drop(control);
         self.shared.changed.notify_all();
     }
 
@@ -484,7 +508,9 @@ fn coordinate(shared: &Arc<Shared>, series: &Arc<Series>, source: &Arc<dyn Image
                 let limit = if data.is_viewable() { workers } else { 1 };
                 let room =
                     control.in_flight < limit && (control.in_flight == 0 || control.in_flight_bytes < READ_AHEAD_BYTES);
-                if room && !control.paused {
+                // In the background only the image on screen, if its file is still to be read.
+                let wanted = !control.background || schedule.waits_for(control.displayed);
+                if room && !control.paused && wanted {
                     break control.displayed;
                 }
                 control = shared.wait(control);

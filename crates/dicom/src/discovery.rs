@@ -19,6 +19,7 @@ use summrise_i18n::{tr, tr_n};
 use walkdir::WalkDir;
 
 use crate::attrs;
+use crate::documents::{DocumentRef, find_loose_files};
 use crate::error::{DicomError, Result};
 use crate::media::{ArchiveProblem, Media};
 use crate::progress::Progress;
@@ -45,6 +46,8 @@ pub struct Discovery {
     /// Why an archive may hold images that are not among `files`: the reason
     /// to give if nothing can be opened.
     pub(crate) blocker: Option<ArchiveProblem>,
+    /// Report files on the medium, outside the folders of viewer software.
+    pub documents: Vec<DocumentRef>,
 }
 
 /// File extensions that are never DICOM (viewer software, documents…).
@@ -64,9 +67,9 @@ pub fn discover(root: &Path, progress: &Progress) -> Result<Discovery> {
     let meta = fs::metadata(root).map_err(|source| DicomError::Io { path: root.to_owned(), source })?;
     if meta.is_file() {
         if is_dicomdir_name(root) {
-            return discover_from_dicomdirs(&Media::folder(), &[root.to_path_buf()], progress).map(|d| match d {
-                FromDicomdirs::Found(found) => found,
-                FromDicomdirs::Unusable(warnings) => Discovery { warnings, ..empty(DiscoverySource::FolderScan) },
+            return discover_from_dicomdirs(&Media::folder(), &[root.to_path_buf()], progress).and_then(|d| match d {
+                FromDicomdirs::Found(found) => add_loose_files(found, root.parent().unwrap_or(root), progress),
+                FromDicomdirs::Unusable(warnings) => Ok(Discovery { warnings, ..empty(DiscoverySource::FolderScan) }),
             });
         }
         if let Some(archive) = Media::open_archive(root)? {
@@ -117,6 +120,19 @@ fn discover_in(media: Media, root: &Path, progress: &Progress) -> Result<Discove
         discovery.blocker = report.blocker;
     }
     discovery.media = media;
+    add_loose_files(discovery, root, progress)
+}
+
+/// Adds the report files on the medium below `root` to what was discovered.
+fn add_loose_files(mut discovery: Discovery, root: &Path, progress: &Progress) -> Result<Discovery> {
+    if discovery.files.is_empty() {
+        return Ok(discovery);
+    }
+    let media = discovery.media.clone();
+    let files = files_below(&media, root, usize::MAX);
+    let loose = find_loose_files(&media, files, root, &discovery.files, progress)?;
+    discovery.documents = loose.documents;
+    discovery.warnings.extend(loose.warnings);
     Ok(discovery)
 }
 
@@ -141,7 +157,14 @@ fn files_below<'a>(media: &'a Media, root: &Path, max_depth: usize) -> Box<dyn I
 }
 
 fn empty(source: DiscoverySource) -> Discovery {
-    Discovery { files: Vec::new(), source, warnings: Vec::new(), media: Media::folder(), blocker: None }
+    Discovery {
+        files: Vec::new(),
+        source,
+        warnings: Vec::new(),
+        media: Media::folder(),
+        blocker: None,
+        documents: Vec::new(),
+    }
 }
 
 fn is_dicomdir_name(path: &Path) -> bool {
@@ -245,8 +268,11 @@ pub fn referenced_files(media: &Media, dicomdir: &Path) -> Result<(Vec<PathBuf>,
             continue;
         }
         let kind = attrs::text(record, tags::DIRECTORY_RECORD_TYPE).unwrap_or_default();
-        // Only image-bearing records; reports, presentation states etc. are skipped.
-        if !matches!(kind.as_str(), "IMAGE" | "" | "RT DOSE" | "STEREOMETRIC" | "WAVEFORM") {
+        // Records with images and with reports; presentation states etc. are skipped.
+        if !matches!(
+            kind.as_str(),
+            "IMAGE" | "" | "RT DOSE" | "STEREOMETRIC" | "WAVEFORM" | "SR DOCUMENT" | "ENCAP DOC"
+        ) {
             debug!("skipping DICOMDIR record type {kind}");
             continue;
         }
