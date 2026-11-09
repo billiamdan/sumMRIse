@@ -11,7 +11,8 @@
   and Settings > Apps lists it for removal. Removal leaves the settings in
   %APPDATA%\SumMRIse. A newer version replaces an older one.
 
-  Keep the UpgradeCode: it ties every version of SumMRIse together.
+  Keep the UpgradeCode and the component GUIDs: they tie every version of SumMRIse
+  together.
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
@@ -45,7 +46,8 @@
     <!-- Files in the user's profile: a registry key under HKCU is the key path, and the
          folders are removed on uninstall (ICE38, ICE64). -->
     <ComponentGroup Id="ProgramFiles" Directory="INSTALLFOLDER">
-      <Component Id="Program">
+      <!-- Files and a registry key path: WiX cannot generate the GUID. Keep it. -->
+      <Component Id="Program" Guid="B094EB84-EF67-4942-9171-E4A869FECB9D">
         <File Id="SumMRIseExe" Source="$(var.Stage)\SumMRIse.exe" />
         <File Id="LicenseTxt" Source="$(var.Stage)\LICENSE.txt" />
         <File Id="NoticesTxt" Source="$(var.Stage)\THIRD-PARTY-NOTICES.txt" />
@@ -56,7 +58,7 @@
     </ComponentGroup>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Component Id="StartMenuShortcut">
+      <Component Id="StartMenuShortcut" Guid="8C50E329-4384-4F8C-A976-6B0EF3C8FC70">
         <Shortcut
             Id="SumMRIseShortcut"
             Name="SumMRIse"
