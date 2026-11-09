@@ -1,0 +1,27 @@
+# Weekly dependency updates, grouped so that each week brings one pull request per
+# ecosystem. A Cargo update that changes a licence text also needs
+# `cargo xtask notices` (CI checks it); dependencies that add a network client fail
+# `cargo deny`.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cargo:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci(deps)"

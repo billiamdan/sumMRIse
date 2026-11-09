@@ -92,36 +92,55 @@ single Rust code base. Everything happens on your computer — nothing is upload
   screen-reader labels, trackpad gestures, drag and drop, a toolbar that wraps in narrow
   windows, and a display check to see whether the screen shows all grey levels.
 
-## Download and build
+## Download
+
+Packages for every version are on the
+[releases page](https://github.com/billiamdan/sumMRIse/releases), with a `SHA256SUMS` file
+to check them:
+
+| System | Package |
+| --- | --- |
+| macOS 11 or later (Apple silicon and Intel) | `SumMRIse-<version>-macos-universal.dmg` |
+| Windows 10 or later | `SumMRIse-<version>-windows-x64.msi` (installs for you only, no administrator rights) or the portable `…-windows-x64.zip` |
+| Linux (x86-64) | `SumMRIse-<version>-linux-x64.AppImage` or `…-linux-x64.tar.gz` |
+
+Until the project has an Apple Developer ID and a Windows code-signing certificate, the
+packages are not signed: macOS asks you to allow the app in System Settings ▸ Privacy &
+Security the first time, and Windows SmartScreen may warn about an unknown publisher. The
+release notes explain both. See [SECURITY.md](SECURITY.md) for what SumMRIse promises about
+privacy.
+
+## Build
 
 Prerequisite: [rustup](https://rustup.rs). The exact toolchain (Rust 1.99.1) is pinned
-in `rust-toolchain.toml` and installs itself on first use.
+in `rust-toolchain.toml` and installs itself on first use. The release packages decode
+JPEG-LS with CharLS, a C++ library: building with `--features jpeg-ls` needs CMake and a
+C++ compiler.
 
 ```bash
 cargo run --release -p summrise                 # run the app
 cargo run --release -p summrise -- /Volumes/CD  # open a disc/folder directly
+cargo run --release -p summrise --features jpeg-ls   # with JPEG-LS, as released
 ```
 
-### macOS app bundle
+### Packages
 
 ```bash
-cargo xtask bundle-macos --universal --dmg
+cargo xtask bundle-macos --universal --dmg     # macOS: dist/macos/SumMRIse.app and the DMG
+cargo xtask package-windows --msi              # Windows: zip and per-user MSI (needs WiX 5)
+cargo xtask package-linux                      # Linux: tarball (AppImage: see the CI workflow)
 ```
 
-Produces `dist/macos/SumMRIse.app` (universal arm64 + x86_64, ad-hoc signed, hardened
-runtime) and `dist/macos/SumMRIse-<version>-macos-universal.dmg`. Developer ID signing
-and notarization: see [packaging/macos/README.md](packaging/macos/README.md).
-
-### Windows and Linux
-
-```bash
-cargo build --release -p summrise
-```
+The macOS app is universal (arm64 + x86_64) and ad-hoc signed with the hardened runtime;
+Developer ID signing and notarization: see [packaging/macos/README.md](packaging/macos/README.md).
+Every package carries `LICENSE.txt` and `THIRD-PARTY-NOTICES.txt`. CI builds all of them on
+pushes to `main` and manual runs (`.github/workflows/package.yml`); a version tag publishes
+them as a GitHub Release (`.github/workflows/release.yml`, see
+[CONTRIBUTING.md](CONTRIBUTING.md)).
 
 Linux needs the usual X11/Wayland development packages (Debian/Ubuntu:
 `libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev`).
-Desktop entry and AppStream metadata live in `packaging/linux`. CI builds a Windows zip
-and a Linux tarball; installers (MSI, AppImage, Flatpak) are planned — see the plan below.
+Desktop entry and AppStream metadata live in `packaging/linux`.
 
 ## Using SumMRIse
 
@@ -161,7 +180,7 @@ sumMRIse/
 │   ├── core/            UI-agnostic app layer: session, viewports, view state, jobs, measurements, export and print, settings, guide texts
 │   ├── ui/              egui/eframe interface (wgpu → Metal / DirectX 12 / Vulkan)
 │   └── testkit/         synthetic, PHI-free DICOM CDs for tests and QA
-├── xtask/               cargo xtask: icons, bundle-macos, fixtures, ci
+├── xtask/               cargo xtask: icons, packages, notices, release notes, fixtures, ci
 ├── docs/                DICOM conformance statement, screenshots
 ├── packaging/           macOS Info.plist & icns, Windows ico, Linux desktop/AppStream
 └── openspec/            specification-driven change plan (see below)
@@ -177,16 +196,19 @@ Slint, is documented in
 ## Development
 
 ```bash
-cargo xtask ci                      # fmt check + clippy -D warnings + all tests
+cargo xtask ci                      # what CI checks: fmt, clippy -D warnings and all tests with JPEG-LS, notices
 cargo test --workspace              # unit, integration and offscreen UI tests
 cargo xtask fixtures /tmp/test-cd   # write a synthetic patient CD for manual testing
 cargo xtask icons                   # regenerate app icons
 cargo xtask i18n                    # update the PO catalogues after changing interface text
+cargo xtask notices                 # update THIRD-PARTY-NOTICES.txt after changing dependencies
 SUMMRISE_SNAPSHOT_DIR=/tmp/shots cargo test -p summrise-ui --test smoke   # keep UI renders
 ```
 
 Never commit real imaging data — `.gitignore` blocks `DICOMDIR` and `*.dcm`; use the
-testkit fixtures instead. Licences and advisories are checked with `cargo deny check`.
+testkit fixtures instead. Licences, advisories and the ban on network client crates are
+checked with `cargo deny check`. See [CONTRIBUTING.md](CONTRIBUTING.md) and
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Plan (OpenSpec)
 
@@ -227,4 +249,6 @@ de-identification and explicit consent — AI explanations.
 ## Licence
 
 MIT — see [LICENSE](LICENSE). Third-party crates are permissively licensed (checked by
-`cargo deny`); platform UI fonts are loaded from the operating system at run time.
+`cargo deny`); their licences are listed in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)
+(`cargo xtask notices`), which every package carries and the About dialog shows. Platform
+UI fonts are loaded from the operating system at run time.
