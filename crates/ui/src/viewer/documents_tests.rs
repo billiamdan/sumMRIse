@@ -138,7 +138,9 @@ impl Fixture {
     /// Opens a document from the list and waits until it is read.
     fn open(&mut self, title: &str) {
         self.click(title);
-        self.run_until("the document", |f| !f.shows("Loading the document…"));
+        // The state of the pane, not the absence of "Loading the document…": that label
+        // can be missing for a frame while the document is still being read.
+        self.run_until("the document", |f| f.viewer().documents.is_read());
         self.steps(2);
     }
 
