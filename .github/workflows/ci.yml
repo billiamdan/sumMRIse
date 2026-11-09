@@ -44,7 +44,8 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - name: Tests
-        run: cargo test --workspace --locked
+        # All failures in one run: a platform-specific failure should not hide the next one.
+        run: cargo test --workspace --locked --no-fail-fast
 
   supply-chain:
     name: Licences & advisories

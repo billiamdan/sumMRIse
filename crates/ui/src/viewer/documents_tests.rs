@@ -584,7 +584,12 @@ fn a_report_nested_too_deeply_says_what_is_missing() {
     let open = dir.path().to_path_buf();
     let mut f = start(dir, open, Settings::default(), [1280.0, 800.0], Theme::Dark);
     f.open("Deep report");
-    assert!(f.shows("Part of this report is not shown: it is nested too deeply or is too long."));
+    let shown: Vec<String> =
+        f.harness.query_all(by()).filter_map(|node| node.accesskit_node().label()).take(80).collect();
+    assert!(
+        f.shows("Part of this report is not shown: it is nested too deeply or is too long."),
+        "the window shows: {shown:?}"
+    );
     assert!(!f.shows("Deep down"));
 }
 
@@ -620,6 +625,8 @@ fn a_study_without_images_opens_on_its_document_and_closes_with_it() {
         .expect("fixture");
     let spec = reports::ReportSpec {
         study_uid: "2.25.42".to_owned(),
+        // Its own SOP Instance UID: not a duplicate of the first report of the CD.
+        series: 191,
         ..reports::ReportSpec::new(
             "1.2.840.10008.5.1.4.1.1.88.11",
             "Report of another study",

@@ -144,9 +144,12 @@ fn files_below<'a>(media: &'a Media, root: &Path, max_depth: usize) -> Box<dyn I
             archive.files().filter(move |entry| entry.depth() <= max_depth).map(|entry| entry.path().to_path_buf()),
         ),
         None => Box::new(
+            // In the order of the names, whatever the file system lists first: a file
+            // whose UID another file has as well is the duplicate on every system.
             WalkDir::new(root)
                 .max_depth(max_depth)
                 .follow_links(false)
+                .sort_by_file_name()
                 .into_iter()
                 .filter_entry(|e| e.depth() == 0 || !is_hidden(e.path()))
                 .filter_map(std::result::Result::ok)
