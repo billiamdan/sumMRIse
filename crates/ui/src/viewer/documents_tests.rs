@@ -584,12 +584,22 @@ fn a_report_nested_too_deeply_says_what_is_missing() {
     let open = dir.path().to_path_buf();
     let mut f = start(dir, open, Settings::default(), [1280.0, 800.0], Theme::Dark);
     f.open("Deep report");
-    let shown: Vec<String> =
-        f.harness.query_all(by()).filter_map(|node| node.accesskit_node().label()).take(80).collect();
-    assert!(
-        f.shows("Part of this report is not shown: it is nested too deeply or is too long."),
-        "the window shows: {shown:?}"
-    );
+    // Waited for, not looked for once: on a slow runner the report can arrive a few frames
+    // after "Loading the document…" has gone.
+    let notice = "Part of this report is not shown: it is nested too deeply or is too long.";
+    let start = Instant::now();
+    while !f.shows(notice) && start.elapsed() < Duration::from_secs(60) {
+        f.harness.step();
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let pane: Vec<String> = f
+        .harness
+        .query_all(by())
+        .filter_map(|node| node.accesskit_node().label())
+        .skip_while(|label| label != "Back to images")
+        .take(20)
+        .collect();
+    assert!(f.shows(notice), "the document pane shows: {pane:?}");
     assert!(!f.shows("Deep down"));
 }
 
