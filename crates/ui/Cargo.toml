@@ -28,5 +28,6 @@ workspace = true
 
 [dev-dependencies]
 egui_kittest = { version = "0.37", features = ["eframe", "wgpu", "snapshot"] }
+image.workspace = true
 summrise-testkit.workspace = true
 tempfile.workspace = true

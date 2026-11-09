@@ -13,7 +13,9 @@ use crate::jobs::{Decoders, DicomFiles, ImageSource, SeriesLoader, Stream, Waker
 use crate::series::SeriesData;
 
 mod overlay;
+mod shown;
 pub use overlay::{OverlayProblem, OverlayStatus};
+pub use shown::OverBudget;
 
 /// Identifies a series within a [`StudyIndex`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -98,6 +100,8 @@ pub struct Session {
     overlay: Option<SeriesKey>,
     /// Why the overlay is not loaded, when the headers already rule it out.
     overlay_problem: Option<OverlayProblem>,
+    /// The series the viewports of a multi-series layout show (see `shown`).
+    shown: Vec<SeriesKey>,
 }
 
 impl Session {
@@ -133,6 +137,7 @@ impl Session {
             stacks,
             overlay: None,
             overlay_problem: None,
+            shown: Vec::new(),
         };
         if let Some(key) = session.default_series(0) {
             session.select_series(key);
@@ -218,18 +223,24 @@ impl Session {
             self.active_study = study;
             if let Some(key) = self.default_series(study) {
                 self.select_series(key);
+            } else if let Some(previous) = self.active_series.take()
+                && let Some(SeriesState::Loading(loading)) = self.series.get(&previous)
+            {
+                // The disc holds only reports of this study: no series is displayed.
+                loading.loader.pause();
             }
         }
     }
 
     /// Makes `key` active. Loading of the series displayed before is paused
-    /// (after the file in progress); loading of `key` starts, or resumes
-    /// where it was paused with everything already loaded still in place.
+    /// (after the file in progress), unless it stays on screen in another
+    /// viewport; loading of `key` starts, or resumes where it was paused with
+    /// everything already loaded still in place.
     pub fn select_series(&mut self, key: SeriesKey) {
         if self.series(key).is_none() {
             return;
         }
-        if let Some(previous) = self.active_series.filter(|previous| *previous != key)
+        if let Some(previous) = self.active_series.filter(|previous| *previous != key && !self.shown.contains(previous))
             && let Some(SeriesState::Loading(loading)) = self.series.get(&previous)
         {
             loading.loader.pause();
@@ -350,6 +361,7 @@ impl Session {
         }
         // Memory is accounted per image, so the budget can be exceeded while a series loads.
         self.enforce_budget();
+        self.give_priority();
         events
     }
 
@@ -359,14 +371,15 @@ impl Session {
     }
 
     /// Evicts the least recently used series beyond the memory budget —
-    /// complete or partly loaded, but always as a whole and never the one
+    /// complete or partly loaded, but always as a whole and never one
     /// displayed, nor the one drawn over it. An evicted series is loaded again
     /// when it is re-selected.
     fn enforce_budget(&mut self) {
         let size = |s: &SeriesState| s.data().map_or(0, |data| data.byte_size());
         let mut total: usize = self.series.values().map(size).sum();
         while total > self.budget_bytes {
-            let in_use = |k: &SeriesKey| Some(*k) == self.active_series || Some(*k) == self.overlay;
+            let in_use =
+                |k: &SeriesKey| Some(*k) == self.active_series || Some(*k) == self.overlay || self.shown.contains(k);
             let Some(victim) = self
                 .recently_used
                 .iter()
@@ -734,6 +747,38 @@ mod tests {
             .filter(|e| matches!(e, SessionEvent::SeriesOpened(k) | SessionEvent::SeriesReady(k) if *k == report))
             .collect();
         assert_eq!(of_report, [&SessionEvent::SeriesOpened(report), &SessionEvent::SeriesReady(report)]);
+    }
+
+    /// A study of which the disc holds only reports: no series is displayed.
+    #[test]
+    fn a_study_without_images_displays_no_series_and_stops_the_loading() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let spec = summrise_testkit::reports::ReportSpec {
+            study_uid: "2.25.42".to_owned(),
+            ..summrise_testkit::reports::ReportSpec::new("1.2.840.10008.5.1.4.1.1.88.11", "Report", Vec::new())
+        };
+        summrise_testkit::write_phantom_study(
+            dir.path(),
+            &PhantomOptions { write_dicomdir: false, ..PhantomOptions::small() },
+        )
+        .expect("fixture");
+        summrise_testkit::reports::write_structured_report(&dir.path().join("SR1"), &spec).expect("report");
+        let index = summrise_dicom::scan(dir.path(), &Progress::new()).expect("scan");
+        let lonely = index.studies.iter().position(|s| s.series.is_empty()).expect("the study without images");
+        let images = 1 - lonely;
+        let slow = SlowSource::new();
+        let mut session = Session::with_source(index, 1 << 30, None, slow.clone());
+        session.select_study(images);
+        let shown = session.active_series.expect("a series of the study with images");
+        session.select_study(lonely);
+        assert_eq!(session.active_series, None);
+        assert_eq!(session.active_study, lonely);
+        assert!(matches!(session.state(shown), Some(SeriesState::Loading(loading)) if loading.is_paused()));
+        // And back.
+        session.select_study(images);
+        assert_eq!(session.active_series, Some(shown));
+        assert!(matches!(session.state(shown), Some(SeriesState::Loading(loading)) if !loading.is_paused()));
+        slow.allow_all();
     }
 
     #[test]

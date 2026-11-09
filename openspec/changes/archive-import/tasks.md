@@ -36,4 +36,4 @@
 - [ ] 4.8 Archives made on Windows (Explorer's deflate64 for large files) and real hospital downloads — not verified on this machine; tracked with `field-validation`
 - [x] 4.9 Snapshots reviewed (dark and light welcome screen, tooltip, dropped ZIP, dropped ISO in MPR, recent list, error notifications)
 - [x] 4.10 `cargo xtask ci` passes; `openspec validate --all --strict` passes
-- [ ] 4.11 `cargo deny check` — not run: `cargo-deny` is not installed here; the new crates are MIT (`zip`, `deflate64`, `nix`) and MIT OR Apache-2.0 (`typed-path`), all on the allow-list
+- [x] 4.11 `cargo deny check` (advisories, bans, licences and sources ok, in CI and locally)

@@ -9,13 +9,17 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+flate2.workspace = true
 glam.workspace = true
+hayro.workspace = true
+image.workspace = true
 log.workspace = true
 rayon.workspace = true
 serde.workspace = true
 summrise-dicom.workspace = true
 summrise-i18n.workspace = true
 summrise-imaging.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 summrise-testkit.workspace = true

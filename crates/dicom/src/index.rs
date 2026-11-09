@@ -10,11 +10,12 @@ use dicom_object::InMemDicomObject;
 use log::{debug, warn};
 use rayon::prelude::*;
 use summrise_i18n::{tr, tr_n};
-use summrise_imaging::{AnatomicalPlane, ImagePlane};
+use summrise_imaging::{AnatomicalPlane, Calibration, ImagePlane};
 
 use crate::acquisition::Acquisition;
 use crate::attrs;
 use crate::discovery::{DiscoverySource, discover};
+use crate::documents::DocumentRef;
 use crate::error::{DicomError, Result};
 use crate::fidelity::Fidelity;
 use crate::media::Media;
@@ -34,6 +35,9 @@ pub struct StudyIndex {
     /// folder, or the ZIP archive or disc image that `root` is. The paths of
     /// the instances are paths in this media.
     pub media: Media,
+    /// Report files on the medium. They are not tied to a study and are
+    /// listed with every study.
+    pub loose_documents: Vec<DocumentRef>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -42,7 +46,9 @@ pub struct IndexStats {
     pub files: usize,
     /// Image instances indexed.
     pub images: usize,
-    /// DICOM objects without pixel data (reports, presentation states…).
+    /// Reports and documents indexed.
+    pub documents: usize,
+    /// DICOM objects that are not shown (presentation states, key objects…).
     pub non_images: usize,
     /// Files that could not be parsed.
     pub unreadable: usize,
@@ -71,6 +77,8 @@ pub struct Study {
     pub institution: Option<String>,
     pub referring_physician: Option<String>,
     pub series: Vec<Series>,
+    /// Structured reports, dose reports and PDFs stored in DICOM.
+    pub documents: Vec<DocumentRef>,
 }
 
 impl Study {
@@ -90,6 +98,10 @@ impl Study {
     }
 
     pub fn title(&self) -> String {
+        if self.description.is_none() && self.series.is_empty() {
+            // Translators: the name of a study of which the disc holds only reports.
+            return tr!("Study without images").to_owned();
+        }
         // Translators: the name of a study without a description, such as "CT/MR study".
         self.description.clone().unwrap_or_else(|| tr!("{modalities} study", modalities = self.modalities().join("/")))
     }
@@ -193,6 +205,8 @@ pub struct InstanceHeader {
     pub samples_per_pixel: u16,
     pub photometric: String,
     pub pixel_spacing: Option<[f64; 2]>,
+    /// Where `pixel_spacing` comes from, and so what a distance on the image means.
+    pub calibration: Calibration,
     /// Geometry per frame (length == `frames`); entries are `None` for
     /// projection images (X-ray, secondary capture…).
     pub frame_planes: Vec<Option<ImagePlane>>,
@@ -269,6 +283,7 @@ pub fn scan(root: &Path, progress: &Progress) -> Result<StudyIndex> {
     index.root = root.to_path_buf();
     index.source = discovery.source;
     index.warnings.splice(0..0, discovery.warnings);
+    index.loose_documents = discovery.documents;
     if let Some(archive) = index.media.archive() {
         debug!("indexed from {} of the {} bytes of the archive", archive.bytes_read(), archive.len());
     }
@@ -288,6 +303,8 @@ struct HeaderRecord {
     series_uid: String,
     series: Series,
     instance: Option<InstanceHeader>,
+    /// The document this object is, for an object without images.
+    document: Option<DocumentRef>,
 }
 
 /// Reads the headers of `files` in `media` in parallel and groups them by
@@ -325,7 +342,20 @@ pub fn index_files(media: &Media, files: &[PathBuf], progress: &Progress) -> Res
             continue;
         };
         let Some(instance) = rec.instance else {
-            stats.non_images += 1;
+            let Some(document) = rec.document else {
+                stats.non_images += 1;
+                continue;
+            };
+            if document.sop_instance_uid.as_ref().is_some_and(|uid| seen_sops.insert(uid.clone(), ()).is_some()) {
+                stats.duplicates += 1;
+                continue;
+            }
+            stats.documents += 1;
+            let si = *study_pos.entry(rec.study_uid.clone()).or_insert_with(|| {
+                studies.push(rec.study);
+                studies.len() - 1
+            });
+            studies[si].documents.push(document);
             continue;
         };
         if seen_sops.insert(instance.sop_instance_uid.clone(), ()).is_some() {
@@ -350,6 +380,7 @@ pub fn index_files(media: &Media, files: &[PathBuf], progress: &Progress) -> Res
 
     for study in &mut studies {
         study.series.retain(|s| !s.instances.is_empty());
+        crate::documents::sort(&mut study.documents);
         for series in &mut study.series {
             series
                 .instances
@@ -374,8 +405,8 @@ pub fn index_files(media: &Media, files: &[PathBuf], progress: &Progress) -> Res
     }
     if stats.non_images > 0 {
         warnings.push(tr_n!(
-            "{n} object that is not an image (a report or an annotation) is not shown",
-            "{n} objects that are not images (reports, annotations) are not shown",
+            "{n} object that is not an image (such as an annotation) is not shown",
+            "{n} objects that are not images (such as annotations) are not shown",
             stats.non_images
         ));
     }
@@ -383,7 +414,15 @@ pub fn index_files(media: &Media, files: &[PathBuf], progress: &Progress) -> Res
         warn!("{} unreadable files during indexing", stats.unreadable);
     }
     let media = media.clone();
-    Ok(StudyIndex { root: PathBuf::new(), source: DiscoverySource::FolderScan, studies, stats, warnings, media })
+    Ok(StudyIndex {
+        root: PathBuf::new(),
+        source: DiscoverySource::FolderScan,
+        studies,
+        stats,
+        warnings,
+        media,
+        loose_documents: Vec::new(),
+    })
 }
 
 fn read_header(media: &Media, path: &Path) -> std::result::Result<HeaderRecord, String> {
@@ -418,6 +457,7 @@ fn read_header(media: &Media, path: &Path) -> std::result::Result<HeaderRecord, 
         institution: attrs::text(obj, tags::INSTITUTION_NAME),
         referring_physician: attrs::text(obj, tags::REFERRING_PHYSICIAN_NAME),
         series: Vec::new(),
+        documents: Vec::new(),
     };
     let series = Series {
         uid: series_uid.clone(),
@@ -433,9 +473,11 @@ fn read_header(media: &Media, path: &Path) -> std::result::Result<HeaderRecord, 
 
     let rows = attrs::uint(obj, tags::ROWS).unwrap_or(0);
     let cols = attrs::uint(obj, tags::COLUMNS).unwrap_or(0);
+    let document =
+        if rows > 0 && cols > 0 { None } else { crate::documents::classify(obj, media, path, &media_sop_class) };
     let instance = (rows > 0 && cols > 0).then(|| {
         let frames = attrs::uint(obj, tags::NUMBER_OF_FRAMES).unwrap_or(1).max(1);
-        let (pixel_spacing, frame_planes) = geometry(obj, rows, cols, frames);
+        let (pixel_spacing, calibration, frame_planes) = geometry(obj, rows, cols, frames);
         let signed = attrs::uint(obj, tags::PIXEL_REPRESENTATION) == Some(1);
         let fidelity = crate::fidelity::read(obj, &transfer_syntax_uid, signed);
         InstanceHeader {
@@ -450,6 +492,7 @@ fn read_header(media: &Media, path: &Path) -> std::result::Result<HeaderRecord, 
             samples_per_pixel: attrs::uint(obj, tags::SAMPLES_PER_PIXEL).unwrap_or(1) as u16,
             photometric: attrs::text(obj, tags::PHOTOMETRIC_INTERPRETATION).unwrap_or_default(),
             pixel_spacing,
+            calibration,
             frame_planes,
             image_type: attrs::texts(obj, tags::IMAGE_TYPE),
             bits_stored: attrs::uint(obj, tags::BITS_STORED)
@@ -463,7 +506,7 @@ fn read_header(media: &Media, path: &Path) -> std::result::Result<HeaderRecord, 
             fidelity,
         }
     });
-    Ok(HeaderRecord { study_uid, study, series_uid, series, instance })
+    Ok(HeaderRecord { study_uid, study, series_uid, series, instance, document })
 }
 
 /// Rescale Slope/Intercept from the classic attributes, else from the
@@ -493,9 +536,14 @@ fn rescale(obj: &InMemDicomObject) -> Vec<Rescale> {
         .collect()
 }
 
-/// Pixel spacing and per-frame geometry, from classic attributes or the
-/// Enhanced multi-frame functional groups (PS3.3 C.7.6.16).
-fn geometry(obj: &InMemDicomObject, rows: u32, cols: u32, frames: u32) -> (Option<[f64; 2]>, Vec<Option<ImagePlane>>) {
+/// Pixel spacing, where it comes from and per-frame geometry, from classic
+/// attributes or the Enhanced multi-frame functional groups (PS3.3 C.7.6.16).
+fn geometry(
+    obj: &InMemDicomObject,
+    rows: u32,
+    cols: u32,
+    frames: u32,
+) -> (Option<[f64; 2]>, Calibration, Vec<Option<ImagePlane>>) {
     let shared = attrs::shared_group(obj);
     let from_group = |group: Option<&InMemDicomObject>| {
         let ipp = group
@@ -529,11 +577,11 @@ fn geometry(obj: &InMemDicomObject, rows: u32, cols: u32, frames: u32) -> (Optio
         // Classic multi-frame (cine, NM…) without per-frame positions.
         vec![None; frames as usize]
     };
-    let pixel_spacing = ps
-        .or_else(|| per_frame.first().and_then(|f| from_group(Some(f)).2))
-        .or_else(|| attrs::float_array::<2>(obj, tags::IMAGER_PIXEL_SPACING))
-        .filter(|s| s[0] > 0.0 && s[1] > 0.0);
-    (pixel_spacing, planes)
+    let (pixel_spacing, calibration) = Calibration::ladder(
+        ps.or_else(|| per_frame.first().and_then(|f| from_group(Some(f)).2)),
+        attrs::float_array::<2>(obj, tags::IMAGER_PIXEL_SPACING),
+    );
+    (pixel_spacing, calibration, planes)
 }
 
 #[cfg(test)]
@@ -558,6 +606,33 @@ mod tests {
             decimal(tags::RESCALE_INTERCEPT, intercept),
         ]);
         InMemDicomObject::from_element_iter([sequence(tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, vec![values])])
+    }
+
+    /// The index records where the spacing comes from instead of merging the
+    /// attributes into one value (measurement-tools D4).
+    #[test]
+    fn the_source_of_the_pixel_spacing_is_recorded() {
+        let spacing = |tag: Tag, values: [&str; 2]| {
+            let values = values.iter().map(|v| (*v).to_owned()).collect();
+            DataElement::new(tag, VR::DS, PrimitiveValue::Strs(values))
+        };
+        let read = |elements: Vec<DataElement<InMemDicomObject>>| {
+            let (pixel_spacing, calibration, _) = geometry(&InMemDicomObject::from_element_iter(elements), 4, 4, 1);
+            (pixel_spacing, calibration)
+        };
+        let pixel = spacing(tags::PIXEL_SPACING, ["0.5", "0.25"]);
+        let imager = spacing(tags::IMAGER_PIXEL_SPACING, ["0.2", "0.2"]);
+        assert_eq!(read(vec![pixel.clone()]), (Some([0.5, 0.25]), Calibration::PixelSpacing));
+        assert_eq!(read(vec![pixel, imager.clone()]), (Some([0.5, 0.25]), Calibration::PixelSpacing));
+        assert_eq!(read(vec![imager.clone()]), (Some([0.2, 0.2]), Calibration::ImagerPixelSpacing));
+        assert_eq!(read(Vec::new()), (None, Calibration::Uncalibrated));
+        let unusable = spacing(tags::PIXEL_SPACING, ["0", "0"]);
+        assert_eq!(read(vec![unusable, imager]), (None, Calibration::Uncalibrated));
+        // In the functional groups of an Enhanced object it counts as Pixel Spacing too.
+        let measures = InMemDicomObject::from_element_iter([spacing(tags::PIXEL_SPACING, ["0.7", "0.7"])]);
+        let group = InMemDicomObject::from_element_iter([sequence(tags::PIXEL_MEASURES_SEQUENCE, vec![measures])]);
+        let shared = sequence(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE, vec![group]);
+        assert_eq!(read(vec![shared]), (Some([0.7, 0.7]), Calibration::PixelSpacing));
     }
 
     #[test]

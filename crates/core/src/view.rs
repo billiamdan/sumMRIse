@@ -20,6 +20,7 @@ use summrise_imaging::{
     WindowPreset, auto_window,
 };
 
+use crate::measure::{MeasureKind, Measurements};
 use crate::orientation::DisplayOrientation;
 use crate::pet::Fusion;
 use crate::series::SeriesData;
@@ -103,6 +104,8 @@ pub enum Tool {
     WindowLevel,
     Pan,
     Zoom,
+    /// Draws and adjusts measurements; stays chosen until another tool is.
+    Measure(MeasureKind),
 }
 
 impl Tool {
@@ -114,7 +117,13 @@ impl Tool {
             Self::WindowLevel => tr_ctx!("mouse tool", "Contrast"),
             Self::Pan => tr_ctx!("mouse tool", "Pan"),
             Self::Zoom => tr_ctx!("mouse tool", "Zoom"),
+            Self::Measure(kind) => kind.label(),
         }
+    }
+
+    /// Whether this is one of the measuring tools.
+    pub fn is_measuring(self) -> bool {
+        matches!(self, Self::Measure(_))
     }
 }
 
@@ -183,6 +192,8 @@ pub struct ViewState {
     pub(crate) colormap: Colormap,
     /// A PET drawn over this series, and how (see `pet`).
     pub(crate) fusion: Option<Fusion>,
+    /// What the user measured on the pictures of this series (see `measure`).
+    pub measurements: Measurements,
     transforms: HashMap<ViewKind, ViewTransform>,
 }
 
@@ -208,6 +219,7 @@ impl ViewState {
             look: Look::default_for(series.units() == Some("HU")),
             colormap: crate::pet::default_colormap(series),
             fusion: None,
+            measurements: Measurements::default(),
             transforms: HashMap::new(),
         };
         // Stacks that keep a window each open with the first stack's own.
@@ -235,8 +247,8 @@ impl ViewState {
     /// Whether the view is still as the series opened it: nothing the user
     /// can set (contrast and contrast table, scanner graphics, inversion,
     /// position, stack, the windows of other stacks, slab, tilt of the
-    /// planes, colour map, a PET drawn over it, zoom, pan, turn and flip of a
-    /// view, turn and look of the 3D view) was changed.
+    /// planes, colour map, a PET drawn over it, measurements, zoom, pan, turn
+    /// and flip of a view, turn and look of the 3D view) was changed.
     pub fn is_pristine(&self, series: &SeriesData) -> bool {
         let fresh = Self::new(series);
         self.window == fresh.window
@@ -253,12 +265,13 @@ impl ViewState {
             && self.look == fresh.look
             && self.colormap == fresh.colormap
             && self.fusion.is_none()
+            && self.measurements.is_empty()
             && self.transforms.values().all(|transform| *transform == ViewTransform::default())
     }
 
     /// Resets contrast (of every stack), colour map and geometry and switches
-    /// a PET overlay off, but keeps the current position: the image and the
-    /// stack.
+    /// a PET overlay off, but keeps the current position (the image and the
+    /// stack) and what was measured; a measurement being drawn is dropped.
     pub fn reset(&mut self, series: &SeriesData) {
         let fresh = Self::new(series);
         self.window = fresh.window;
@@ -273,6 +286,7 @@ impl ViewState {
         self.reset_stack_windows(series);
         self.camera = fresh.camera;
         self.look = fresh.look;
+        self.measurements.cancel();
         self.reset_transforms();
     }
 

@@ -15,6 +15,7 @@ use egui::{Key, Modifiers, Rect};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable, by};
 use summrise_i18n::{tr, tr_ctx};
+use summrise_testkit::comparison::{self, ComparisonOptions, write_comparison_studies};
 use summrise_testkit::pet::{PetStudyOptions, write_pet_study};
 use summrise_testkit::{PhantomOptions, write_phantom_study};
 use summrise_ui::{AppOptions, SumMRIseApp};
@@ -137,6 +138,35 @@ pub(crate) fn toolbar_problems(app: &App, width: f32, what: &str) -> Vec<String>
             let nested = a.contains_rect(*b) || b.contains_rect(*a);
             if common.is_positive() && common.area() >= 1.0 && !nested {
                 problems.push(format!("{what}: {a_label:?} and {b_label:?} overlap ({a:?}, {b:?})"));
+            }
+        }
+    }
+    problems
+}
+
+/// What does not fit among the controls of the document view (`what` says
+/// which document) in a window `width` points wide.
+fn document_view_problems(app: &App, width: f32, what: &str) -> Vec<String> {
+    let names = [
+        tr!("Back to images"),
+        tr!("Show in folder"),
+        tr!("Previous page"),
+        tr!("Next page"),
+        tr!("Zoom out"),
+        tr!("Zoom in"),
+        tr!("Fit to width"),
+    ];
+    let controls: Vec<(&str, Rect)> =
+        names.iter().filter_map(|name| Some((*name, app.query_all_by_label(name).next()?.rect()))).collect();
+    let mut problems = Vec::new();
+    for (i, (name, rect)) in controls.iter().enumerate() {
+        if rect.right() > width + 0.5 {
+            problems.push(format!("{what} at {width} pt: {name:?} is not inside the window ({rect:?})"));
+        }
+        for (other, other_rect) in &controls[i + 1..] {
+            if rect.intersects(*other_rect) {
+                problems
+                    .push(format!("{what} at {width} pt: {name:?} and {other:?} overlap ({rect:?}, {other_rect:?})"));
             }
         }
     }
@@ -273,5 +303,195 @@ impl Tour {
         wait_for(&mut app, tr!("Play"));
         settle(&mut app, Duration::from_millis(500));
         self.save(&mut app, "11-playback-bar");
+
+        self.compare_screens();
+        self.measuring_screens();
+        self.documents_screens();
+        self.export_screens();
     }
+
+    /// Several series at once: the Compare menu, two series with the place of
+    /// a series to drop, a tile grid, the manual link and two studies side by
+    /// side, at 1440 and 960 points.
+    fn compare_screens(&mut self) {
+        let studies = self.study("comparison", |dir| {
+            write_comparison_studies(dir, &ComparisonOptions::default()).expect("fixture");
+        });
+        for width in [1440.0f32, 960.0] {
+            let mut app = self.app(Some(studies.clone()), [width, 800.0]);
+            wait_for(&mut app, comparison::SAGITTAL_NAME);
+            click(&mut app, comparison::SAGITTAL_NAME);
+            wait_until_loaded(&mut app);
+            click(&mut app, tr!("Compare"));
+            self.save(&mut app, &format!("12-compare-menu-{width}"));
+            click(&mut app, tr!("Four series"));
+            settle(&mut app, Duration::from_millis(300));
+            self.problems.extend(toolbar_problems(&app, width, &format!("four viewports at {width} pt")));
+            self.save(&mut app, &format!("13-compare-drop-here-{width}"));
+
+            // The other viewport, then a series: it goes there. Two viewports are then in use.
+            click(&mut app, tr!("Compare"));
+            click(&mut app, tr!("Two series side by side"));
+            click(&mut app, tr!("Drop a series here"));
+            click(&mut app, comparison::AXIAL_5MM_NAME);
+            settle(&mut app, Duration::from_millis(600));
+            self.problems.extend(toolbar_problems(&app, width, &format!("two series at {width} pt")));
+            self.save(&mut app, &format!("14-compare-two-series-{width}"));
+
+            // The tile grids of the viewport.
+            app.key_press(Key::T);
+            settle(&mut app, Duration::from_millis(400));
+            self.save(&mut app, &format!("15-compare-tiles-{width}"));
+            app.key_press(Key::T);
+            settle(&mut app, Duration::from_millis(100));
+            click(&mut app, tr!("Compare"));
+            self.save(&mut app, &format!("16-compare-menu-link-{width}"));
+            click(&mut app, tr!("Compare studies"));
+            settle(&mut app, Duration::from_millis(800));
+            self.problems.extend(toolbar_problems(&app, width, &format!("compare studies at {width} pt")));
+            self.save(&mut app, &format!("17-compare-studies-{width}"));
+        }
+    }
+
+    /// Saving, exporting and printing: the toolbar menu, the windows at the
+    /// default window size and the print window at the smallest one, and the
+    /// warning about burned-in text. The windows are only looked at: every
+    /// one is cancelled, and nothing leaves.
+    fn export_screens(&mut self) {
+        let opened = self.phantom();
+        for (width, height) in [(1440.0f32, 900.0f32), (960.0, 600.0)] {
+            let mut app = self.app(Some(opened.clone()), [width, height]);
+            wait_for(&mut app, CT);
+            wait_until_loaded(&mut app);
+            self.problems.extend(toolbar_problems(&app, width, &format!("export menu at {width} pt")));
+            let name = format!("{width}");
+            click(&mut app, tr!("Save, copy or print"));
+            self.save(&mut app, &format!("12-export-menu-{name}"));
+            app.key_press(Key::Escape);
+            settle(&mut app, Duration::from_millis(200));
+
+            app.key_press_modifiers(Modifiers::COMMAND, Key::S);
+            wait_for(&mut app, tr!("Save image"));
+            self.save(&mut app, &format!("13-export-save-{name}"));
+            click(&mut app, tr!("With annotations"));
+            self.save(&mut app, &format!("13-export-save-annotated-{name}"));
+            click(&mut app, tr!("Cancel"));
+
+            app.key_press_modifiers(Modifiers::COMMAND | Modifiers::SHIFT, Key::S);
+            wait_for(&mut app, tr!("Export series"));
+            self.save(&mut app, &format!("14-export-series-{name}"));
+            click(&mut app, tr!("Cancel"));
+
+            app.key_press_modifiers(Modifiers::COMMAND, Key::P);
+            wait_for(&mut app, tr!("Include patient details"));
+            settle(&mut app, Duration::from_millis(600));
+            self.save(&mut app, &format!("15-print-{name}"));
+            let title = tr_ctx!("print window", "Print");
+            for label in [title, tr!("Include patient details"), tr!("Save as PDF…"), tr!("Cancel")] {
+                let on_screen = app.query_all_by_label(label).next().is_some_and(|node| {
+                    let rect = node.rect();
+                    rect.left() >= 0.0 && rect.right() <= width && rect.top() >= 0.0 && rect.bottom() <= height
+                });
+                if !on_screen {
+                    self.problems.push(format!("print window at {width} pt: {label:?} is not on screen"));
+                }
+            }
+            click(&mut app, tr!("Cancel"));
+        }
+
+        // A picture that may show personal details: the warning first.
+        let mut app = self.app(Some(self.phantom()), [1440.0, 900.0]);
+        wait_for(&mut app, CT);
+        click(&mut app, "Dose report (synthetic)");
+        settle(&mut app, Duration::from_millis(800));
+        app.key_press_modifiers(Modifiers::COMMAND, Key::S);
+        wait_for(&mut app, tr!("Save image"));
+        click(&mut app, tr!("Save…"));
+        wait_for(&mut app, tr!("The picture itself may show personal details"));
+        self.save(&mut app, "16-export-warning");
+        click(&mut app, tr!("Cancel"));
+    }
+
+    /// The documents of a disc: the list and the view of each kind of document.
+    fn documents_screens(&mut self) {
+        use summrise_testkit::reports;
+        let cd = self.study("reports", |dir| {
+            reports::write_reports_cd(dir, &PhantomOptions::small()).map(drop).expect("fixture");
+        });
+        for width in [1440.0f32, 960.0] {
+            let mut app = self.app(Some(cd.clone()), [width, if width > 1000.0 { 900.0 } else { 600.0 }]);
+            wait_for(&mut app, CT);
+            self.save(&mut app, &format!("12-documents-{width}-list"));
+            let name = |kind| format!("{width}-{kind}");
+            let views = [
+                (reports::MEASUREMENTS_TITLE, "report", tr!("Preliminary — not verified")),
+                (reports::DOSE_REPORT_TITLE, "dose-report", tr!("Acquisition")),
+                (reports::STORED_PDF_TITLE, "pdf", tr!("Fit to width")),
+                ("report_001.rtf", "rtf", reports::RTF_CYRILLIC_TEXT),
+            ];
+            for (document, kind, shown) in views {
+                app.query_all_by_label(document).next().expect("in the list").scroll_to_me();
+                settle(&mut app, Duration::from_millis(100));
+                click(&mut app, document);
+                wait_for(&mut app, shown);
+                self.save(&mut app, &format!("12-documents-{}", name(kind)));
+                self.problems.extend(document_view_problems(&app, width, kind));
+                app.key_press(Key::Escape);
+                settle(&mut app, Duration::from_millis(200));
+            }
+        }
+    }
+
+    /// The measuring tools: their notice and menu, and each of them drawn on
+    /// the CT and on the colour capture, at 1440 and 960 points.
+    fn measuring_screens(&mut self) {
+        for width in [1440.0f32, 960.0] {
+            let mut app = self.app(Some(self.phantom()), [width, 800.0]);
+            wait_for(&mut app, CT);
+            wait_until_loaded(&mut app);
+            app.key_press(Key::D);
+            settle(&mut app, Duration::from_millis(200));
+            self.save(&mut app, &format!("12-measure-{width}-notice"));
+            click(&mut app, tr!("Understood"));
+            // The largest of the images on screen: the view, not a thumbnail.
+            let view = app
+                .query_all(by().role(Role::Image))
+                .filter(|node| node.accesskit_node().bounding_box().is_some())
+                .map(|node| node.rect())
+                .fold(Rect::ZERO, |a, b| if b.area() > a.area() { b } else { a });
+            let at = |x: f32, y: f32| view.min + view.size() * egui::vec2(x, y);
+            // All within the middle of the view, where the picture is at any width.
+            draw(&mut app, at(0.3, 0.46), at(0.7, 0.46));
+            app.key_press(Key::E);
+            draw(&mut app, at(0.42, 0.36), at(0.58, 0.42));
+            app.key_press(Key::Q);
+            draw(&mut app, at(0.12, 0.5), at(0.3, 0.58));
+            app.key_press(Key::Y);
+            for pos in [at(0.38, 0.6), at(0.55, 0.64), at(0.48, 0.52)] {
+                app.hover_at(pos);
+                settle(&mut app, Duration::from_millis(50));
+                app.drag_at(pos);
+                app.drop_at(pos);
+                settle(&mut app, Duration::from_millis(100));
+            }
+            self.problems.extend(toolbar_problems(&app, width, &format!("measuring at {width} pt")));
+            self.save(&mut app, &format!("13-measure-{width}"));
+            click(&mut app, &tr!("Measure: {tool}", tool = tr_ctx!("measuring tool", "Angle")));
+            self.save(&mut app, &format!("14-measure-{width}-menu"));
+            app.key_press(Key::Escape);
+            settle(&mut app, Duration::from_millis(200));
+        }
+    }
+}
+
+/// A press at `from`, a drag to `to` and a release.
+fn draw(app: &mut App, from: egui::Pos2, to: egui::Pos2) {
+    app.hover_at(from);
+    settle(app, Duration::from_millis(50));
+    app.drag_at(from);
+    app.step();
+    app.hover_at(to);
+    settle(app, Duration::from_millis(50));
+    app.drop_at(to);
+    settle(app, Duration::from_millis(100));
 }

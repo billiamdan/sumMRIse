@@ -150,6 +150,12 @@ pub(crate) struct Rendered {
 }
 
 impl Rendered {
+    /// Whether a PET is drawn into this picture.
+    #[cfg(test)]
+    pub(crate) fn draws_overlay(&self) -> bool {
+        self.key.look.draws_overlay()
+    }
+
     /// The texture to draw, unless a placeholder stands in for the image.
     pub(crate) fn texture(&self) -> Option<&TextureHandle> {
         self.texture.as_ref().filter(|_| self.picture == Picture::Image)
@@ -158,17 +164,37 @@ impl Rendered {
 
 #[derive(Default)]
 pub(crate) struct RenderCache {
-    entries: HashMap<(SeriesKey, ViewKind), Rendered>,
+    /// What each view shows, and (with the image's index) the pictures of the
+    /// following tiles of a tile grid.
+    entries: HashMap<(SeriesKey, ViewKind, Option<usize>), Rendered>,
 }
 
 impl RenderCache {
-    /// Drops textures of series other than `keep`.
-    pub(crate) fn retain_series(&mut self, keep: Option<SeriesKey>) {
-        self.entries.retain(|(k, _), _| Some(*k) == keep);
+    /// Drops textures of series other than those in `keep`.
+    pub(crate) fn retain_series(&mut self, keep: &[SeriesKey]) {
+        self.entries.retain(|(k, _, _), _| keep.contains(k));
+    }
+
+    /// Drops the pictures of tiles other than those in `keep`, images of a
+    /// series: what a grid no longer shows. At most 24 per viewport remain.
+    pub(crate) fn retain_tiles(&mut self, keep: &[(SeriesKey, usize)]) {
+        self.entries.retain(|(k, _, image), _| image.is_none_or(|image| keep.contains(&(*k, image))));
     }
 
     pub(crate) fn get(&self, series: SeriesKey, kind: ViewKind) -> Option<&Rendered> {
-        self.entries.get(&(series, kind))
+        self.entries.get(&(series, kind, None))
+    }
+
+    /// How many pictures are kept.
+    #[cfg(test)]
+    pub(crate) fn entries_for_test(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// The picture of acquired image `index` in a tile grid (not the first
+    /// tile, which is what [`Self::get`] gives for the acquired view).
+    pub(crate) fn get_tile(&self, series: SeriesKey, index: usize) -> Option<&Rendered> {
+        self.entries.get(&(series, ViewKind::Stack, Some(index)))
     }
 
     /// Ensures an up-to-date texture exists for this view. `overlay` is the
@@ -184,9 +210,38 @@ impl RenderCache {
         smooth: bool,
         overlay: Option<crate::pet::Overlay<'_>>,
     ) {
+        self.update_entry(ctx, (key, kind, None), series, state, smooth, overlay);
+    }
+
+    /// The same for the tile that shows acquired image `index`: its picture
+    /// is rendered once and kept until its image, window or colour map changes.
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn update_tile(
+        &mut self,
+        ctx: &Context,
+        key: SeriesKey,
+        index: usize,
+        series: &SeriesData,
+        state: &ViewState,
+        smooth: bool,
+        overlay: Option<crate::pet::Overlay<'_>>,
+    ) {
+        self.update_entry(ctx, (key, ViewKind::Stack, Some(index)), series, state, smooth, overlay);
+    }
+
+    fn update_entry(
+        &mut self,
+        ctx: &Context,
+        entry: (SeriesKey, ViewKind, Option<usize>),
+        series: &SeriesData,
+        state: &ViewState,
+        smooth: bool,
+        overlay: Option<crate::pet::Overlay<'_>>,
+    ) {
+        let (key, kind, tile) = entry;
         let (position, picture) = match kind {
             ViewKind::Stack => {
-                let index = state.slot_index(series);
+                let index = tile.unwrap_or_else(|| state.slot_index(series));
                 (index as u64, Picture::of(series.image(index)))
             }
             ViewKind::Mpr(axis) => (state.mpr_position(axis).to_bits(), Picture::Image),
@@ -210,21 +265,22 @@ impl RenderCache {
             graphics: kind == ViewKind::Stack && state.show_graphics,
             look: crate::pet::Look::of(state, overlay),
         };
-        if self.entries.get(&(key, kind)).is_some_and(|r| r.key == render_key) {
+        if self.entries.get(&entry).is_some_and(|r| r.key == render_key) {
             return;
         }
-        let Some((image, displayed)) = (match kind {
-            ViewKind::Stack => render_frame(series, state, overlay),
-            ViewKind::Mpr(axis) => render_mpr(series, state, axis, overlay),
-            ViewKind::Volume => None,
+        let Some((image, displayed)) = (match (kind, tile) {
+            (ViewKind::Stack, Some(index)) => render_image(series, state, index, overlay),
+            (ViewKind::Stack, None) => render_frame(series, state, overlay),
+            (ViewKind::Mpr(axis), _) => render_mpr(series, state, axis, overlay),
+            (ViewKind::Volume, _) => None,
         }) else {
-            self.entries.remove(&(key, kind));
+            self.entries.remove(&entry);
             return;
         };
         let options = if smooth { TextureOptions::LINEAR } else { TextureOptions::NEAREST };
         let load = |image| ctx.load_texture(format!("view-{}-{}-{kind:?}", key.study, key.series), image, options);
         let picture = render_key.picture.clone();
-        match self.entries.get_mut(&(key, kind)) {
+        match self.entries.get_mut(&entry) {
             Some(r) => {
                 // A placeholder leaves the old texture allocated but undrawn (see `Rendered::texture`).
                 if let Some(image) = image {
@@ -239,7 +295,7 @@ impl RenderCache {
             }
             None => {
                 let texture = image.map(load);
-                self.entries.insert((key, kind), Rendered { key: render_key, texture, picture, displayed });
+                self.entries.insert(entry, Rendered { key: render_key, texture, picture, displayed });
             }
         }
     }
@@ -252,7 +308,18 @@ pub(crate) fn render_frame(
     state: &ViewState,
     overlay: Option<crate::pet::Overlay<'_>>,
 ) -> Option<(Option<ColorImage>, Displayed)> {
-    let index = state.slot_index(series);
+    render_image(series, state, state.slot_index(series), overlay)
+}
+
+/// Acquired image `index`, whichever it is (a tile shows another than the
+/// current one), through the contrast, the colour map and the graphics of
+/// the view: its pixels if they are decoded, and in any case its geometry.
+pub(crate) fn render_image(
+    series: &SeriesData,
+    state: &ViewState,
+    index: usize,
+    overlay: Option<crate::pet::Overlay<'_>>,
+) -> Option<(Option<ColorImage>, Displayed)> {
     let info = series.frames().get(index)?;
     let frame = series.frame(index);
     let (width, height) = frame.map_or((info.width, info.height), |f| f.size());
@@ -269,7 +336,7 @@ pub(crate) fn render_frame(
     Some((image, Displayed::Frame { index, width, height, plane: info.plane, spacing: info.pixel_spacing }))
 }
 
-fn render_mpr(
+pub(crate) fn render_mpr(
     series: &SeriesData,
     state: &ViewState,
     axis: MprAxis,

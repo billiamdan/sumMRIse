@@ -42,6 +42,18 @@ the image's units and independent of the contrast window.
 - **WHEN** a region is drawn on an RGB image
 - **THEN** the area is shown and the statistics are replaced by "not available for colour images"
 
+#### Scenario: Padding and values outside a reformat
+- **WHEN** a region of a CT holds pixels of −3024 HU marked as padding, or on a reformat lies partly outside the volume
+- **THEN** the statistics leave those pixels out, the smallest value is that of the air at −1000 HU, and the tooltip says how many were left out; a region with nothing else reads "outside the scanned area"
+
+#### Scenario: Unit of the series shown
+- **WHEN** a region is drawn on a PET in SUV over its hot sphere of SUV 5, and on a CT with that PET drawn over it, on its marker of 300 HU
+- **THEN** the first reads a mean of SUV 5 and the second a mean of 300 HU
+
+#### Scenario: Slab projection
+- **WHEN** a region is drawn on a reformat shown as a 10 mm MIP slab
+- **THEN** its label carries "MIP" with the statistics of the projected values
+
 ### Requirement: Calibration transparency
 Every measurement SHALL show its unit, and the viewer SHALL state where the scale comes
 from: images without pixel spacing are measured in pixels and marked uncalibrated,
@@ -55,6 +67,10 @@ are marked approximate.
 #### Scenario: Projection X-ray
 - **WHEN** an image has Imager Pixel Spacing but no Pixel Spacing
 - **THEN** the label is in millimetres with the note "at detector — true size may be smaller"
+
+#### Scenario: Scale bar of a projection X-ray
+- **WHEN** an image has Imager Pixel Spacing but no Pixel Spacing
+- **THEN** its scale bar is labelled in millimetres at the detector, for example "50 mm at detector"; an image with neither attribute has no scale bar
 
 #### Scenario: Reformat of thick slices
 - **WHEN** a 40 mm line is drawn along the head–foot direction on a sagittal reformat of a CT with 5 mm slice spacing
@@ -72,6 +88,26 @@ attached to the image they were drawn on and follow zoom and pan.
 #### Scenario: Adjusting an endpoint
 - **WHEN** the user drags one endpoint of a 20.0 mm line 5 mm further away along the line
 - **THEN** the label updates to 25.0 mm while dragging
+
+#### Scenario: Moving or tilting a reformat
+- **WHEN** a length is drawn on a sagittal reformat of a CT whose slices are 5 mm apart, and the reformat moves along its normal or is tilted
+- **THEN** the measurement is shown 2.4 mm beside the plane, hidden 2.6 mm beside it, hidden when tilted by 2° and shown again, unchanged, when returned
+
+#### Scenario: Turned and mirrored views
+- **WHEN** the same two points are measured on a picture turned by a quarter and mirrored
+- **THEN** the length is the same as in the standard orientation, the line lies over the same anatomy and its label is upright
+
+#### Scenario: Image sets
+- **WHEN** a length is drawn on an image of one image set of a series and the user changes to another set at the same position
+- **THEN** the measurement is hidden, and shown again on returning to the first set
+
+### Requirement: Measurements in tile grids
+In a tile grid a measurement SHALL belong to the image of the tile it was drawn on, not to
+the current image, and SHALL be shown on the tile of that image wherever that tile is.
+
+#### Scenario: Drawing on a later tile
+- **WHEN** a 3 × 3 grid shows images 31 to 39 and the user draws a length on the tile of image 33
+- **THEN** there is one measurement, on that tile; one step later it is on the second tile with image 33; when image 33 scrolls out of the grid it is no longer shown; and on image 33 alone it reads the same length
 
 ### Requirement: Approximate and session-only
 The viewer SHALL present measurements as approximate and not for diagnosis, and SHALL
@@ -92,3 +128,7 @@ single-key shortcut shown in its tooltip.
 #### Scenario: Keyboard selection
 - **WHEN** the user presses the shortcut shown for the length tool
 - **THEN** the length tool becomes active and its toolbar button is shown as selected
+
+#### Scenario: Not offered in the 3D view
+- **WHEN** the 3D layout is shown
+- **THEN** the measurement tools are not offered and their shortcuts do nothing

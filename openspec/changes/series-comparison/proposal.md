@@ -21,6 +21,9 @@ anatomy in two series or tell where a slice sits on another view.
   cuts its own image.
 - "Compare studies": when the media hold more than one study of the same patient,
   matching series of two studies open side by side, the earlier one on the left.
+- Tile layout: a viewport can show consecutive images of a series at once, as a grid of
+  2 × 2 to 5 × 5 tiles, each with its image number.
+- Linked viewports also follow each other's zoom and pan.
 - The existing single-series reformat layouts (MPR, 2 × 2) stay and are expressed in the
   same viewport model.
 
@@ -41,7 +44,8 @@ dates cannot be confused.
 - `crates/core`: a workspace/viewport model replaces the single active series of the
   viewer; `Session` keeps every displayed series loaded.
 - `crates/imaging`: slice matching by position and plane-intersection maths.
-- `crates/dicom`: index the Frame of Reference UID per series.
+- `crates/dicom`: the Frame of Reference UID per series is already indexed
+  (`Series::frame_of_reference`, added by `pet-support`).
 - `crates/ui`: viewer, viewport, series browser (drag source), toolbar (layout picker,
   link toggle).
 - Memory: two or more decoded series are held at once; the existing budget applies.

@@ -801,6 +801,7 @@ mod tests {
             samples_per_pixel: 1,
             photometric: "MONOCHROME2".to_owned(),
             pixel_spacing: Some([1.0, 1.0]),
+            calibration: Default::default(),
             frame_planes: vec![ImagePlane::from_dicom(position, [1.0, 0.0, 0.0, 0.0, 1.0, 0.0], [1.0, 1.0], 4, 4)],
             image_type: Vec::new(),
             bits_stored: 12,

@@ -159,6 +159,31 @@ impl Media {
         self.0.as_deref()
     }
 
+    /// Size of the file at `path` in bytes; `None` if there is no such file.
+    pub(crate) fn size(&self, path: &Path) -> Option<u64> {
+        match &self.0 {
+            None => std::fs::metadata(path).ok().map(|meta| meta.len()),
+            Some(archive) => archive.entry(path).map(|entry| entry.size),
+        }
+    }
+
+    /// Refuses a file whose sequences nest too deeply for the parser to build
+    /// them (see [`crate::nesting`]), before it tries.
+    fn check_nesting(&self, path: &Path, read_until: Option<Tag>) -> std::result::Result<(), String> {
+        let check = |entry: &mut dyn Read| {
+            let mut start = [0u8; 132];
+            let filled = read_fully(entry, &mut start).map_err(|e| e.to_string())?;
+            let start = &start[..filled];
+            let after_preamble = if start.get(128..132) == Some(b"DICM".as_slice()) { &start[128..] } else { start };
+            crate::nesting::check(after_preamble.chain(entry), read_until)
+        };
+        match &self.0 {
+            // What cannot be opened is for the parser to report.
+            None => File::open(path).map_or(Ok(()), |mut file| check(&mut file)),
+            Some(archive) => archive.with_reader(path, check).unwrap_or(Ok(())),
+        }
+    }
+
     /// Parses the DICOM file at `path`, all of it or up to (not including)
     /// the attribute `read_until`. The error is the parser's reason.
     pub(crate) fn open_object(
@@ -166,6 +191,7 @@ impl Media {
         path: &Path,
         read_until: Option<Tag>,
     ) -> std::result::Result<DefaultDicomObject, String> {
+        self.check_nesting(path, read_until)?;
         let options = match read_until {
             Some(tag) => OpenFileOptions::new().read_until(tag),
             None => OpenFileOptions::new(),

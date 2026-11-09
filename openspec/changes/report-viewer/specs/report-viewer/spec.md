@@ -95,6 +95,14 @@ an explicit user action.
 - **WHEN** a loose PDF is larger than 50 MB
 - **THEN** it is listed as "too large to display" and is not loaded
 
+#### Scenario: Report nested deeper than is followed
+- **WHEN** a structured report nests its content more than 64 levels deep
+- **THEN** the items down to that level are shown and the view says that part of the report is not shown
+
+#### Scenario: File nested too deeply to parse
+- **WHEN** a DICOM file nests its sequences more than 128 levels deep
+- **THEN** the application keeps running and the file is counted among the files that could not be read
+
 ### Requirement: Privacy mode hides document content
 While privacy mode is on, the document view SHALL hide the content of a document until
 the user chooses to reveal it.
@@ -102,6 +110,10 @@ the user chooses to reveal it.
 #### Scenario: Selecting a report in privacy mode
 - **WHEN** privacy mode is on and the user selects a report
 - **THEN** the view shows "Hidden in privacy mode — reports contain personal details" with a "Show anyway" button, and reveals the text only after it is pressed
+
+#### Scenario: The list of documents in privacy mode
+- **WHEN** privacy mode is on and the disc holds a file `Report_Doe.pdf`
+- **THEN** the list shows it as "PDF file", without its name
 
 ### Requirement: Reports are shown verbatim
 The application SHALL display report text as written and SHALL NOT summarise, translate

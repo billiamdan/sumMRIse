@@ -20,6 +20,7 @@
 //!   scanner graphics.
 //! * [`pet`] — standardised uptake values of PET series (SUVbw) and why they
 //!   cannot always be computed.
+//! * [`documents`] — reports and documents on the disc, and reading them.
 //!
 //! All functions are blocking and CPU/IO bound; run them off the UI thread.
 //! Patient-identifying values are never logged above `debug` level.
@@ -28,6 +29,7 @@ pub mod acquisition;
 mod attrs;
 pub mod decode;
 pub mod discovery;
+pub mod documents;
 mod error;
 pub mod fidelity;
 pub mod format;
@@ -36,6 +38,7 @@ pub mod index;
 mod iso9660;
 pub mod media;
 pub mod metadata;
+mod nesting;
 pub mod pet;
 mod pixels;
 mod progress;
@@ -48,6 +51,7 @@ pub use decode::{
     decode_warning, load_series, plan_series, read_instance, series_stacks, thumbnail,
 };
 pub use discovery::{Discovery, DiscoverySource, discover};
+pub use documents::{DocumentContent, DocumentKind, DocumentRef, read_document};
 pub use error::{DicomError, Result};
 pub use fidelity::{Fidelity, LossyCompression};
 pub use index::{IndexStats, InstanceHeader, Patient, Rescale, Series, Study, StudyIndex, index_files, scan};

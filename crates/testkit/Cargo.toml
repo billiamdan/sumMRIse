@@ -14,6 +14,7 @@ dicom-dictionary-std.workspace = true
 dicom-object.workspace = true
 dicom-pixeldata.workspace = true
 dicom-transfer-syntax-registry.workspace = true
+epaint_default_fonts.workspace = true
 flate2.workspace = true
 thiserror.workspace = true
 

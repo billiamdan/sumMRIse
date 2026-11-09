@@ -3,8 +3,8 @@
 //! screen, the settings window, the display check, the About dialog, the
 //! viewer with the inspector and the guide (CT, axial and MPR), the toolbar
 //! at 1440, 1280 and 960 points with reformats and a thick slab and with the
-//! 3D view, the PET menu, an archive that cannot be opened and the playback
-//! bar of a series with several time points — and with
+//! 3D view, the PET menu, an archive that cannot be opened, the playback bar
+//! of a series with several time points and several series at once — and with
 //! `SUMMRISE_SNAPSHOT_DIR=<dir>` saves each as `<dir>/<code>-<screen>.png`.
 //! It fails if a control of the toolbar is cut off or covers another (after
 //! saving everything) or if a character has no glyph. Without

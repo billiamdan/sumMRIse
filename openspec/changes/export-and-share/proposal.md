@@ -15,23 +15,28 @@ also be private by default.
   and file metadata unless the user switches them on for that export.
 - A warning when the picture itself may contain personal details (burned-in text).
 - Exports with annotations carry a small "Not for diagnostic use" caption.
+- Print the current image, or a whole series as sheets of 1 to 12 images per page, or save
+  the same pages as a PDF. Pages leave out the patient's name, ID and birth date unless
+  the user switches them on for that print job, and always carry "Not for diagnostic use".
 
 Privacy: this is the first feature that writes image data to disk. It does so only on an
-explicit export and only to the place the user chooses; the "No derived data at rest"
-rule is amended accordingly.
+explicit export and only to the place the user chooses, and printing hands the pages to
+the system's print system without a temporary file of the application's own; the "No
+derived data at rest" rule is amended accordingly.
 
 ## Capabilities
 
 ### New Capabilities
-- `export`: saving and copying views and exporting series as images, private by default.
+- `export`: saving, copying and printing views and exporting series as images or PDF, private by default.
 
 ### Modified Capabilities
-- `privacy`: "No derived data at rest" allows files the user explicitly exports.
+- `privacy`: "No derived data at rest" allows files the user explicitly exports and pages the user sends to the printer.
 
 ## Impact
 
-- `crates/core`: export rendering and the series-export job.
-- `crates/ui`: export commands, save dialogs, clipboard, burned-in warning.
+- `crates/core`: export rendering, the series-export job, page composition, the PDF writer.
+- `crates/ui`: export commands, save dialogs, clipboard, burned-in warning, print window.
 - Dependencies: PNG and JPEG encoding through the `image` crate already in the workspace
-  (JPEG feature to be enabled).
-- Not included: de-identified DICOM export, video export and printing (see design.md).
+  (JPEG feature to be enabled); no native print bindings.
+- External programs: `lp` and `lpstat` of the system's print system, where it has one.
+- Not included: de-identified DICOM export and video export (see design.md).

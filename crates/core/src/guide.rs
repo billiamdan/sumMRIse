@@ -128,7 +128,7 @@ pub fn sampling_note() -> &'static str {
 }
 
 /// Storage classes of secondary captures (single- and multi-frame).
-const SECONDARY_CAPTURE_SOP_CLASSES: [&str; 5] = [
+pub(crate) const SECONDARY_CAPTURE_SOP_CLASSES: [&str; 5] = [
     "1.2.840.10008.5.1.4.1.1.7",
     "1.2.840.10008.5.1.4.1.1.7.1",
     "1.2.840.10008.5.1.4.1.1.7.2",
@@ -1552,6 +1552,7 @@ mod tests {
             samples_per_pixel: 1,
             photometric: "MONOCHROME2".to_owned(),
             pixel_spacing: Some([1.0, 1.0]),
+            calibration: Default::default(),
             frame_planes: vec![plane],
             image_type: Vec::new(),
             bits_stored: 12,

@@ -16,14 +16,15 @@ use egui_material_icons::icons::{
 use summrise_core::dicom::{DiscoverySource, MediaKind, format};
 use summrise_core::imaging::{PresetSource, SlabMode};
 use summrise_core::{
-    ContrastChoice, DisplayOrientation, Layout, SeriesData, SeriesKey, SeriesState, Session, SessionEvent, Settings,
-    Tool, ViewKind, ViewState, Waker,
+    ContrastChoice, DisplayOrientation, Layout, OverBudget, SeriesData, SeriesKey, SeriesState, Session, SessionEvent,
+    Settings, Tiles, Tool, ViewKind, ViewState, Waker, Workspace,
 };
 use summrise_i18n::{tr, tr_ctx, tr_n};
 
 use crate::app::{Action, Toasts};
 use crate::browser::{self, ThumbnailTextures};
 use crate::cine::{self, Cine};
+use crate::documents::{self, DocumentPane};
 use crate::fidelity;
 use crate::guide::{self, PresetHint as _};
 use crate::inspector::Inspector;
@@ -50,6 +51,20 @@ pub(crate) struct Viewer {
     cine: Cine,
     /// A CT or MR asked for under a PET, until its view exists (see `pet`).
     fusion_pending: crate::pet::Pending,
+    /// The viewports on screen (see `workspace`, never saved).
+    workspace: Workspace,
+    /// Where the viewports were drawn in the last frame, altogether and one by one.
+    central: Rect,
+    cells: Vec<workspace::DrawnCell>,
+    /// The series on screen need more memory than the limit.
+    over_budget: Option<OverBudget>,
+    /// Where cross-reference lines were drawn in the last frame, per viewport (for tests).
+    #[cfg(test)]
+    cross_lines: HashMap<usize, Vec<[egui::Pos2; 2]>>,
+    /// The report or document shown instead of the images, if any.
+    documents: DocumentPane,
+    /// Saving, copying, exporting and printing (see `export`).
+    export: crate::export::Export,
 }
 
 impl Viewer {
@@ -68,6 +83,14 @@ impl Viewer {
             slab_thickness: 10.0,
             cine: Cine::default(),
             fusion_pending: None,
+            workspace: Workspace::default(),
+            central: Rect::NOTHING,
+            cells: Vec::new(),
+            over_budget: None,
+            #[cfg(test)]
+            cross_lines: HashMap::new(),
+            documents: DocumentPane::default(),
+            export: crate::export::Export::default(),
         }
     }
 
@@ -121,21 +144,38 @@ impl Viewer {
         if self.session.is_busy() {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(60));
         }
-        self.renders.retain_series(self.session.active_series);
-        self.volume_view.retain_series(self.session.active_series);
+        // A link in a report goes back to the images, to the single view with that image.
+        if self.documents.update(&mut self.session, &mut self.views, waker) {
+            self.use_preset(Layout::Single);
+        }
+        let document_open = self.documents.is_open();
+        self.prepare_workspace(toasts);
         let active = self.active_series();
         let has_volume = active.as_ref().is_some_and(|(_, s)| s.volume().is_some_and(|v| v.geometry.dims[2] >= 3));
         let layout = if has_volume { self.layout } else { Layout::Single };
         if !layout.views().contains(&self.active_view) {
             self.active_view = layout.views()[0];
         }
-        if let Some((key, series)) = &active {
+        // While a document is shown nothing acts on the images: ⌘C copies the text of the document.
+        if !document_open {
+            self.export.keys(ui.ctx());
+        }
+        let keys_for_images = !document_open && !self.export.is_open();
+        let command = crate::compare::keys(ui.ctx(), self.workspace.is_comparing());
+        if let Some(command) = command.filter(|_| keys_for_images) {
+            self.run_command(command);
+        }
+        if let Some((key, series)) = active.as_ref().filter(|_| keys_for_images) {
             self.handle_keys(ui, *key, series, settings, has_volume);
         }
         // The window of the stack shown and playback follow the UI clock.
         match active.as_ref().and_then(|(key, series)| Some((*key, series, self.views.get_mut(key)?))) {
             Some((key, series, state)) => {
                 state.settle_stack_window(series);
+                // The picture stays put while a measurement is drawn on it.
+                if state.measurements.is_busy() {
+                    self.cine.stop();
+                }
                 let rate = self.session.series(key).map_or(cine::DEFAULT_RATE, |meta| self.cine.rate(key, meta));
                 let now = ui.input(|i| i.time);
                 if let Some(due) = self.cine.tick(now, key, layout.views(), series, state, rate) {
@@ -143,6 +183,9 @@ impl Viewer {
                 }
             }
             None => self.cine.stop(),
+        }
+        if document_open {
+            self.cine.stop();
         }
         // The PET drawn over the series shown, which the session keeps loaded.
         let overlay = crate::pet::sync(&mut self.session, &mut self.views, &mut self.fusion_pending);
@@ -156,12 +199,16 @@ impl Viewer {
             .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(10, 3)))
             .show(ui, |ui| self.status_bar(ui, active.as_ref()));
         if settings.show_browser {
+            let shown = self.workspace.is_comparing().then(|| self.workspace.shown_series());
             Panel::left("browser")
                 .resizable(true)
                 .default_size(270.0)
                 .size_range(210.0..=420.0)
                 .frame(Frame::new().fill(p.panel).inner_margin(Margin::symmetric(10, 6)))
-                .show(ui, |ui| browser::show(ui, &mut self.session, settings, &mut self.thumbs));
+                .show(ui, |ui| {
+                    let (session, thumbs, documents) = (&mut self.session, &mut self.thumbs, &mut self.documents);
+                    browser::show(ui, session, settings, thumbs, shown.as_deref(), documents, waker)
+                });
         }
         if settings.show_inspector {
             let display = self.display_rows(active.as_ref());
@@ -193,7 +240,7 @@ impl Viewer {
                 });
         }
         // Under the images: the stack control and playback.
-        if let Some((key, series)) = active.as_ref().filter(|(_, series)| series.len() > 1)
+        if let Some((key, series)) = active.as_ref().filter(|(_, series)| series.len() > 1 && !document_open)
             && let (Some(state), Some(meta)) = (self.views.get_mut(key), self.session.series(*key))
         {
             let (cine, view, now) = (&mut self.cine, self.active_view, ui.input(|i| i.time));
@@ -202,7 +249,19 @@ impl Viewer {
                 .show(ui, |ui| cine::bar(ui, cine, *key, meta, series, state, view, now));
         }
         let overlay = overlay.as_ref().map(|(key, data)| crate::pet::Overlay { key: *key, data });
-        egui::CentralPanel::no_frame().show(ui, |ui| self.viewports(ui, settings, active.as_ref(), layout, overlay));
+        egui::CentralPanel::no_frame().show(ui, |ui| {
+            if self.documents.is_open() {
+                self.hover = None;
+                self.documents.show(ui, &self.session, settings);
+            } else {
+                self.viewports(ui, settings, active.as_ref(), layout, overlay);
+            }
+        });
+        crate::measure::notice(ui.ctx(), self.tool, settings);
+        let shown_tiles = self.shown_tiles();
+        let (view, volume) = (self.active_view, &self.volume_view);
+        let source = crate::export::Source::new(&self.session, &self.views, view, volume, shown_tiles);
+        self.export.show(ui.ctx(), &source, settings, waker, toasts);
     }
 
     fn toolbar(
@@ -222,17 +281,30 @@ impl Viewer {
         let right_id = egui::Id::unique("toolbar right group");
         let right_width = ui.ctx().data(|d| d.get_temp::<f32>(right_id)).unwrap_or(RIGHT_GROUP_WIDTH);
         let mut show_over = None;
+        let shown_tiles = self.shown_tiles();
         ui.horizontal_top(|ui| {
             let left_width = (ui.available_width() - right_width - ui.spacing().item_spacing.x).max(0.0);
             let row = vec2(left_width, ui.spacing().interact_size.y);
             let wrapping = ELayout::left_to_right(Align::Center).with_main_wrap(true);
             ui.allocate_ui_with_layout(row, wrapping, |ui| {
+                // These controls act on the images, which a document covers.
+                if self.documents.is_open() {
+                    ui.disable();
+                }
                 show_over = self.toolbar_controls(ui, settings, active, has_volume, reformat_blocker);
             });
             // One row high, so that its separator does not reach down the rows on the left.
             let row = vec2(ui.available_width(), ui.spacing().interact_size.y);
             let right_to_left = ELayout::right_to_left(Align::Center);
-            let right = ui.allocate_ui_with_layout(row, right_to_left, |ui| toolbar_right(ui, settings, actions));
+            let right = ui.allocate_ui_with_layout(row, right_to_left, |ui| {
+                toolbar_right(ui, settings, actions);
+                // Before "Open" in reading order: this group is laid out from the right.
+                let (view, volume) = (self.active_view, &self.volume_view);
+                let source = crate::export::Source::new(&self.session, &self.views, view, volume, shown_tiles);
+                // A document has its own text to copy: these commands are about images.
+                let images = !self.documents.is_open();
+                ui.add_enabled_ui(images, |ui| self.export.menu(ui, &source));
+            });
             let measured = right.response.rect.width();
             if (measured - right_width).abs() > 0.5 {
                 ui.ctx().data_mut(|d| d.insert_temp(right_id, measured));
@@ -264,17 +336,16 @@ impl Viewer {
         ui.separator();
         for l in Layout::ALL {
             let enabled = !l.needs_volume() || has_volume;
+            let chosen = self.layout == l && (enabled || l == Layout::Single) && !self.workspace.is_comparing();
             let resp = ui
-                .add_enabled(
-                    enabled,
-                    egui::Button::selectable(self.layout == l && (enabled || l == Layout::Single), l.label()),
-                )
+                .add_enabled(enabled, egui::Button::selectable(chosen, l.label()))
                 .on_disabled_hover_text(reformat_blocker);
             if resp.clicked() {
-                self.layout = l;
+                self.use_preset(l);
                 settings.default_layout = l;
             }
         }
+        self.compare_menu(ui);
         ui.separator();
         for (tool, ic) in [(Tool::WindowLevel, ICON_CONTRAST), (Tool::Pan, ICON_PAN_TOOL), (Tool::Zoom, ICON_ZOOM_IN)] {
             let hint = match tool {
@@ -284,6 +355,8 @@ impl Viewer {
                 }
                 Tool::Pan => tr!("Pan: drag (also middle-drag or Shift-drag)").to_owned(),
                 Tool::Zoom => tr!("Zoom: drag up/down (also pinch or {key}-scroll)", key = command_key()),
+                // In the menu "Measure", below.
+                Tool::Measure(kind) => kind.label().to_owned(),
             };
             if ui
                 .add(egui::Button::selectable(self.tool == tool, format!("{} {}", icon(ic), tool.label())))
@@ -293,6 +366,9 @@ impl Viewer {
                 self.tool = tool;
             }
         }
+        let shown_views = if has_volume { self.layout } else { Layout::Single }.views();
+        let measured = active.and_then(|(key, _)| self.views.get_mut(key));
+        crate::measure::menu(ui, &mut self.tool, measured, shown_views);
         ui.separator();
 
         if let Some((key, series)) = active
@@ -450,35 +526,87 @@ impl Viewer {
     ) {
         let rect = ui.max_rect();
         ui.painter().rect_filled(rect, 0.0, Color32::from_gray(8));
-        let Some((key, series)) = active else {
-            self.placeholder(ui, rect);
-            return;
-        };
-        let (key, series) = (*key, series.clone());
-        let Some(meta) = self.session.series(key).cloned() else {
-            return;
-        };
-        let study = self.session.studies()[key.study].clone();
-        let views = layout.views();
-        let rects = grid(rect, views.len());
-        let fusion = crate::pet::shown(&self.session, self.views.get(&key));
-        let state = self.views.entry(key).or_insert_with(|| ViewState::new(&series));
+        self.central = rect;
         self.hover = None;
-        for (i, (&kind, &r)) in views.iter().zip(&rects).enumerate() {
-            self.renders.update(ui.ctx(), key, kind, &series, state, settings.smooth_interpolation, overlay);
+        let comparing = self.workspace.is_comparing();
+        if !comparing && active.is_none() {
+            self.placeholder(ui, rect, self.session.active_series);
+            return;
+        }
+        // One series in every viewport of a preset, or the series of a multi-series grid.
+        let active_key = if comparing { self.session.active_series } else { active.map(|(key, _)| *key) };
+        self.workspace.show_preset(layout, active_key, self.active_view);
+        // Linked viewports follow what the keys and playback did before this frame.
+        self.workspace.follow(&self.session, &mut self.views);
+        let rects = match self.workspace.grid() {
+            Some(multi_series) => crate::compare::cells(rect, multi_series),
+            None => grid(rect, self.workspace.viewports().len()),
+        };
+        let multi_view = rects.len() > 1;
+        self.cells.clear();
+        let mut tile_pictures = Vec::new();
+        for (i, &r) in rects.iter().enumerate() {
+            let Some(&viewport) = self.workspace.viewports().get(i) else { continue };
+            let kind = viewport.view;
+            let id = ui.scope_id().with(("viewport", kind, i));
+            let opened = viewport.series.and_then(|key| Some((key, self.session.data(key)?)));
+            let Some((key, series)) = opened.filter(|(_, series)| series.is_viewable()) else {
+                self.cells.push(workspace::DrawnCell { rect: r, tiles: Tiles::ONE });
+                self.waiting_viewport(ui, r, id, i, viewport.series);
+                continue;
+            };
+            let (Some(meta), Some(study)) = (self.session.series(key), self.session.studies().get(key.study)) else {
+                continue;
+            };
+            let info = comparing
+                .then(|| crate::compare::ViewportInfo::of(&self.workspace, i, &self.session, &self.views, meta, study));
+            // The overlay of the active viewport's series; a viewport beside it says so if it has one.
+            let is_active_series = Some(key) == active_key;
+            let overlay = overlay.filter(|_| is_active_series);
+            let fusion = if is_active_series {
+                crate::pet::shown(&self.session, self.views.get(&key))
+            } else {
+                crate::pet::shown_elsewhere(self.views.get(&key))
+            };
+            let state = self.views.entry(key).or_insert_with(|| ViewState::new(&series));
+            state.settle_stack_window(&series);
+            let smooth = settings.smooth_interpolation;
+            self.renders.update(ui.ctx(), key, kind, &series, state, smooth, overlay);
+            // The following tiles of a tile grid: the next images of the image set shown.
+            let tiles = crate::tiles::shown(viewport.tiles, r, multi_view, kind, &series);
+            let (first, count) = (state.slice_index(kind, &series), series.stack_len());
+            let slots: Vec<Option<usize>> =
+                tiles.images(first, count).map(|image| image.map(|image| state.stack() * count + image)).collect();
+            for &slot in slots.iter().skip(1).flatten() {
+                self.renders.update_tile(ui.ctx(), key, slot, &series, state, smooth, overlay);
+                tile_pictures.push((key, slot));
+            }
+            let pictures = slots.iter().enumerate().map(|(tile, slot)| match tile {
+                0 => self.renders.get(key, kind),
+                _ => slot.and_then(|slot| self.renders.get_tile(key, slot)),
+            });
+            let grid_input = (tiles != Tiles::ONE).then(|| crate::tiles::TileInput {
+                tiles,
+                first,
+                count,
+                pictures: pictures.collect(),
+            });
             let input = ViewportInput {
-                id: ui.scope_id().with(("viewport", kind)),
+                id,
+                key,
                 kind,
                 series: &series,
-                meta: &meta,
-                study: &study,
+                meta,
+                study,
                 rendered: self.renders.get(key, kind),
                 tool: self.tool,
                 settings,
-                is_active: self.active_view == kind,
-                multi_view: views.len() > 1,
-                show_details: i == 0,
+                is_active: if comparing { self.workspace.active() == i } else { self.active_view == kind },
+                multi_view,
+                show_details: i == 0 || comparing,
                 fusion: fusion.as_ref(),
+                tiles: grid_input.as_ref(),
+                compare: info.as_ref(),
             };
             let out = if kind == ViewKind::Volume {
                 // The volume of the stack on screen (stack 0 for a series that is not split).
@@ -487,24 +615,54 @@ impl Viewer {
             } else {
                 viewport::show(ui, r, &input, state)
             };
+            self.cells.push(workspace::DrawnCell { rect: r, tiles });
+            if let Some(image) = out.open_image {
+                // A tile opened: one image again, that one.
+                state.set_slice(kind, &series, image);
+                self.workspace.set_tiles(i, Tiles::ONE);
+                self.activate_viewport(i);
+            }
             if out.activated {
-                self.active_view = kind;
+                self.activate_viewport(i);
             }
             if let Some(h) = out.hover {
                 self.hover = Some((kind, h));
-                self.active_view = kind;
+                // In a preset the view under the pointer is the active one; of several series
+                // that takes a click, a scroll or a drag: the toolbar and the inspector stay put.
+                if !comparing {
+                    self.active_view = kind;
+                }
             }
+            for gesture in out.gestures {
+                self.workspace.follow_gesture(i, gesture, &self.session, &mut self.views);
+            }
+            if out.toggle_link {
+                self.workspace.toggle_link(i);
+            }
+            #[cfg(test)]
+            self.cross_lines.insert(i, out.cross_lines);
+            if comparing {
+                self.take_drop(ui, r, id, i);
+            }
+        }
+        self.renders.retain_tiles(&tile_pictures);
+        // And what the pointer did in this frame.
+        if self.workspace.follow(&self.session, &mut self.views) {
+            ui.ctx().request_repaint();
         }
         // Loading concentrates on the images around the one on screen, or on
         // the one playback waits for.
-        let displayed = self.cine.awaited(key).unwrap_or_else(|| state.slot_index(&series));
-        self.session.set_displayed(key, displayed);
+        for key in self.workspace.shown_series() {
+            if let (Some(series), Some(state)) = (self.session.data(key), self.views.get(&key)) {
+                let displayed = self.cine.awaited(key).unwrap_or_else(|| state.slot_index(&series));
+                self.session.set_displayed(key, displayed);
+            }
+        }
     }
 
-    /// Shown until the first image of the selected series is decoded.
-    fn placeholder(&self, ui: &mut Ui, rect: Rect) {
+    /// Shown until the first image of series `active` is decoded.
+    fn placeholder(&self, ui: &mut Ui, rect: Rect, active: Option<SeriesKey>) {
         let p = theme::palette(ui);
-        let active = self.session.active_series;
         let (text, busy) = match active.and_then(|key| self.session.state(key)) {
             Some(SeriesState::Loading(loading)) => {
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(50));
@@ -517,6 +675,9 @@ impl Viewer {
                 (tr!("Loading image {number} / {count}", number = shown + 1, count = count), true)
             }
             Some(SeriesState::Failed(e)) => (tr!("This series could not be displayed.\n{reason}", reason = e), false),
+            _ if self.session.study().series.is_empty() => {
+                (tr!("This study has no images on this disc.").to_owned(), false)
+            }
             _ => (tr!("Select a series").to_owned(), false),
         };
         let center = rect.center();
@@ -537,9 +698,15 @@ impl Viewer {
         let right_width = ui.ctx().data(|d| d.get_temp::<f32>(right_id)).unwrap_or(0.0);
         ui.horizontal(|ui| {
             let left_width = (ui.available_width() - right_width - ui.spacing().item_spacing.x).max(0.0);
-            let text = match (&self.hover, active) {
-                (Some((_, h)), Some((_, series))) => {
+            // What lies under the pointer is of the series there, in a multi-series layout not always the active one.
+            let hovered = self.hover.and_then(|(_, h)| Some((h, self.session.data(h.series)?)));
+            let text = match &hovered {
+                Some((h, series)) => {
                     let mut parts = vec![format!("x {} y {}", h.pixel.0, h.pixel.1)];
+                    if let Some(number) = h.image {
+                        // Which tile of a grid: the image the values are of.
+                        parts.insert(0, tr!("Image {number}", number = number));
+                    }
                     if let Some(pt) = h.patient {
                         parts.push(format!(
                             "{} {:.1}  {} {:.1}  {} {:.1} mm",
@@ -553,14 +720,22 @@ impl Viewer {
                     }
                     if let Some(v) = h.value {
                         // "40 HU", "SUV 3.1", or both values while a PET is drawn over a CT.
-                        parts.push(crate::pet::readout(&self.session, series, v, h.patient));
+                        parts.push(if Some(h.series) == self.session.active_series {
+                            crate::pet::readout(&self.session, series, v, h.patient)
+                        } else {
+                            summrise_core::pet::value_text(series.units(), f64::from(v))
+                        });
                     } else if h.outside {
                         parts.push(summrise_i18n::tr!("Outside the scanned area").to_owned());
                     }
                     RichText::new(parts.join("   ·   ")).small().monospace().color(p.text)
                 }
+                _ if self.documents.is_open() => RichText::new(documents::status_hint()).small().color(p.text_weak),
                 _ if self.active_view == ViewKind::Volume => {
                     RichText::new(volume_view::status_hint()).small().color(p.text_weak)
+                }
+                _ if self.tool.is_measuring() => {
+                    RichText::new(crate::measure::status_hint(self.tool)).small().color(p.text_weak)
                 }
                 _ => RichText::new(tr!(
                     "Scroll: change image · Drag: contrast · Pinch/{key}-scroll: zoom · Double-click: fit",
@@ -594,6 +769,12 @@ impl Viewer {
                     );
                     warn.on_hover_text(index.warnings.join("\n"));
                 }
+                if let Some(over) = self.over_budget {
+                    // The series on screen stay loaded over the memory limit, and it says so.
+                    let text = format!("{} {}", icon(ICON_WARNING), tr!("Over the memory limit"));
+                    let notice = ui.label(RichText::new(text).small().color(p.warn));
+                    notice.on_hover_text(workspace::memory_notice(over));
+                }
                 if let Some((_, series)) = active
                     && let Some(issue) = series.volume_issue()
                     && series.len() > 2
@@ -608,6 +789,7 @@ impl Viewer {
                 {
                     fidelity::graphics_toggle(ui, series, state);
                 }
+                crate::measure::status_notice(ui, self.tool, self.active_view);
             });
             let measured = right.response.rect.width();
             if (measured - right_width).abs() > 0.5 {
@@ -697,10 +879,12 @@ impl Viewer {
             return;
         }
         let kind = self.active_view;
+        let page = self.page_step();
         let Some(state) = self.views.get_mut(&key) else { return };
         // Turn, flip and tilt first: the bindings below ignore Alt and Shift.
         orient::keys(&ctx, state, kind);
         volume_view::keys(&ctx, state, series, kind);
+        crate::measure::keys(&ctx, &mut self.tool, state, kind);
         let pressed = |k: Key| ctx.input_mut(|i| i.consume_key(Modifiers::NONE, k));
         let step = |state: &mut ViewState, d: i64| state.scroll(kind, series, d);
         // Left and Right change the stack of a series with several; Up and Down the image.
@@ -721,11 +905,12 @@ impl Viewer {
         if ctx.memory(|m| m.focused().is_none()) && pressed(Key::Space) {
             self.cine.toggle(key, series, state, kind, ctx.input(|i| i.time));
         }
+        // Ten images, or a whole tile grid.
         if pressed(Key::PageUp) {
-            step(state, -10);
+            step(state, -page);
         }
         if pressed(Key::PageDown) {
-            step(state, 10);
+            step(state, page);
         }
         if pressed(Key::Home) {
             state.set_slice(kind, series, 0);
@@ -748,6 +933,7 @@ impl Viewer {
         }
         if pressed(Key::M) && has_volume {
             self.layout = if self.layout == Layout::Single { Layout::Mpr } else { Layout::Single };
+            self.workspace.leave_grid();
         }
         let digits =
             [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7, Key::Num8, Key::Num9];
@@ -850,12 +1036,24 @@ fn grid(rect: Rect, n: usize) -> Vec<Rect> {
     }
 }
 
+mod workspace;
+
+#[cfg(test)]
+mod compare_tests;
+#[cfg(test)]
+mod documents_tests;
+#[cfg(test)]
+mod export_tests;
 #[cfg(test)]
 mod fidelity_tests;
+#[cfg(test)]
+mod measure_tests;
 #[cfg(test)]
 mod oblique_tests;
 #[cfg(test)]
 mod pet_tests;
+#[cfg(test)]
+mod print_tests;
 #[cfg(test)]
 mod stacks_tests;
 #[cfg(test)]

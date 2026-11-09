@@ -71,13 +71,36 @@ pub(crate) fn is_outside_scan(displayed: &Displayed, series: &SeriesData, x: usi
 /// image of the series in a reformat; none in other views.
 pub(crate) fn lossy_label(kind: ViewKind, series: &SeriesData, meta: &Series, state: &ViewState) -> Option<String> {
     if kind == ViewKind::Stack {
-        let info = series.frames().get(state.slot_index(series))?;
-        meta.instances.get(info.instance)?.fidelity.lossy.as_ref().map(LossyCompression::label)
+        lossy_label_of_image(series, meta, state.slot_index(series))
     } else if let ViewKind::Mpr(_) = kind {
         meta.instances.iter().find_map(|header| header.fidelity.lossy.as_ref()).map(LossyCompression::label)
     } else {
         None
     }
+}
+
+/// The lossy mark of acquired image `index`.
+pub(crate) fn lossy_label_of_image(series: &SeriesData, meta: &Series, index: usize) -> Option<String> {
+    let info = series.frames().get(index)?;
+    meta.instances.get(info.instance)?.fidelity.lossy.as_ref().map(LossyCompression::label)
+}
+
+/// The lossy mark of a tile: of the image of that tile only, small enough for
+/// a tile, with the same explanation as the badge.
+pub(crate) fn lossy_tile_mark(ui: &Ui, painter: &Painter, tile: Rect, id: Id, label: &str) {
+    let galley = painter.layout_no_wrap(icon(ICON_COMPRESS).to_owned(), FontId::proportional(13.0), theme::DARK.warn);
+    let rect = Rect::from_min_size(tile.right_top() + vec2(-galley.size().x - 6.0, 3.0), galley.size());
+    painter.rect_filled(rect.expand(2.0), CornerRadius::same(4), Color32::from_black_alpha(205));
+    painter.galley(rect.min, galley, theme::DARK.warn);
+    let response = ui.interact(rect.expand(2.0), id.with("lossy"), Sense::hover());
+    response.widget_info(|| WidgetInfo::labeled(Role::Label, true, label));
+    response.on_hover_text(lossy_hint());
+}
+
+fn lossy_hint() -> &'static str {
+    tr!(
+        "This image is or was compressed in a way that discards some detail to save space. Fine detail can differ from what the scanner recorded."
+    )
 }
 
 /// Draws the lossy mark `label` with the badge helper, in its own row.
@@ -91,20 +114,21 @@ pub(crate) fn lossy_badge(
     label: &str,
 ) {
     let text = format!("{} {label}", icon(ICON_COMPRESS));
-    let hint = tr!(
-        "This image is or was compressed in a way that discards some detail to save space. Fine detail can differ from what the scanner recorded."
-    );
-    orient::badge(ui, painter, viewport, picture, id.with("lossy"), LOSSY_ROW, multi_view, &text, label, hint);
+    orient::badge(ui, painter, viewport, picture, id.with("lossy"), LOSSY_ROW, multi_view, &text, label, lossy_hint());
 }
 
 /// Whether the acquired view shows an image recorded with burned-in text.
 pub(crate) fn shows_burned_in_text(kind: ViewKind, series: &SeriesData, meta: &Series, state: &ViewState) -> bool {
-    kind == ViewKind::Stack
-        && series
-            .frames()
-            .get(state.slot_index(series))
-            .and_then(|info| meta.instances.get(info.instance))
-            .is_some_and(|header| header.fidelity.burned_in_text)
+    kind == ViewKind::Stack && image_has_burned_in_text(series, meta, state.slot_index(series))
+}
+
+/// Whether acquired image `index` was recorded with burned-in text.
+pub(crate) fn image_has_burned_in_text(series: &SeriesData, meta: &Series, index: usize) -> bool {
+    series
+        .frames()
+        .get(index)
+        .and_then(|info| meta.instances.get(info.instance))
+        .is_some_and(|header| header.fidelity.burned_in_text)
 }
 
 /// The notice of privacy mode for an image with burned-in text, at the
