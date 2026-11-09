@@ -5,6 +5,10 @@
 //! print queues are logged. Where there is no `lp`, the PDF goes to a place the
 //! user chooses and opens in the default application for PDFs.
 //!
+//! Windows has no CUPS, and a path such as `/usr/bin/lp` would mean that folder
+//! on the current drive there, which may be the disc: on Windows there is no
+//! `lp` at all, and saved PDFs open through the Explorer of the system folder.
+//!
 //! [`PrintSystem::at`] is the seam for tests: a fake script stands in.
 
 use std::io::Write as _;
@@ -21,10 +25,17 @@ pub const JOB_TITLE: &str = "SumMRIse";
 /// The programs printing goes through.
 #[derive(Debug, Clone)]
 pub struct PrintSystem {
-    lp: PathBuf,
-    lpstat: PathBuf,
+    /// `lp` and `lpstat`; `None` where printing does not go through CUPS (Windows).
+    cups: Option<Cups>,
     /// What opens a file in its default application.
     opener: PathBuf,
+}
+
+/// The CUPS programs, by absolute path.
+#[derive(Debug, Clone)]
+struct Cups {
+    lp: PathBuf,
+    lpstat: PathBuf,
 }
 
 impl Default for PrintSystem {
@@ -91,39 +102,37 @@ impl std::fmt::Display for PrintError {
 impl PrintSystem {
     /// The programs of this computer.
     pub fn system() -> Self {
-        let opener = if cfg!(target_os = "macos") {
-            PathBuf::from("/usr/bin/open")
-        } else if cfg!(windows) {
-            std::env::var_os("SystemRoot").map_or_else(
-                || PathBuf::from("C:\\Windows\\explorer.exe"),
-                |root| Path::new(&root).join("explorer.exe"),
-            )
-        } else {
-            PathBuf::from("/usr/bin/xdg-open")
-        };
-        Self { lp: PathBuf::from("/usr/bin/lp"), lpstat: PathBuf::from("/usr/bin/lpstat"), opener }
+        if cfg!(windows) {
+            return Self { cups: None, opener: windows_explorer(std::env::var_os("SystemRoot")) };
+        }
+        let opener = if cfg!(target_os = "macos") { "/usr/bin/open" } else { "/usr/bin/xdg-open" };
+        let cups = Cups { lp: PathBuf::from("/usr/bin/lp"), lpstat: PathBuf::from("/usr/bin/lpstat") };
+        Self { cups: Some(cups), opener: PathBuf::from(opener) }
     }
 
     /// Other programs in their place, for tests.
     pub fn at(lp: PathBuf, lpstat: PathBuf, opener: PathBuf) -> Self {
-        Self { lp, lpstat, opener }
+        Self { cups: Some(Cups { lp, lpstat }), opener }
     }
 
     /// Whether this computer has a print system to hand pages to.
     pub fn is_available(&self) -> bool {
-        self.lp.is_file()
+        self.cups.as_ref().is_some_and(|cups| cups.lp.is_file())
+    }
+
+    /// The CUPS programs, or why there are none.
+    fn cups(&self) -> Result<&Cups, PrintError> {
+        self.cups.as_ref().ok_or_else(|| {
+            PrintError::Start(std::io::Error::new(std::io::ErrorKind::NotFound, "this system has no CUPS"))
+        })
     }
 
     /// The printers the system lists and its default one.
     pub fn printers(&self) -> Result<Printers, PrintError> {
         // In English whatever the system's language is: this output is parsed.
+        let lpstat = &self.cups()?.lpstat;
         let list = |flag: &str| {
-            Command::new(&self.lpstat)
-                .arg(flag)
-                .env("LC_ALL", "C")
-                .stdin(Stdio::null())
-                .output()
-                .map_err(PrintError::Start)
+            Command::new(lpstat).arg(flag).env("LC_ALL", "C").stdin(Stdio::null()).output().map_err(PrintError::Start)
         };
         let names = list("-e")?;
         if !names.status.success() {
@@ -145,7 +154,7 @@ impl PrintSystem {
 
     /// Hands `pdf` to the print system on standard input. Nothing is retried.
     pub fn send(&self, pdf: &[u8], job: &PrintJob) -> Result<(), PrintError> {
-        let mut child = Command::new(&self.lp)
+        let mut child = Command::new(&self.cups()?.lp)
             .args(job.arguments())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -176,6 +185,15 @@ impl PrintSystem {
     }
 }
 
+/// The Explorer in the Windows folder `system_root` (`%SystemRoot%`); the
+/// usual folder when that is not an absolute path.
+fn windows_explorer(system_root: Option<std::ffi::OsString>) -> PathBuf {
+    match system_root.map(PathBuf::from) {
+        Some(root) if root.is_absolute() => root.join("explorer.exe"),
+        _ => PathBuf::from("C:\\Windows\\explorer.exe"),
+    }
+}
+
 /// What a program said about its failure.
 fn reason_of(output: &std::process::Output) -> String {
     let said = |bytes: &[u8]| String::from_utf8_lossy(bytes).trim().to_owned();
@@ -196,9 +214,74 @@ fn parse_default(text: &str) -> Option<String> {
     (!name.is_empty()).then(|| name.to_owned())
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_printer_output_is_understood() {
+        assert_eq!(parse_default("system default destination: Office\n").as_deref(), Some("Office"));
+        assert_eq!(parse_default("no system default destination\n"), None);
+        assert_eq!(parse_default(""), None);
+    }
+
+    #[test]
+    fn nothing_but_the_job_is_passed_to_lp() {
+        let job = PrintJob { printer: None, copies: 0, paper: Paper::Letter };
+        assert_eq!(job.arguments(), ["-n", "1", "-t", "SumMRIse", "-o", "media=Letter"]);
+    }
+
+    #[test]
+    fn a_missing_print_system_is_noticed() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = |name: &str| dir.path().join(name);
+        let system = PrintSystem::at(path("lp"), path("lpstat"), path("open"));
+        assert!(!system.is_available());
+        assert!(matches!(system.printers(), Err(PrintError::Start(_))));
+        let job = PrintJob { printer: None, copies: 1, paper: Paper::A4 };
+        assert!(matches!(system.send(b"%PDF", &job), Err(PrintError::Start(_))));
+        assert!(matches!(system.open(&path("a.pdf")), Err(PrintError::Start(_))));
+    }
+
+    /// Absolute paths only: nothing on a disc or in the working directory is run.
+    #[test]
+    fn the_real_programs_are_given_by_absolute_paths() {
+        let system = PrintSystem::system();
+        assert!(system.opener.is_absolute(), "{}", system.opener.display());
+        if let Some(cups) = &system.cups {
+            assert!(cups.lp.is_absolute() && cups.lpstat.is_absolute());
+        }
+    }
+
+    /// On Windows there is no CUPS: nothing is looked for in `\usr\bin` of the
+    /// current drive, which may be the disc, and saved PDFs open through the
+    /// Explorer of the system folder.
+    #[cfg(windows)]
+    #[test]
+    fn windows_has_no_lp_and_opens_pdfs_with_the_explorer_of_the_system() {
+        let system = PrintSystem::system();
+        assert!(system.cups.is_none());
+        assert!(!system.is_available());
+        assert!(matches!(system.printers(), Err(PrintError::Start(_))));
+        let job = PrintJob { printer: None, copies: 1, paper: Paper::A4 };
+        assert!(matches!(system.send(b"%PDF", &job), Err(PrintError::Start(_))));
+        assert!(system.opener.ends_with("explorer.exe"));
+        assert!(system.opener.is_file(), "{} exists", system.opener.display());
+    }
+
+    #[test]
+    fn the_explorer_comes_from_an_absolute_system_folder_only() {
+        let root = if cfg!(windows) { "D:\\Win" } else { "/win" };
+        assert_eq!(windows_explorer(Some(root.into())), Path::new(root).join("explorer.exe"));
+        let usual = PathBuf::from("C:\\Windows\\explorer.exe");
+        assert_eq!(windows_explorer(Some("Windows".into())), usual, "a relative folder is not used");
+        assert_eq!(windows_explorer(None), usual);
+    }
+}
+
 // Fake print systems are shell scripts.
 #[cfg(all(test, unix))]
-pub(crate) mod tests {
+pub(crate) mod fake {
     use std::os::unix::fs::PermissionsExt as _;
 
     use super::*;
@@ -283,13 +366,6 @@ pub(crate) mod tests {
         assert_eq!(std::fs::read_to_string(fake.record("lpstat-locale")).expect("record").trim(), "C");
     }
 
-    #[test]
-    fn default_printer_output_is_understood() {
-        assert_eq!(parse_default("system default destination: Office\n").as_deref(), Some("Office"));
-        assert_eq!(parse_default("no system default destination\n"), None);
-        assert_eq!(parse_default(""), None);
-    }
-
     /// Spec "Printing on macOS or Linux with CUPS" and task 4.5: `lp` gets the
     /// PDF on standard input with the printer, the copies and the title, and
     /// nothing else: no file of the application appears anywhere.
@@ -330,12 +406,6 @@ pub(crate) mod tests {
         assert_eq!(pdfs_in_temp(), before, "no PDF of the application in the temporary folder");
     }
 
-    #[test]
-    fn nothing_but_the_job_is_passed_to_lp() {
-        let job = PrintJob { printer: None, copies: 0, paper: Paper::Letter };
-        assert_eq!(job.arguments(), ["-n", "1", "-t", "SumMRIse", "-o", "media=Letter"]);
-    }
-
     /// Spec "Printer refuses the job": its error text is reported.
     #[test]
     fn an_error_of_lp_is_reported_with_its_text() {
@@ -347,30 +417,10 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_missing_print_system_is_noticed() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let path = |name: &str| dir.path().join(name);
-        let system = PrintSystem::at(path("lp"), path("lpstat"), path("open"));
-        assert!(!system.is_available());
-        assert!(matches!(system.printers(), Err(PrintError::Start(_))));
-        let job = PrintJob { printer: None, copies: 1, paper: Paper::A4 };
-        assert!(matches!(system.send(b"%PDF", &job), Err(PrintError::Start(_))));
-        assert!(matches!(system.open(&path("a.pdf")), Err(PrintError::Start(_))));
-    }
-
-    #[test]
     fn a_saved_pdf_is_opened_with_the_default_application() {
         let fake = Fake::new(ACCEPTING);
         let file = fake.dir.path().join("SumMRIse-CT-S1.pdf");
         fake.system().open(&file).expect("opened");
         assert_eq!(std::fs::read_to_string(fake.record("opened")).expect("record").trim(), file.display().to_string());
-    }
-
-    /// Absolute paths only: nothing on a disc or in the working directory is run.
-    #[test]
-    fn the_real_programs_are_given_by_absolute_paths() {
-        let system = PrintSystem::system();
-        assert!(system.lp.is_absolute() && system.lpstat.is_absolute());
-        assert!(system.opener.is_absolute());
     }
 }
