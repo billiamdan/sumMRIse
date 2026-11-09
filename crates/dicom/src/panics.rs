@@ -39,6 +39,12 @@ pub fn catch<R>(work: impl FnOnce() -> R) -> std::thread::Result<R> {
     result
 }
 
+/// The reason given when a reader stopped on damaged data.
+pub fn damaged() -> &'static str {
+    // Translators: why a file or a disc could not be read: the reader stopped on damaged data.
+    summrise_i18n::tr!("the reader stopped on damaged data")
+}
+
 /// Whether a panic on this thread now would be caught by [`catch`].
 pub fn is_expected() -> bool {
     CATCHING.with(|c| c.get() > 0)

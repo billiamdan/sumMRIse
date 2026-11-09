@@ -189,9 +189,10 @@ fn write_report(folder: &Path, text: &str, now: SystemTime, fatal: bool) -> std:
             p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with(PREFIX) && n.ends_with(".txt"))
         })
         .collect();
-    reports.sort();
+    reports.sort_by_key(|p| report_order(p));
     let excess = reports.len().saturating_sub(KEPT);
-    for old in reports.into_iter().take(excess) {
+    // Never the one just written, even if the clock went back.
+    for old in reports.into_iter().filter(|p| *p != path).take(excess) {
         let _ = fs::remove_file(old);
     }
     if fatal && let Some(name) = path.file_name().and_then(|n| n.to_str()) {
@@ -307,17 +308,37 @@ fn shorten_paths(backtrace: &str) -> String {
         .map(|line| match line.trim_start().strip_prefix("at ") {
             Some(location) => {
                 let indent = &line[..line.len() - line.trim_start().len()];
-                // "<path>:<line>:<column>"; the path may hold a drive letter's colon.
-                let (path, position) = match location.rsplitn(3, ':').collect::<Vec<_>>().as_slice() {
-                    [column, row, path] => ((*path).to_owned(), format!(":{row}:{column}")),
-                    _ => (location.to_owned(), String::new()),
-                };
-                format!("{indent}at {}{position}", shorten_path(&path))
+                let (path, position) = split_position(location);
+                format!("{indent}at {}{position}", shorten_path(path))
             }
             None => line.to_owned(),
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// "<path>:<line>:<column>" or "<path>:<line>" (Windows has no columns) split
+/// into the path and the position; the path may hold a drive letter's colon.
+fn split_position(location: &str) -> (&str, &str) {
+    let mut path = location;
+    for _ in 0..2 {
+        match path.rsplit_once(':') {
+            Some((head, number)) if !number.is_empty() && number.bytes().all(|b| b.is_ascii_digit()) => path = head,
+            _ => break,
+        }
+    }
+    (path, &location[path.len()..])
+}
+
+/// The order of reports by time: the stamp in the name, then the number added
+/// for a second report in the same second.
+fn report_order(path: &Path) -> (String, u32) {
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+    let stem = name.trim_start_matches(PREFIX).trim_end_matches(".txt");
+    match stem.split_once("Z-") {
+        Some((stamp, n)) => (stamp.to_owned(), n.parse().unwrap_or(1)),
+        None => (stem.trim_end_matches('Z').to_owned(), 1),
+    }
 }
 
 /// A point in time in UTC.
@@ -410,6 +431,9 @@ mod tests {
             "   0: summrise_core::session::open\n             at crates/core/src/session.rs:12:5\n   1: main"
         );
         assert_eq!(shorten_paths("  at C:\\b\\crates\\ui\\src\\a.rs:3:4"), "  at crates/ui/src/a.rs:3:4");
+        // Windows backtraces have no column.
+        assert_eq!(shorten_paths("  at C:\\b\\crates\\ui\\src\\a.rs:42"), "  at crates/ui/src/a.rs:42");
+        assert_eq!(shorten_paths("  at C:\\Users\\x\\elsewhere.rs"), "  at elsewhere.rs");
     }
 
     #[test]
@@ -454,6 +478,7 @@ mod tests {
         }
         let again = write_report(&folder, "report", at(1_794_258_198), false).expect("same second");
         assert!(again.ends_with("SumMRIse-crash-2026-11-09T21-03-18Z-2.txt"), "{}", again.display());
+        assert!(again.exists(), "the newer of two in the same second is kept");
         let mut names: Vec<String> = fs::read_dir(&folder)
             .expect("folder")
             .map(|e| e.expect("entry").file_name().to_string_lossy().into())
@@ -471,6 +496,10 @@ mod tests {
         write_report(&folder, "report", at(1_794_258_201), true).expect("written");
         mark_told(&folder);
         assert_eq!(report_of_last_run(&folder), None, "told at once");
+
+        // A clock that went back: the report just written stays.
+        let early = write_report(&folder, "report", at(1_794_000_000), false).expect("written");
+        assert!(early.exists());
 
         // The file of the next start names only a report of ours in the folder.
         fs::write(folder.join(UNSEEN), "../../etc/passwd").expect("write");

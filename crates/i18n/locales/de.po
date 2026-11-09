@@ -2296,6 +2296,11 @@ msgstr "Kennungen"
 msgid "its data is nested too deeply"
 msgstr "ihre Daten sind zu tief verschachtelt"
 
+#. why a file or a disc could not be read: the reader stopped on damaged data.
+#: crates/dicom/src/panics.rs
+msgid "the reader stopped on damaged data"
+msgstr "das Lesen wurde wegen beschädigter Daten abgebrochen"
+
 #: crates/dicom/src/pet.rs
 msgid "The images do not record the unit of their values."
 msgstr "Die Bilder geben die Einheit ihrer Werte nicht an."

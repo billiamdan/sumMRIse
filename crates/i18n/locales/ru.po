@@ -2326,6 +2326,11 @@ msgstr "Идентификаторы"
 msgid "its data is nested too deeply"
 msgstr "его данные имеют слишком большую вложенность"
 
+#. why a file or a disc could not be read: the reader stopped on damaged data.
+#: crates/dicom/src/panics.rs
+msgid "the reader stopped on damaged data"
+msgstr "чтение остановлено из-за повреждённых данных"
+
 #: crates/dicom/src/pet.rs
 msgid "The images do not record the unit of their values."
 msgstr "В изображениях не указана единица измерения значений."

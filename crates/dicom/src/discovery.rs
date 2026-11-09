@@ -253,6 +253,14 @@ fn discover_from_dicomdirs(media: &Media, dicomdirs: &[PathBuf], progress: &Prog
 /// Parses a DICOMDIR and resolves its Referenced File IDs relative to the
 /// DICOMDIR's folder. Returns (existing files, number of missing files).
 pub fn referenced_files(media: &Media, dicomdir: &Path) -> Result<(Vec<PathBuf>, usize)> {
+    // A damaged DICOMDIR can make the DICOM library panic: that is an unreadable
+    // DICOMDIR (the folder is scanned instead), not a crash.
+    crate::panics::catch(|| read_referenced_files(media, dicomdir)).unwrap_or_else(|_| {
+        Err(DicomError::Parse { path: media.display_path(dicomdir), reason: crate::panics::damaged().to_owned() })
+    })
+}
+
+fn read_referenced_files(media: &Media, dicomdir: &Path) -> Result<(Vec<PathBuf>, usize)> {
     let obj = media
         .open_object(dicomdir, None)
         .map_err(|reason| DicomError::Parse { path: media.display_path(dicomdir), reason })?;

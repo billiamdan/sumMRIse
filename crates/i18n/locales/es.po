@@ -2296,6 +2296,11 @@ msgstr "Identificadores"
 msgid "its data is nested too deeply"
 msgstr "sus datos tienen demasiados niveles de anidamiento"
 
+#. why a file or a disc could not be read: the reader stopped on damaged data.
+#: crates/dicom/src/panics.rs
+msgid "the reader stopped on damaged data"
+msgstr "la lectura se detuvo por datos dañados"
+
 #: crates/dicom/src/pet.rs
 msgid "The images do not record the unit of their values."
 msgstr "Las imágenes no registran la unidad de sus valores."

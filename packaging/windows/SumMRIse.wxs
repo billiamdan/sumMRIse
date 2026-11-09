@@ -23,7 +23,9 @@
       Compressed="yes"
       Language="1033">
     <SummaryInformation Description="SumMRIse — viewer for the MRI, CT and PET scans on patient discs. Not a medical device." />
-    <MajorUpgrade DowngradeErrorMessage="A newer version of SumMRIse is already installed." />
+    <!-- A pre-release installs with the numbers of its release (0.3.0-rc.1 as 0.3.0): the
+         release replaces it although the numbers are the same. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of SumMRIse is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <Icon Id="SumMRIse.ico" SourceFile="$(var.Icon)" />

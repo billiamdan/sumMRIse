@@ -277,7 +277,11 @@ impl InstanceHeader {
 
 /// Discovers and indexes all images below `root`.
 pub fn scan(root: &Path, progress: &Progress) -> Result<StudyIndex> {
-    let discovery = discover(root, progress)?;
+    // Discovery reads the disc's own structures (DICOMDIR, ISO 9660, ZIP): a
+    // reader stopping on damaged data is an error to show, not a crash.
+    let discovery = crate::panics::catch(|| discover(root, progress)).unwrap_or_else(|_| {
+        Err(DicomError::Parse { path: root.to_path_buf(), reason: crate::panics::damaged().to_owned() })
+    })?;
     let mut index = index_files(&discovery.media, &discovery.files, progress)?;
     index.root = root.to_path_buf();
     index.source = discovery.source;

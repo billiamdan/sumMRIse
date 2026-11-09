@@ -4,11 +4,13 @@ name: Release
 # Windows MSI and zip, the Linux AppImage and tarball, and SHA256SUMS. The tag must name
 # the version in Cargo.toml, be on main and have a section in CHANGELOG.md.
 #
-# Signing: with the secrets MACOS_CERT_P12, MACOS_CERT_PASSWORD, MACOS_SIGNING_IDENTITY
-# (and APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER for notarization) and
-# WINDOWS_CERT_PFX, WINDOWS_CERT_PASSWORD, the packages are signed; without them they
-# are published unsigned and the release notes say so. The `release` environment can
-# be given protection rules (required reviewers) in the repository settings.
+# Signing: with the repository secrets MACOS_CERT_P12, MACOS_CERT_PASSWORD,
+# MACOS_SIGNING_IDENTITY (and APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER for
+# notarization) and WINDOWS_CERT_PFX, WINDOWS_CERT_PASSWORD, the packages are signed;
+# without them they are published unsigned, and the release notes say so from what the
+# package jobs report. Keep these as repository secrets: the package jobs do not run in
+# the `release` environment. That environment, used by the publishing job only, can be
+# given protection rules (required reviewers) in the repository settings.
 on:
   push:
     tags: ["v*"]
@@ -64,8 +66,9 @@ jobs:
       contents: write
     env:
       VERSION: ${{ needs.verify.outputs.version }}
-      SIGNED_MACOS: ${{ secrets.MACOS_CERT_P12 != '' && secrets.APPLE_API_KEY_P8 != '' }}
-      SIGNED_WINDOWS: ${{ secrets.WINDOWS_CERT_PFX != '' }}
+      # What the package jobs actually did, not which secrets exist.
+      SIGNED_MACOS: ${{ needs.package.outputs.macos_signed }}
+      SIGNED_WINDOWS: ${{ needs.package.outputs.windows_signed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

@@ -88,7 +88,7 @@ pub(crate) fn package_windows(args: &[String]) -> Result<()> {
         run(Command::new("wix")
             .current_dir(&root)
             .args(["build", "-arch", "x64", "-d"])
-            .arg(format!("Version={version}"))
+            .arg(format!("Version={}", msi_version(&version)))
             .arg("-d")
             .arg(format!("Stage={}", stage.display()))
             .arg("-d")
@@ -102,6 +102,12 @@ pub(crate) fn package_windows(args: &[String]) -> Result<()> {
         println!("built {}", msi.display());
     }
     Ok(())
+}
+
+/// The version of the MSI: Windows Installer takes numbers only, so a
+/// pre-release (0.3.0-rc.1) installs as 0.3.0, which the release replaces.
+pub(crate) fn msi_version(version: &str) -> &str {
+    version.split(['-', '+']).next().unwrap_or(version)
 }
 
 /// Signs `file` with the certificate in `pfx` and a timestamp (SHA-256).
@@ -315,6 +321,13 @@ mod tests {
         assert!(unsigned.ends_with("must not be used for diagnosis."));
         let signed = notes("- JPEG-LS.", "0.3.0", true, true);
         assert!(!signed.contains("not signed") && !signed.contains("not code-signed"));
+    }
+
+    #[test]
+    fn the_msi_version_is_numeric() {
+        assert_eq!(msi_version("0.3.0"), "0.3.0");
+        assert_eq!(msi_version("0.3.0-rc.1"), "0.3.0");
+        assert_eq!(msi_version("1.2.3+build.7"), "1.2.3");
     }
 
     #[test]
