@@ -79,8 +79,11 @@ fn cd_sized(settings: Settings, size: [f32; 2], theme: Theme) -> Fixture {
     write_reports_cd(dir.path(), &PhantomOptions::small()).expect("fixture");
     let open = dir.path().to_path_buf();
     let mut f = start(dir, open, settings, size, theme);
-    f.run_until("the CT", |f| f.viewer().session.data(CT).is_some_and(|series| series.is_viewable()));
-    f.harness.step();
+    // The whole series, not only its first image: while it loads, the image on screen is
+    // labelled "Loading image 13 / 24", and the tests that go back to the images look for
+    // "Image 13 / 24". (They failed on slow runners, where the series was still loading.)
+    f.run_until("the CT", |f| f.viewer().session.data(CT).is_some_and(|series| series.is_complete()));
+    f.steps(3);
     f
 }
 
