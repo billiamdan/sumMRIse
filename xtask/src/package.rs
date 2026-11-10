@@ -271,9 +271,9 @@ fn notes(section: &str, version: &str, signed_macos: bool, signed_windows: bool)
          | `{APP_NAME}-{version}-macos-universal.dmg` | macOS 11 or later, Apple silicon and Intel |\n\
          | `{APP_NAME}-{version}-windows-x64.msi` | Windows 10 or later, installs for you only (no administrator rights) |\n\
          | `{APP_NAME}-{version}-windows-x64.zip` | Windows 10 or later, without installing |\n\
-         | `{APP_NAME}-{version}-linux-x64.AppImage` | Linux (x86-64): make it executable and start it |\n\
-         | `{APP_NAME}-{version}-linux-x64.tar.gz` | Linux (x86-64): the program with its desktop entry |\n\
-         | `SHA256SUMS` | the SHA-256 checksum of every file (`sha256sum -c SHA256SUMS`) |\n\n"
+         | `{APP_NAME}-{version}-linux-x64.AppImage` | Linux (x86-64, glibc 2.35 or later): make it executable and start it |\n\
+         | `{APP_NAME}-{version}-linux-x64.tar.gz` | Linux (x86-64, glibc 2.35 or later): the program with its desktop entry |\n\
+         | `SHA256SUMS` | the SHA-256 checksum of every file (`sha256sum --ignore-missing -c SHA256SUMS`) |\n\n"
     ));
     if !signed_macos {
         out.push_str(

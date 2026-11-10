@@ -30,6 +30,10 @@ missing.
 - **THEN** it says "Yes" for decoding and "Yes" for lossy, as the code does
 
 #### Scenario: JPEG-LS without the build option
-- **WHEN** the default build reads the row of 1.2.840.10008.1.2.4.80
-- **THEN** it says "With the jpeg-ls build option" and `transfer_syntax_supported` is false
+- **WHEN** a build without the `jpeg-ls` feature reads the row of 1.2.840.10008.1.2.4.80
+- **THEN** it says "Yes (release builds)" and `transfer_syntax_supported` is false
+
+#### Scenario: JPEG-LS in a release build
+- **WHEN** a build with the `jpeg-ls` feature, as the release packages are, reads that row
+- **THEN** it says "Yes (release builds)" and `transfer_syntax_supported` is true
 

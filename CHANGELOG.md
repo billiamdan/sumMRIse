@@ -11,7 +11,7 @@ must not be used for diagnosis.
 
 ## [Unreleased]
 
-## [0.3.0] — 2026-11-09
+## [0.3.0] — 2026-11-10
 
 The first version with downloadable packages.
 
@@ -19,18 +19,20 @@ The first version with downloadable packages.
 
 - **Downloads for macOS, Windows and Linux**: a universal DMG for macOS 11 or later, a
   per-user MSI installer and a portable zip for Windows 10 or later, and an AppImage and a
-  tarball for Linux, published with a `SHA256SUMS` file for each tagged version
+  tarball for Linux (glibc 2.35 or later), with a `SHA256SUMS` file, for each tagged version
   (`signed-releases`, `windows-distribution`, `linux-distribution`). `SumMRIse.exe` carries
   its icon and version information. Signing and notarization run when the certificates are
   configured; until then the packages are unsigned, and the release notes say so.
 - **JPEG-LS** Lossless and Near-Lossless images are decoded (CharLS) in the release
   packages (`jpeg-ls-support`).
 - **Crash reports without patient data**: if SumMRIse stops because of a fault, it says so
-  and saves a short report in your log folder that holds no names, IDs, dates of birth,
-  file names or values from the images (`crash-reports`).
-- **Third-party licences**: the licences of the software SumMRIse is built with are shown
-  under About ▸ Third-party licences and come with every package as
-  `THIRD-PARTY-NOTICES.txt`.
+  and saves a short report that holds no names, IDs, dates of birth, file names or values
+  from the images (`crash-reports`). If only part of the program stopped, the screen that
+  was waiting for it says so instead of waiting for ever.
+- **Third-party licences**: the licences of the software SumMRIse is built with — the
+  crates, the Rust standard library, bundled fonts and CharLS — are shown under About ▸
+  Third-party licences and come with every package as `THIRD-PARTY-NOTICES.txt`
+  (`third-party-notices`).
 - Everything built since 0.2.0, which was never published as a download:
   - images appear while a series is still loading (`progressive-loading`);
   - ZIP archives and ISO 9660 disc images open in place (`archive-import`);
@@ -59,11 +61,14 @@ The first version with downloadable packages.
   opened in the default application.
 - Release builds no longer print panic messages, which could quote data from the opened
   files, to standard error.
+- The log no longer names the folder or archive that was opened unless it is switched to
+  debug level: such names can be a patient's.
 
 ### Security
 
-- The supply-chain check fails when an HTTP, WebSocket or TLS client crate enters the
-  dependency graph (`cargo deny`), so the application cannot gain network access unnoticed.
+- The supply-chain check fails when one of the common HTTP, WebSocket or TLS client crates
+  named in `deny.toml` enters the dependency graph (`cargo deny`): a guard against network
+  access arriving with a dependency.
 
 ## [0.2.0] — 2026-11-05
 

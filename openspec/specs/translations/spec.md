@@ -1,7 +1,7 @@
 # translations Specification
 
 ## Purpose
-The interface in English, German, Spanish, French and Russian: the language follows the system and can be chosen in the settings; text from the disc is never translated, and the machine translations say that they are unreviewed.
+The interface in English, German, Spanish, French and Russian: the language follows the system and can be chosen in the settings; text from the disc is never translated. The translations are machine-made and not yet reviewed by native speakers (the README says so; review is tracked in `field-validation`).
 ## Requirements
 ### Requirement: Translated interface
 Everything the application itself says SHALL be shown in the language of the interface

@@ -12,7 +12,8 @@ was an empty stub.
 - Per-user MSI installer (WiX 4 or `cargo-packager`) with Start-menu shortcut and
   uninstaller; keep the portable zip.
 - Authenticode signing in CI when a certificate is configured.
-- Verify removable-media detection on drive letters and settings in `%APPDATA%`.
+- Verify removable-media detection on drive letters and settings in
+  `%APPDATA%\com.summrise.Viewer`.
 
 ## Capabilities
 

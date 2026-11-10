@@ -29,12 +29,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Linux system libraries (windowing + software Vulkan for UI tests, bsdtar and xorrisofs for ISO images)
+      - name: Linux system libraries (windowing + software Vulkan for UI tests, bsdtar and xorrisofs for ISO images, the fonts the interface loads)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev \
-            libxrandr-dev libxi-dev libgl1-mesa-dev mesa-vulkan-drivers libarchive-tools xorriso zip
+            libxrandr-dev libxi-dev libgl1-mesa-dev mesa-vulkan-drivers libarchive-tools xorriso zip \
+            fonts-noto-core fonts-dejavu-core
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
@@ -61,6 +62,7 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: Third-party notices up to date
         run: cargo xtask notices --check
 

@@ -154,6 +154,12 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "signed=$env:HAS_SIGNING" >> $env:GITHUB_OUTPUT
 
+      # Windows Installer's own consistency checks (ICE): `wix build` does not run them.
+      - name: Validate the MSI
+        run: |
+          wix msi validate (Get-Item dist\*.msi).FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Check the executable
         run: |
           $exe = "dist\windows\SumMRIse\SumMRIse.exe"

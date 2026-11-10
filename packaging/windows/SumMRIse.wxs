@@ -9,7 +9,8 @@
   Installs for the current user only, without administrator rights: the program
   goes to %LOCALAPPDATA%\Programs\SumMRIse, the shortcut to the user's Start menu,
   and Settings > Apps lists it for removal. Removal leaves the settings in
-  %APPDATA%\SumMRIse. A newer version replaces an older one.
+  %APPDATA%\com.summrise.Viewer and crash reports in %LOCALAPPDATA%\SumMRIse. A newer
+  version replaces an older one.
 
   Keep the UpgradeCode and the component GUIDs: they tie every version of SumMRIse
   together.

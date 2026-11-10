@@ -1,8 +1,10 @@
 name: Release
 
-# Pushing a version tag (v0.3.0) publishes a GitHub Release with the macOS DMG, the
-# Windows MSI and zip, the Linux AppImage and tarball, and SHA256SUMS. The tag must name
-# the version in Cargo.toml, be on main and have a section in CHANGELOG.md.
+# Pushing a version tag (v0.3.0) prepares a GitHub Release as a draft, with the macOS
+# DMG, the Windows MSI and zip, the Linux AppImage and tarball, and SHA256SUMS. Nothing
+# is public until the maintainer has looked at the draft and published it on the
+# releases page. The tag must name the version in Cargo.toml, be on main, have a section
+# in CHANGELOG.md, and CI must have passed for its commit.
 #
 # Signing: with the repository secrets MACOS_CERT_P12, MACOS_CERT_PASSWORD,
 # MACOS_SIGNING_IDENTITY (and APPLE_API_KEY_P8, APPLE_API_KEY_ID, APPLE_API_ISSUER for
@@ -26,6 +28,9 @@ jobs:
   verify:
     name: Tag, version and release notes
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -46,6 +51,16 @@ jobs:
             exit 1
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: CI passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          passed="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" \
+            --status success --json databaseId --jq length)"
+          if [ "$passed" -eq 0 ]; then
+            echo "::error::CI has not passed for $GITHUB_SHA. When the CI run of this commit on main has succeeded, re-run this workflow."
+            exit 1
+          fi
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - name: CHANGELOG.md has a section for the version
@@ -58,7 +73,7 @@ jobs:
     secrets: inherit
 
   publish:
-    name: Publish the release
+    name: Draft the release
     needs: [verify, package]
     runs-on: ubuntu-24.04
     environment: release
@@ -96,11 +111,13 @@ jobs:
           [ "$SIGNED_WINDOWS" = true ] && flags+=(--signed-windows)
           cargo xtask release-notes "$VERSION" "${flags[@]}" > "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/notes.md"
-      - name: Publish
+      # A draft: the maintainer looks at the files and the notes, then publishes it.
+      - name: Create the draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           prerelease=()
           case "$VERSION" in *-*) prerelease=(--prerelease) ;; esac
-          gh release create "$GITHUB_REF_NAME" release/* \
-            --verify-tag --title "SumMRIse $VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${prerelease[@]}"
+          url="$(gh release create "$GITHUB_REF_NAME" release/* --draft \
+            --verify-tag --title "SumMRIse $VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${prerelease[@]}")"
+          echo "::notice::Draft release created: $url — check it, then publish it there."

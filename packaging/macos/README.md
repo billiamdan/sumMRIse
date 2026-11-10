@@ -1,8 +1,8 @@
 # macOS packaging
 
 `cargo xtask bundle-macos` produces `dist/macos/SumMRIse.app` (and with `--dmg` a
-compressed disk image) using only tools that ship with Xcode / macOS
-(`lipo`, `codesign`, `hdiutil`, `iconutil`).
+compressed disk image) with tools that ship with Xcode / macOS (`lipo`, `codesign`,
+`diskutil` or `hdiutil`, `iconutil`), plus CMake to build CharLS.
 
 | Option | Effect |
 | --- | --- |
@@ -16,8 +16,9 @@ The executable is built with the release features (JPEG-LS through CharLS, which
 CMake). `LICENSE.txt` and `THIRD-PARTY-NOTICES.txt` go into `Contents/Resources` and next
 to the app in the disk image.
 
-Ad-hoc signed builds run on the machine that built them. To distribute to other
-Macs without Gatekeeper warnings you need an Apple Developer account:
+Ad-hoc signed builds open without a warning only on the Mac that built them; on another
+Mac the user has to allow the app in System Settings ▸ Privacy & Security. To distribute
+to other Macs without Gatekeeper warnings you need an Apple Developer account:
 
 1. Create a *Developer ID Application* certificate and install it in your keychain.
 2. Store notarization credentials once:

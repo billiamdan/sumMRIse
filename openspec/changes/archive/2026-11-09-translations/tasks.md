@@ -39,7 +39,7 @@
 
 - [x] 6.1 Glyph test: every translation and language name with the bundled fonts; the main screens in every language with the fonts the app loads
 - [x] 6.2 Snapshot helper `crates/ui/tests/translation_snapshots.rs` (`SUMMRISE_LANGUAGE`, `SUMMRISE_SNAPSHOT_DIR`), with a toolbar fit check; run in English and looked at
-- [x] 6.3 Glyph test on Windows and Linux (Segoe UI, Noto/DejaVu): `crates/ui/tests/glyphs.rs` passes on the windows-latest and ubuntu-24.04 CI runners since the Windows check is back (PR #8), with the fonts those runners have
+- [x] 6.3 Glyph test on Windows and Linux (Segoe UI, Noto/DejaVu): `crates/ui/tests/glyphs.rs` passes on the windows-latest and ubuntu-24.04 CI runners since the Windows check is back (PR #8): Segoe UI is on the Windows runner, and the Linux job installs `fonts-noto-core` and `fonts-dejavu-core`
 - [x] 6.4 Corner annotations never overlap: blocks in opposite corners share the width and long lines are shortened with "…"; the scale bar is left out where it does not fit (`widgets::share_row`, `widgets::elide_lines`, unit tests; reformat layout looked at at 960 and 1440 points)
 - [x] 6.5 The status bar keeps its right-hand text (number of images, source, warnings) in place and shortens the hint on the left ("…", in full on hover) instead of running under it; the playback bar wraps onto another row, each label with its control, and the image-set menu narrows to the room there is (checked from 1440 to 960 points in `viewer/toolbar_tests.rs`, and in every language by the snapshot helper's fit check)
 

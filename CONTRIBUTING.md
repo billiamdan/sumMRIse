@@ -10,8 +10,9 @@ present anything as diagnostic.
   in screenshots. Tests use the synthetic, PHI-free fixtures of `crates/testkit`
   (`cargo xtask fixtures <folder>` writes a synthetic disc). `.gitignore` blocks `DICOMDIR`
   and `*.dcm`.
-- **No network access.** The application must not gain an HTTP or other network client;
-  `cargo deny check` enforces it.
+- **No network access.** The application must not open a network connection or gain an
+  HTTP or other network client; `cargo deny check` fails for the common client crates
+  (`deny.toml`), and reviewers look for the rest.
 - **Nothing derived from patient data on disk** unless the user explicitly exports it, and
   no patient names, IDs or birth dates in logs above debug level or in crash reports.
 - **No `unsafe` code** (`unsafe_code = "forbid"` in the workspace lints).
@@ -58,10 +59,12 @@ A pull request should:
 1. Move the `Unreleased` entries of `CHANGELOG.md` into a section `## [x.y.z] — date`, set
    `version` in `[workspace.package]` of `Cargo.toml`, run `cargo check` (it updates
    `Cargo.lock`), and add the release to `packaging/linux/com.summrise.Viewer.metainfo.xml`.
-2. Merge to `main` and let CI pass.
+2. Merge to `main` and let CI pass (the release workflow refuses a commit whose CI run
+   has not succeeded).
 3. Tag the merge commit `vx.y.z` and push the tag. The release workflow checks the tag
-   against the version, builds and checks the packages, writes `SHA256SUMS` and publishes
-   the GitHub Release with the notes from `CHANGELOG.md`.
+   against the version, builds and checks the packages, writes `SHA256SUMS` and creates a
+   **draft** GitHub Release with the notes from `CHANGELOG.md`.
+4. Open the draft on the releases page, try the packages, and publish it.
 
 Signing secrets (all optional; without them the packages are unsigned): `MACOS_CERT_P12`,
 `MACOS_CERT_PASSWORD`, `MACOS_SIGNING_IDENTITY`, `APPLE_API_KEY_P8`, `APPLE_API_KEY_ID`,

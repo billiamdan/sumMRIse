@@ -14,7 +14,7 @@
 
 - [ ] 3.1 Launch on Windows 10 and 11; DX12 and WARP rendering — needs a Windows desktop; CI starts only `SumMRIse.exe --version` and the offscreen UI tests
 - [ ] 3.2 Open a patient CD from the optical drive; drive-letter media detection — needs a drive and a disc
-- [ ] 3.3 Settings persisted in `%APPDATA%\SumMRIse` — needs the real window
+- [ ] 3.3 Settings persisted in `%APPDATA%\com.summrise.Viewer` (eframe names the folder after the application id) — needs the real window
 - [ ] 3.4 Install the MSI by double-click on Windows 10 and 11: no administrator prompt, Start-menu entry with icon, removal in Settings ▸ Apps, what SmartScreen says about the unsigned MSI — needs a Windows desktop (CI installs it silently on Windows Server only)
 
 ## 4. CI

@@ -4,7 +4,7 @@
 | --- | --- |
 | Product | SumMRIse, a desktop viewer for the image discs that hospitals hand to patients |
 | Version | 0.3 (this statement describes the code it is kept with) |
-| Date | 2026-11-09 |
+| Date | 2026-11-10 |
 | Platforms | macOS 11 or later, Windows 10 or later, Linux (X11 and Wayland) |
 
 SumMRIse is **not a medical device** and is not intended for diagnosis. This statement
@@ -58,7 +58,7 @@ File-set Creator (FSC) and File-set Updater (FSU) are not supported.
 | --- | --- | --- |
 | 1 | 2026-11-06 | First statement (OpenSpec change `display-fidelity`) |
 | 2 | 2026-11-09 | Structured reports, dose reports and encapsulated PDF are displayed (`report-viewer`); images can be exported and printed by the user (`export-and-share`) |
-| 3 | 2026-11-09 | JPEG-LS Lossless and Near-Lossless are decoded in release builds (`jpeg-ls-support`); crash reports without patient data (`crash-reports`) |
+| 3 | 2026-11-10 | JPEG-LS Lossless and Near-Lossless are decoded in release builds (`jpeg-ls-support`); crash reports without patient data (`crash-reports`); paths of opened media are not logged above debug level |
 
 ### 3.2 Audience
 
@@ -325,13 +325,16 @@ Not applicable.
   user ticks them for that export; a warning comes first when the picture itself may show
   personal details.
 - The list of recently opened folders stores the path, the study description and date
-  and the modalities only — never names, IDs or birth dates; it can be switched off.
-- Patient-identifying values are never written to logs above debug level.
-- When a fault in the program stops it, a crash report is written to the user's log
-  folder. It holds the version, the system, the time, the place in the program's source
-  code and the functions that were running — no names, IDs, birth dates, file or folder
-  names, and no values read from DICOM files. A panic message composed while the program
-  ran is withheld.
+  and the modalities only — never the name, ID or birth date read from the images. The
+  path is kept as it is, so a folder named after a person keeps that name; the list can
+  be switched off.
+- Patient-identifying values, and the paths of opened folders and archives, are never
+  written to logs above debug level.
+- When a fault in the program stops it, a crash report is written to a crash-report
+  folder of the user (among the logs on macOS). It holds the version, the system, the
+  time, the place in the program's source code and the functions that were running — no
+  names, IDs, birth dates, file or folder names, and no values read from DICOM files. A
+  panic message composed while the program ran is withheld.
 - Privacy mode hides the patient's name, ID and birth date everywhere in the interface.
   When an image records Burned In Annotation (0028,0301) as YES, privacy mode says that
   patient details may be part of the picture itself and cannot be hidden.

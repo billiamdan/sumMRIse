@@ -23,12 +23,18 @@ Only the newest released version receives fixes.
 
 ## What SumMRIse promises
 
-- **No network access.** The application opens no network connection. CI fails when an
-  HTTP, WebSocket or TLS client crate enters the dependency graph (`deny.toml`).
+- **No network access.** The application opens no network connection, and none of its
+  code asks for one. As a guard against one arriving with a dependency, CI fails when one
+  of the common HTTP, WebSocket or TLS client crates named in `deny.toml` enters the
+  dependency graph. That list cannot catch every way of opening a connection; changes to
+  dependencies are reviewed for it.
 - **Nothing derived from patient data on disk**, unless you explicitly save or print it:
   no image cache, no thumbnails, no unpacked archives. Settings and the list of recent
-  studies (path, study description and date, modalities — never names, IDs or birth dates)
-  are stored in the application's settings folder; the list can be switched off.
+  studies are stored in the application's settings folder. The list holds the path, the
+  study description and date and the modalities — never the name, ID or birth date read
+  from the images. The path is kept as it is, so a folder or file named after a person
+  keeps that name; the list can be switched off and cleared. The same goes for the log:
+  at its default level it names neither patient details nor what was opened.
 - **Crash reports hold no patient data.** If SumMRIse stops because of a fault, it writes a
   report to `~/Library/Logs/SumMRIse` (macOS), `%LOCALAPPDATA%\SumMRIse\Crash reports`
   (Windows) or `~/.local/state/summrise/crash-reports` (Linux). It contains the version,
@@ -45,9 +51,10 @@ Only the newest released version receives fixes.
 ## Signed packages
 
 Release packages are built by GitHub Actions from a version tag on `main`
-(`.github/workflows/release.yml`), each with a SHA-256 checksum in `SHA256SUMS`. Until the
+(`.github/workflows/release.yml`) and published by the maintainer, each with a SHA-256
+checksum in `SHA256SUMS`. Until the
 project has an Apple Developer ID and a Windows code-signing certificate, the macOS app is
 ad-hoc signed and not notarized and the Windows files are not signed: macOS and Windows
 warn when they are first opened, and the release notes say so. Check the checksum of a
-download with `shasum -a 256 -c SHA256SUMS` (macOS, Linux) or
-`Get-FileHash <file> -Algorithm SHA256` (Windows).
+download with `shasum -a 256 --ignore-missing -c SHA256SUMS` (macOS, Linux; it checks the
+files you have) or `Get-FileHash <file> -Algorithm SHA256` (Windows).

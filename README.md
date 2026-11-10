@@ -31,7 +31,7 @@ single Rust code base. Everything happens on your computer — nothing is upload
   in place: nothing is unpacked to disk; password-protected archives and UDF-only
   images are refused with a reason.
 - **Correct images** — dicom-rs 0.10 decoding of uncompressed, deflate, JPEG
-  (baseline/extended/lossless), JPEG-LS (CharLS, in release builds), JPEG 2000 and RLE
+  (baseline/extended/lossless), JPEG-LS (CharLS, in the release packages), JPEG 2000 and RLE
   data; Hounsfield units for CT;
   MONOCHROME1/2, colour and palette colour; Modality and VOI lookup tables
   ("contrast tables"); padding outside the scanned area; scanner graphics (overlay
@@ -79,11 +79,12 @@ single Rust code base. Everything happens on your computer — nothing is upload
   acquisition parameters with units, image geometry) and the complete searchable
   attribute tree.
 - **Private by default** — no network access and no image cache on disk: image data is
-  only written where you explicitly export it, and printing hands the pages to the
-  system's print queue (which may keep a copy until they are printed) without a temporary
-  file of the app's own. Privacy mode for screenshots, with a warning on images whose
+  only written where you explicitly export it. On macOS and Linux, printing hands the
+  pages to the system's print queue (which may keep a copy until they are printed) without
+  a temporary file of the app's own; on Windows the pages are saved as a PDF where you
+  choose and opened there. Privacy mode for screenshots, with a warning on images whose
   pixels contain patient details. Minimal recent-studies list. If SumMRIse stops because of
-  a fault, it says so and saves a crash report without patient data in your log folder.
+  a fault, it says so and saves a crash report without patient data.
 - **Five languages** — English, German, Spanish, French and Russian; the interface
   follows the language of the system and can be changed in the settings. Text from the
   disc is never translated. The translations are machine-made and have not yet been
@@ -94,7 +95,7 @@ single Rust code base. Everything happens on your computer — nothing is upload
 
 ## Download
 
-From version 0.3.0 on, packages for every version are published on the
+From version 0.3.0 on, packages for every version are on the
 [releases page](https://github.com/billiamdan/sumMRIse/releases), with a `SHA256SUMS` file
 to check them:
 
@@ -102,7 +103,7 @@ to check them:
 | --- | --- |
 | macOS 11 or later (Apple silicon and Intel) | `SumMRIse-<version>-macos-universal.dmg` |
 | Windows 10 or later | `SumMRIse-<version>-windows-x64.msi` (installs for you only, no administrator rights) or the portable `…-windows-x64.zip` |
-| Linux (x86-64) | `SumMRIse-<version>-linux-x64.AppImage` or `…-linux-x64.tar.gz` |
+| Linux (x86-64, glibc 2.35 or later: Ubuntu 22.04, Debian 12, Fedora 36 and newer) | `SumMRIse-<version>-linux-x64.AppImage` or `…-linux-x64.tar.gz` |
 
 Until the project has an Apple Developer ID and a Windows code-signing certificate, the
 packages are not signed: macOS asks you to allow the app in System Settings ▸ Privacy &
@@ -134,9 +135,9 @@ cargo xtask package-linux                      # Linux: tarball (AppImage: see t
 The macOS app is universal (arm64 + x86_64) and ad-hoc signed with the hardened runtime;
 Developer ID signing and notarization: see [packaging/macos/README.md](packaging/macos/README.md).
 Every package carries `LICENSE.txt` and `THIRD-PARTY-NOTICES.txt`. CI builds all of them on
-pushes to `main` and manual runs (`.github/workflows/package.yml`); a version tag publishes
-them as a GitHub Release (`.github/workflows/release.yml`, see
-[CONTRIBUTING.md](CONTRIBUTING.md)).
+pushes to `main` and manual runs (`.github/workflows/package.yml`); a version tag prepares
+them as a draft GitHub Release for the maintainer to publish
+(`.github/workflows/release.yml`, see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 Linux needs the usual X11/Wayland development packages (Debian/Ubuntu:
 `libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev`).
@@ -191,7 +192,7 @@ the binary know about egui, so the domain layers can be reused by another front-
 (for example a native SwiftUI shell via FFI) without changes. Why one cross-platform UI
 instead of a different stack per platform, and why egui rather than Qt, GTK, Tauri or
 Slint, is documented in
-[openspec/changes/restructure-monorepo/design.md](openspec/changes/restructure-monorepo/design.md).
+[the design of `restructure-monorepo`](openspec/changes/archive/2026-11-05-restructure-monorepo/design.md).
 
 ## Development
 
@@ -228,13 +229,14 @@ plain-language guide, series comparison, measurements, 3D view, PET, reports and
 `progressive-loading`, `archive-import`, `oblique-reformats`, `plain-language-guide`,
 `multi-phase-cine`, `volume-rendering`, `display-fidelity`, `pet-support`, `translations`,
 `series-comparison`, `measurement-tools`, `report-viewer`, `export-and-share`,
-`jpeg-ls-support`, `crash-reports`, `third-party-notices`. See [CHANGELOG.md](CHANGELOG.md).
+`jpeg-ls-support`, `crash-reports`, `third-party-notices`, `release-review-corrections`.
+See [CHANGELOG.md](CHANGELOG.md).
 
 **Open:**
 
 | Change | Scope | What is left |
 | --- | --- | --- |
-| `signed-releases` | Tagged GitHub Releases with checksums, signing and notarization, no-network dependency gate | Built; needs an Apple Developer ID and notarization credentials, a second Mac, an Intel Mac or Rosetta, and the first tag |
+| `signed-releases` | Draft GitHub Releases from tags, with checksums; signing and notarization; a gate against network client crates | Built; needs an Apple Developer ID and notarization credentials, a second Mac, an Intel Mac or Rosetta, and the first tag |
 | `windows-distribution` | Executable resources, per-user MSI, Authenticode signing | Built; needs a code-signing certificate and checks on Windows 10 and 11 desktops |
 | `linux-distribution` | AppImage, tarball, Flatpak | AppImage and tarball built; Flatpak manifest and checks on GNOME and KDE left |
 | `field-validation` | Real vendor discs, screen readers, usability sessions, log and crash-report privacy review, and every check of the shipped features that needs the real window, a drive, a printer or people | Needs people, discs and machines |
@@ -246,6 +248,9 @@ de-identification and explicit consent — AI explanations.
 ## Licence
 
 MIT — see [LICENSE](LICENSE). Third-party crates are permissively licensed (checked by
-`cargo deny`); their licences are listed in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt)
-(`cargo xtask notices`), which every package carries and the About dialog shows. Platform
-UI fonts are loaded from the operating system at run time.
+`cargo deny`), with one exception that reaches the Linux build through the windowing
+library: code generated from a KDE protocol definition under LGPL-2.1-or-later. The
+licences of everything in the packages, the Rust standard library and bundled fonts
+included, are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) (`cargo xtask notices`),
+which every package carries and the About dialog shows. Platform UI fonts are loaded from
+the operating system at run time.
