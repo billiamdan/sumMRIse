@@ -10,6 +10,7 @@ copyright line:
 | `BSL-1.0.txt` | Boost Software License 1.0, as published in `error-code` 3.4.0 (`LICENSE`) |
 | `CC0-1.0.txt` | Creative Commons CC0 1.0 Universal, as published in `imgref` 1.12.3 (`LICENSE-CC0`) |
 | `IJG.txt` | the terms of the Independent JPEG Group, as published in `jpeg-encoder` 0.7.1 (`LICENSE-IJG`, from "In plain English" on) |
+| `OFL-1.1.txt` | SIL Open Font License 1.1, as published in `epaint_default_fonts` 0.37.0 (`fonts/OFL.txt`, from its heading on) |
 | `BSD-3-Clause.txt`, `MIT.txt`, `Zlib.txt` | the SPDX templates of these licences |
 
 When a new dependency needs a licence that is not here, the command stops and names it:

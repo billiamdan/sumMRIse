@@ -56,35 +56,67 @@ const STANDARD: &[(&str, &str)] = &[
     ("CC0-1.0", include_str!("../licenses/CC0-1.0.txt")),
     ("IJG", include_str!("../licenses/IJG.txt")),
     ("MIT", include_str!("../licenses/MIT.txt")),
+    ("OFL-1.1", include_str!("../licenses/OFL-1.1.txt")),
     ("Zlib", include_str!("../licenses/Zlib.txt")),
 ];
 
-/// What a crate contains that its licence files do not say: a note for the list
-/// and further licences whose texts apply.
-const CLARIFICATIONS: &[(&str, &str, &[&str])] = &[
-    (
-        "charls-sys",
-        "builds CharLS, the C++ JPEG-LS library by Jan de Vaan and Victor Derks, into the \
-         application; CharLS is licensed under the BSD 3-Clause licence (charls/LICENSE.md)",
-        &[],
-    ),
-    (
-        "egui_material_icons",
-        "contains the Material Symbols font by Google, licensed under the Apache License 2.0",
-        &["Apache-2.0"],
-    ),
-    (
-        "epaint_default_fonts",
-        "contains the fonts Hack, Noto Emoji, Ubuntu Light and emoji-icon-font, whose licences are in \
-         its folder fonts/; its own code is under the MIT licence, whose standard text is given",
-        &["MIT"],
-    ),
-    (
-        "jpeg-encoder",
-        "contains code ported from the IJG JPEG library (src/fdct.rs): this software is based in part on \
-         the work of the Independent JPEG Group",
-        &[],
-    ),
+/// What a crate contains that its own licence does not say.
+struct Clarification {
+    krate: &'static str,
+    /// Said in the list, under the crate.
+    note: &'static str,
+    /// The licences of what it contains, named in the list after its own.
+    contains: &'static [&'static str],
+    /// Those of them whose standard text is given, because the crate publishes none.
+    standard_texts: &'static [&'static str],
+}
+
+const CLARIFICATIONS: &[Clarification] = &[
+    Clarification {
+        krate: "charls-sys",
+        note: "builds CharLS, the C++ JPEG-LS library by Jan de Vaan and Victor Derks, into the \
+               application; CharLS is licensed under the BSD 3-Clause licence (charls/LICENSE.md)",
+        contains: &["BSD-3-Clause"],
+        standard_texts: &[],
+    },
+    Clarification {
+        krate: "egui_material_icons",
+        note: "contains the Material Symbols font by Google, licensed under the Apache License 2.0",
+        contains: &["Apache-2.0"],
+        standard_texts: &["Apache-2.0"],
+    },
+    Clarification {
+        krate: "epaint_default_fonts",
+        note: "contains the fonts Hack, Noto Emoji, Ubuntu Light and emoji-icon-font, whose licences are in \
+               its folder fonts/",
+        contains: &[],
+        standard_texts: &[],
+    },
+    Clarification {
+        krate: "jpeg-encoder",
+        note: "contains code ported from the IJG JPEG library (src/fdct.rs): this software is based in part on \
+               the work of the Independent JPEG Group",
+        contains: &[],
+        standard_texts: &[],
+    },
+    Clarification {
+        krate: "sctk-adwaita",
+        note: "contains the font Cantarell (Copyright (c) 2009-2011 Understanding Limited, Copyright (c) \
+               2010-2011 Jakub Steiner), licensed under the SIL Open Font License 1.1; it draws the title \
+               bars of windows on Wayland (Linux)",
+        contains: &["OFL-1.1"],
+        standard_texts: &["OFL-1.1"],
+    },
+    Clarification {
+        krate: "wayland-protocols-plasma",
+        note: "contains the Wayland protocol definitions of KDE Plasma, from which code is generated for \
+               Linux; some of them, among them the one winit uses for blurred window backgrounds (blur.xml, \
+               Copyright 2015 Martin Gräßlin and Marco Martin), are licensed under LGPL-2.1-or-later, whose \
+               text is given; the source code of SumMRIse is public, so the application can be rebuilt with \
+               a changed version of them",
+        contains: &["LGPL-2.1-or-later"],
+        standard_texts: &[],
+    },
 ];
 
 /// Files in a crate other than at its top that hold licences of code or fonts it
@@ -119,6 +151,16 @@ struct Crate {
     dirs: BTreeSet<PathBuf>,
 }
 
+/// One line of the list: a component, the licences it is used under and of
+/// what it contains, the texts that apply and what else there is to say.
+#[derive(Debug)]
+struct Component {
+    name: String,
+    licences: Vec<String>,
+    texts: Vec<Text>,
+    note: Option<String>,
+}
+
 /// A licence text and the licences found in it.
 #[derive(Debug, Clone)]
 struct Text {
@@ -147,8 +189,13 @@ fn generate(root: &Path) -> Result<String> {
     let mut texts: Vec<Text> = Vec::new();
     let mut users: Vec<BTreeSet<String>> = Vec::new();
     let mut list = String::new();
+    // The standard library first: it is in every program, and in no Cargo.lock.
+    let mut components = vec![standard_library()?];
     for (name, krate) in &crates {
-        let (licences, mut found, note) = texts_of(name, krate)?;
+        components.push(texts_of(name, krate)?);
+    }
+    let count = components.len();
+    for Component { name, licences, texts: mut found, note } in components {
         let mut numbers = BTreeSet::new();
         for text in found.drain(..) {
             let key = collapse(&text.body);
@@ -176,19 +223,23 @@ fn generate(root: &Path) -> Result<String> {
         "SumMRIse is licensed under the MIT licence (the file LICENSE). Its release packages for macOS, \
          Windows and Linux contain the third-party software listed below. Each component is named with \
          the licence under which SumMRIse uses it (where a component offers a choice of licences, the one \
-         chosen) and the numbers of the licence texts that apply to it, which follow the list. Copyright \
-         belongs to the authors named in those texts and in each component.",
+         chosen, followed by the licences of what it contains) and the numbers of the licence texts that \
+         apply to it, which follow the list. Copyright belongs to the authors named in those texts and in \
+         each component.",
         0,
     ));
     out.push('\n');
     // The licence of the IJG code in jpeg-encoder asks for this statement.
     out.push_str("This software is based in part on the work of the Independent JPEG Group.\n\n");
-    out.push_str(&wrap("This file is generated by `cargo xtask notices` from Cargo.lock; do not edit it by hand.", 0));
-    out.push_str(&format!(
-        "\n\nComponents ({})\n{}\n\n",
-        crates.len(),
-        "-".repeat(13 + crates.len().to_string().len())
+    out.push_str(&wrap(
+        "The Linux AppImage begins with the AppImage type 2 runtime (github.com/AppImage/type2-runtime, \
+         Copyright (c) 2004-23 probonopd, MIT licence), a separate program that starts SumMRIse; it is not \
+         part of SumMRIse and comes with its own licences.",
+        0,
     ));
+    out.push('\n');
+    out.push_str(&wrap("This file is generated by `cargo xtask notices` from Cargo.lock; do not edit it by hand.", 0));
+    out.push_str(&format!("\n\nComponents ({count})\n{}\n\n", "-".repeat(13 + count.to_string().len())));
     out.push_str(&list);
     out.push_str("\n\nLicence texts\n-------------\n");
     for (index, (text, users)) in texts.iter().zip(&users).enumerate() {
@@ -202,6 +253,24 @@ fn generate(root: &Path) -> Result<String> {
         out.push_str(&format!("{}\n\n{}\n", "-".repeat(78), text.body));
     }
     Ok(out)
+}
+
+/// The Rust standard library, which is linked into the application and is in no
+/// Cargo.lock: its licence and where its own notices are.
+fn standard_library() -> Result<Component> {
+    let mit = STANDARD.iter().find(|(id, _)| *id == "MIT").context("no standard text for MIT")?;
+    let note = "linked into every program written in Rust; copyright belongs to its contributors (the Rust \
+                Project contributors); it is offered under the MIT licence or the Apache License 2.0 and is \
+                used here under MIT, whose standard text is given; the parts it takes from other projects \
+                (under MIT, Apache-2.0, in part with the LLVM exception, BSD-2-Clause, ISC, Zlib, Unlicense, \
+                BSL-1.0 and Unicode-3.0 terms) are listed with their copyright notices in the file \
+                share/doc/rust/COPYRIGHT-library.html of the Rust toolchain the packages are built with";
+    Ok(Component {
+        name: "Rust standard library (std, core, alloc)".to_owned(),
+        licences: vec!["MIT".to_owned()],
+        texts: vec![Text { licences: BTreeSet::from([mit.0]), body: normalise(mit.1) }],
+        note: Some(note.to_owned()),
+    })
 }
 
 /// The crates of the release application by name: the normal dependencies of
@@ -269,7 +338,7 @@ fn array(value: &Value) -> Result<&Vec<Value>> {
 }
 
 /// The licences SumMRIse uses a crate under, the texts that apply and a note.
-fn texts_of(name: &str, krate: &Crate) -> Result<(Vec<String>, Vec<Text>, Option<String>)> {
+fn texts_of(name: &str, krate: &Crate) -> Result<Component> {
     let mut top: Vec<(String, Text)> = Vec::new();
     let mut nested: Vec<(String, Text)> = Vec::new();
     for dir in &krate.dirs {
@@ -280,7 +349,9 @@ fn texts_of(name: &str, krate: &Crate) -> Result<(Vec<String>, Vec<Text>, Option
                 continue;
             }
             let text = Text { licences: classify(&relative, &body), body };
-            if relative.contains('/') { nested.push((relative, text)) } else { top.push((relative, text)) }
+            // A REUSE folder `LICENSES/` holds the crate's own licences, like files at its top.
+            let own = !relative.contains('/') || relative.to_lowercase().starts_with("licenses/");
+            if own { top.push((relative, text)) } else { nested.push((relative, text)) }
         }
     }
     let with_file: BTreeSet<&str> = top.iter().flat_map(|(_, t)| t.licences.iter().copied()).collect();
@@ -292,7 +363,7 @@ fn texts_of(name: &str, krate: &Crate) -> Result<(Vec<String>, Vec<Text>, Option
             }
         }
     }
-    let clarification = CLARIFICATIONS.iter().find(|(crate_name, ..)| *crate_name == name);
+    let clarification = CLARIFICATIONS.iter().find(|c| c.krate == name);
     let mut texts: Vec<Text> = Vec::new();
     // Top-level files of the licences chosen, and those that name no licence (notices).
     for (_, text) in &top {
@@ -309,8 +380,8 @@ fn texts_of(name: &str, krate: &Crate) -> Result<(Vec<String>, Vec<Text>, Option
             missing.push(licence);
         }
     }
-    let extra = clarification.map_or(&[][..], |(_, _, extra)| *extra);
-    let mut notes: Vec<String> = clarification.iter().map(|(_, note, _)| (*note).to_owned()).collect();
+    let extra = clarification.map_or(&[][..], |c| c.standard_texts);
+    let mut notes: Vec<String> = clarification.iter().map(|c| c.note.to_owned()).collect();
     if !missing.is_empty() {
         let authors = if krate.authors.is_empty() {
             String::new()
@@ -330,15 +401,22 @@ fn texts_of(name: &str, krate: &Crate) -> Result<(Vec<String>, Vec<Text>, Option
         texts.push(Text { licences: BTreeSet::from([standard.0]), body: normalise(standard.1) });
     }
     texts.extend(nested.into_iter().map(|(_, text)| text));
+    // What the crate contains is named after its own licence.
+    for licence in clarification.map_or(&[][..], |c| c.contains) {
+        if !chosen.iter().any(|c| c == licence) {
+            chosen.push((*licence).to_owned());
+        }
+    }
     let note = (!notes.is_empty()).then(|| notes.join("; "));
-    Ok((chosen, texts, note))
+    Ok(Component { name: name.to_owned(), licences: chosen, texts, note })
 }
 
 /// The licence files of a crate: at its top, files whose names begin with
-/// "licence", "copying", "copyright", "notice" or "unlicense"; further down,
-/// files whose names mention a licence, outside tests, examples and the like.
+/// "licence", "copying", "copyright", "notice" or "unlicense", and the files
+/// of a folder `LICENSES`; further down, files whose names mention a licence,
+/// outside tests, examples and the like.
 fn licence_files(dir: &Path, name: &str) -> Result<Vec<PathBuf>> {
-    fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) -> Result<()> {
+    fn walk(dir: &Path, depth: usize, reuse: bool, out: &mut Vec<PathBuf>) -> Result<()> {
         let mut entries: Vec<_> = fs::read_dir(dir)?.collect::<Result<_, _>>()?;
         entries.sort_by_key(|e| e.file_name());
         for entry in entries {
@@ -346,7 +424,8 @@ fn licence_files(dir: &Path, name: &str) -> Result<Vec<PathBuf>> {
             let file_name = entry.file_name().to_string_lossy().to_lowercase();
             if entry.file_type()?.is_dir() {
                 if depth < 4 && !SKIPPED_FOLDERS.contains(&file_name.as_str()) {
-                    walk(&path, depth + 1, out)?;
+                    // `LICENSES/` at the top of a crate (the REUSE layout): every file in it.
+                    walk(&path, depth + 1, depth == 0 && file_name == "licenses", out)?;
                 }
                 continue;
             }
@@ -356,14 +435,14 @@ fn licence_files(dir: &Path, name: &str) -> Result<Vec<PathBuf>> {
                 && (file_name.contains("licen") || file_name.starts_with("copying"))
                 && !file_name.ends_with(".rs");
             let nested = nested || (depth > 0 && matches!(file_name.as_str(), "ofl.txt" | "ufl.txt"));
-            if top || nested {
+            if top || nested || reuse {
                 out.push(path);
             }
         }
         Ok(())
     }
     let mut files = Vec::new();
-    walk(dir, 0, &mut files)?;
+    walk(dir, 0, false, &mut files)?;
     for (crate_name, relative) in BUNDLED_EXTRA {
         let path = dir.join(relative);
         if *crate_name == name && path.is_file() && !files.contains(&path) {
@@ -395,11 +474,23 @@ fn classify(relative: &str, body: &str) -> BTreeSet<&'static str> {
     }
     let collapsed = collapse(body);
     let has = |words: &str| collapsed.contains(words);
-    if has("Permission is hereby granted, free of charge, to any person obtaining a copy") {
+    // The words of the licence itself: the font and Unicode licences begin like MIT
+    // ("…obtaining a copy of the Font Software"), and a file that only points to the
+    // Apache License ("Licensed under the Apache License, Version 2.0 or the MIT
+    // license, at your option") is a notice, with copyright lines to keep.
+    if has("to any person obtaining a copy of this software and associated documentation files")
+        || has("to any person obtaining a copy of this software and/or associated documentation files")
+    {
         found.insert("MIT");
     }
-    if has("Apache License") && has("Version 2.0") {
+    if has("TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION") {
         found.insert(if has("LLVM Exceptions") { "Apache-2.0 WITH LLVM-exception" } else { "Apache-2.0" });
+    }
+    if has("GNU GENERAL PUBLIC LICENSE Version 2, June 1991") {
+        found.insert("GPL-2.0-only");
+    }
+    if has("GNU LESSER GENERAL PUBLIC LICENSE Version 2.1, February 1999") {
+        found.insert("LGPL-2.1-or-later");
     }
     if has("Boost Software License") {
         found.insert("BSL-1.0");
@@ -432,7 +523,7 @@ fn classify(relative: &str, body: &str) -> BTreeSet<&'static str> {
         found.insert("Ubuntu-font-1.0");
     }
     // A file named for one licence that quotes another stays the file of the first.
-    if file_name.contains("mit") && found.len() > 1 && !has("Apache License") {
+    if file_name.contains("mit") && found.len() > 1 && !found.contains("Apache-2.0") {
         found.retain(|l| *l == "MIT");
     }
     found
@@ -595,6 +686,54 @@ mod tests {
         assert_eq!(classify("LICENSE", include_str!("../licenses/BSD-3-Clause.txt")), BTreeSet::from(["BSD-3-Clause"]));
         assert_eq!(classify("LICENSE", &format!("{mit}\n\n{apache}")), BTreeSet::from(["MIT", "Apache-2.0"]));
         assert!(classify("NOTICE", "This product includes software developed by someone.").is_empty());
+    }
+
+    /// A file that only points to its licences is a notice: it is kept whatever
+    /// licence is chosen, with the copyright lines it holds.
+    #[test]
+    fn a_file_that_points_to_licences_is_a_notice() {
+        let pointer = "Copyright 2016-2026 Frank Denis.\n\nLicensed under the Apache License, Version 2.0 \
+                       <LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0> or the MIT license \
+                       <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your option.";
+        assert!(classify("COPYING", pointer).is_empty());
+        let header = "Licensed under the Apache License, Version 2.0 (the \"License\"); you may not use this \
+                      file except in compliance with the License.";
+        assert!(classify("COPYRIGHT", header).is_empty());
+    }
+
+    /// The font and Unicode licences begin like MIT; they are not MIT.
+    #[test]
+    fn licences_that_begin_like_mit_are_not_mit() {
+        assert_eq!(classify("fonts/OFL.txt", include_str!("../licenses/OFL-1.1.txt")), BTreeSet::from(["OFL-1.1"]));
+        let unicode = "UNICODE LICENSE V3\n\nPermission is hereby granted, free of charge, to any person obtaining \
+                       a copy of data files and any associated documentation (the \"Data Files\") or software";
+        assert_eq!(classify("LICENSE", unicode), BTreeSet::from(["Unicode-3.0"]));
+        let variant = "Permission is hereby granted, free of charge, to any person obtaining a copy of this \
+                       software and/or associated documentation files (the \"Materials\")";
+        assert_eq!(classify("LICENSE", variant), BTreeSet::from(["MIT"]));
+    }
+
+    /// The GNU licences are recognised, so that one a crate only offers as an
+    /// alternative is left out and one that applies is named.
+    #[test]
+    fn the_gnu_licences_are_recognised() {
+        let gpl = "GNU GENERAL PUBLIC LICENSE\n   Version 2, June 1991\n\nCopyright (C) 1989, 1991 Free Software";
+        assert_eq!(classify("LICENSE-GPL", gpl), BTreeSet::from(["GPL-2.0-only"]));
+        let lgpl = "GNU LESSER GENERAL PUBLIC LICENSE\n   Version 2.1, February 1999\n\n[This is the first \
+                    released version of the Lesser GPL.]";
+        assert_eq!(classify("protocols/COPYING.LIB", lgpl), BTreeSet::from(["LGPL-2.1-or-later"]));
+        // Offered as an alternative and not chosen: its text is not among the crate's texts.
+        assert_eq!(licences("Apache-2.0 OR GPL-2.0-only", &["Apache-2.0", "GPL-2.0-only"]), ["Apache-2.0"]);
+    }
+
+    #[test]
+    fn what_a_crate_contains_has_a_text_to_go_with_it() {
+        for clarification in CLARIFICATIONS {
+            for licence in clarification.standard_texts {
+                assert!(clarification.contains.contains(licence), "{}: {licence}", clarification.krate);
+                assert!(STANDARD.iter().any(|(id, _)| id == licence), "{}: {licence}", clarification.krate);
+            }
+        }
     }
 
     #[test]

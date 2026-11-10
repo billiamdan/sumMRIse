@@ -20,7 +20,11 @@ unmaintained = "workspace"
 version = 2
 confidence-threshold = 0.9
 # Permissive licences plus the bundled egui font licences. No GPL/LGPL: every
-# dual-licensed crate in the graph offers a permissive alternative.
+# dual-licensed crate in the graph offers a permissive alternative. One thing
+# cargo-deny cannot see: `wayland-protocols-plasma` (MIT) generates code from
+# KDE protocol definitions, some of them LGPL-2.1-or-later, and winit links the
+# one for blurred windows into the Linux build. THIRD-PARTY-NOTICES.txt says so
+# and gives the text (`cargo xtask notices`).
 allow = [
     "0BSD",
     "Apache-2.0",
