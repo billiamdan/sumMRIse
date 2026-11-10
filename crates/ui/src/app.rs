@@ -227,7 +227,9 @@ impl SumMRIseApp {
         if let Screen::Scanning { job, .. } = &self.screen {
             job.cancel();
         }
-        log::info!("opening {}", path.display());
+        // The path only at debug level: a folder or an archive can be named after the patient.
+        log::info!("opening a folder, disc or archive");
+        log::debug!("opening {}", path.display());
         let p = path.clone();
         let job =
             Job::spawn("scan", Some(self.waker.clone()), move |progress| summrise_core::dicom::scan(&p, progress));
@@ -238,12 +240,22 @@ impl SumMRIseApp {
         let Screen::Scanning { path, job } = &mut self.screen else {
             return;
         };
-        let Some(result) = job.poll() else { return };
+        let Some(result) = job.poll() else {
+            // The scan ended without a result: a fault stopped it (the crash notice says
+            // more). Back to the welcome screen instead of waiting for ever.
+            if job.is_finished() {
+                self.toasts.error(tr!("Opening stopped unexpectedly."));
+                self.screen = Screen::Welcome;
+            }
+            return;
+        };
         let path = path.clone();
         match result {
             Ok(index) => {
                 if !index.warnings.is_empty() {
-                    log::info!("index warnings: {:?}", index.warnings);
+                    // Their texts name paths: the number here, the texts at debug level.
+                    log::info!("{} index warnings", index.warnings.len());
+                    log::debug!("index warnings: {:?}", index.warnings);
                 }
                 if self.settings.remember_recent {
                     self.recent.add(&path, recent_label(&index));
@@ -583,8 +595,33 @@ impl eframe::App for SumMRIseApp {
 #[cfg(test)]
 mod tests {
     use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
 
     use super::*;
+
+    /// A scan whose thread ended without a result (a fault stopped it) does not
+    /// leave the scanning screen waiting for ever: an error is shown, and the
+    /// welcome screen is back.
+    #[test]
+    fn a_scan_that_died_goes_back_to_the_welcome_screen() {
+        let mut harness =
+            Harness::builder().with_size([960.0, 600.0]).build_eframe(|cc| SumMRIseApp::new(cc, AppOptions::default()));
+        harness.run_steps(2);
+        // The thread ends as after a panic, without the noise of one in the test output.
+        let job = Job::spawn("test", None, |_| -> Result<StudyIndex, DicomError> {
+            std::panic::resume_unwind(Box::new("the scan thread dies"))
+        });
+        harness.state_mut().screen = Screen::Scanning { path: PathBuf::from("disc"), job };
+        let start = Instant::now();
+        while matches!(harness.state().screen, Screen::Scanning { .. }) {
+            assert!(start.elapsed() < Duration::from_secs(30), "still scanning");
+            harness.step();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        harness.run_steps(2);
+        assert!(matches!(harness.state().screen, Screen::Welcome));
+        assert!(harness.query_all_by_label_contains("Opening stopped unexpectedly.").next().is_some());
+    }
 
     /// The shortcut for archives is the one for folders with Shift: each asks
     /// for its own dialog, and never for both.

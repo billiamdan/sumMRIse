@@ -39,9 +39,27 @@ fn the_licences_open_from_the_about_dialog() {
             image.save(dir.join("about-third-party-licences.png")).expect("save");
         }
     }
+    // From the keyboard: End goes to the last line, Page Up back from it, Home to the first.
+    harness.key_press(Key::End);
+    steps(&mut harness, 12);
+    assert!(
+        shows(&harness, "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE"),
+        "the end"
+    );
+    assert!(!shows(&harness, "SumMRIse third-party notices"));
+    harness.key_press(Key::PageUp);
+    steps(&mut harness, 12);
+    assert!(!shows(&harness, "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE"));
+    harness.key_press(Key::Home);
+    steps(&mut harness, 12);
+    assert!(shows(&harness, "SumMRIse third-party notices"), "the beginning again");
+    harness.key_press(Key::PageDown);
+    steps(&mut harness, 12);
+    assert!(!shows(&harness, "SumMRIse third-party notices"), "a page further");
+
     harness.get_by_label("Close").click();
     steps(&mut harness, 3);
-    assert!(!shows(&harness, "SumMRIse third-party notices"), "Close closes them");
+    assert!(!shows(&harness, "Scroll with the mouse"), "Close closes them");
 
     harness.key_press(Key::F1);
     steps(&mut harness, 3);
@@ -49,5 +67,5 @@ fn the_licences_open_from_the_about_dialog() {
     steps(&mut harness, 3);
     harness.key_press(Key::Escape);
     steps(&mut harness, 3);
-    assert!(!shows(&harness, "SumMRIse third-party notices"), "Escape closes them");
+    assert!(!shows(&harness, "Scroll with the mouse"), "Escape closes them");
 }

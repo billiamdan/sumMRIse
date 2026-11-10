@@ -2773,6 +2773,10 @@ msgid "ZIP archives and disc images"
 msgstr "Archivos ZIP e imágenes de disco"
 
 #: crates/ui/src/app.rs
+msgid "Opening stopped unexpectedly."
+msgstr "La apertura se detuvo de forma inesperada."
+
+#: crates/ui/src/app.rs
 msgid "{n} study found — switch between them in the browser."
 msgid_plural "{n} studies found — switch between them in the browser."
 msgstr[0] "Se encontró {n} estudio — puede verlo en el explorador."
@@ -3882,6 +3886,10 @@ msgid "About {subject}"
 msgstr "Acerca de {subject}"
 
 #: crates/ui/src/inspector.rs
+msgid "reading the file stopped unexpectedly"
+msgstr "la lectura del archivo se detuvo de forma inesperada"
+
+#: crates/ui/src/inspector.rs
 msgid "Overview"
 msgstr "Resumen"
 
@@ -3951,6 +3959,10 @@ msgstr "Licencias de terceros"
 #: crates/ui/src/licences.rs
 msgid "SumMRIse is built with software by others. Their licences follow in their original wording, in English. The same text is in the file THIRD-PARTY-NOTICES.txt that comes with the application."
 msgstr "SumMRIse se ha creado con software de terceros. Sus licencias figuran a continuación en su redacción original, en inglés. El mismo texto se encuentra en el archivo THIRD-PARTY-NOTICES.txt que acompaña a la aplicación."
+
+#: crates/ui/src/licences.rs
+msgid "Scroll with the mouse or with Page Up, Page Down, Home and End."
+msgstr "Desplácese con el ratón o con Re Pág, Av Pág, Inicio y Fin."
 
 #: crates/ui/src/measure.rs
 msgid "Length: drag from one point to the other (D)"
@@ -4277,6 +4289,10 @@ msgid "Composing pages"
 msgstr "Componiendo las páginas"
 
 #: crates/ui/src/print.rs
+msgid "the job stopped unexpectedly"
+msgstr "el trabajo se detuvo de forma inesperada"
+
+#: crates/ui/src/print.rs
 msgid "Sent to {printer}."
 msgstr "Enviado a {printer}."
 
@@ -4295,10 +4311,6 @@ msgstr "{name} guardado, pero no se pudo abrir: {reason}"
 #: crates/ui/src/print.rs
 msgid "Could not print: {reason}"
 msgstr "No se pudo imprimir: {reason}"
-
-#: crates/ui/src/print.rs
-msgid "the job stopped unexpectedly"
-msgstr "el trabajo se detuvo de forma inesperada"
 
 #: crates/ui/src/print.rs
 msgid "Print anyway"

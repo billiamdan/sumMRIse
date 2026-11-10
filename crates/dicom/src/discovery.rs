@@ -209,7 +209,9 @@ fn discover_from_dicomdirs(media: &Media, dicomdirs: &[PathBuf], progress: &Prog
                     continue;
                 }
                 if missing * 10 > total {
-                    warn!("DICOMDIR {} references {missing}/{total} missing files", logged.display());
+                    // Paths only at debug level: a folder can be named after the patient.
+                    warn!("a DICOMDIR references {missing}/{total} missing files");
+                    debug!("that DICOMDIR: {}", logged.display());
                     warnings.push(tr_n!(
                         "{n} of the {total} files that DICOMDIR lists is missing; the folder was scanned instead",
                         "{n} of the {total} files that DICOMDIR lists are missing; the folder was scanned instead",
@@ -233,12 +235,9 @@ fn discover_from_dicomdirs(media: &Media, dicomdirs: &[PathBuf], progress: &Prog
                 used.push(dicomdir.clone());
             }
             Err(e) => {
-                if media.archive().is_some() {
-                    warn!("ignoring an unreadable DICOMDIR in {}", logged.display());
-                    debug!("unreadable DICOMDIR: {e}");
-                } else {
-                    warn!("ignoring unreadable DICOMDIR {}: {e}", dicomdir.display());
-                }
+                // The reason names the path: both only at debug level.
+                warn!("ignoring an unreadable DICOMDIR");
+                debug!("unreadable DICOMDIR in {}: {e}", logged.display());
                 warnings.push(tr!("DICOMDIR could not be read ({reason}); the folder was scanned instead", reason = e));
                 return Ok(FromDicomdirs::Unusable(warnings));
             }

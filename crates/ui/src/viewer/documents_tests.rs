@@ -494,7 +494,7 @@ fn privacy_mode_hides_a_document_until_it_is_revealed() {
     let first_report = "Report, Report · 2026-01-15";
     f.harness.query_all_by_label(first_report).next().expect("a report").click();
     f.steps(3);
-    f.run_until("the document", |f| !f.shows("Loading the document…"));
+    f.run_until("the document", |f| f.viewer().documents.is_read());
     f.steps(2);
     assert!(f.shows("Hidden in privacy mode — reports contain personal details"));
     assert!(f.shows("Show anyway"));
@@ -512,7 +512,7 @@ fn privacy_mode_hides_a_document_until_it_is_revealed() {
     f.press(Key::Escape);
     f.harness.query_all_by_label(first_report).next().expect("a report").click();
     f.steps(3);
-    f.run_until("the document", |f| !f.shows("Loading the document…"));
+    f.run_until("the document", |f| f.viewer().documents.is_read());
     f.steps(2);
     assert!(f.shows("Hidden in privacy mode — reports contain personal details"));
     assert!(!f.shows("Diameter: 12 mm"));
@@ -549,7 +549,7 @@ fn documents_can_be_reached_and_left_with_the_keyboard() {
     f.harness.key_press(Key::Enter);
     f.steps(3);
     assert!(f.viewer().documents.is_open(), "Enter opens the document");
-    f.run_until("the document", |f| !f.shows("Loading the document…"));
+    f.run_until("the document", |f| f.viewer().documents.is_read());
     f.steps(2);
     assert!(f.shows("Normal study."));
     f.press(Key::Escape);

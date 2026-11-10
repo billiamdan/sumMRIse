@@ -2773,6 +2773,10 @@ msgid "ZIP archives and disc images"
 msgstr "ZIP-Archive und Disc-Images"
 
 #: crates/ui/src/app.rs
+msgid "Opening stopped unexpectedly."
+msgstr "Das Öffnen wurde unerwartet beendet."
+
+#: crates/ui/src/app.rs
 msgid "{n} study found — switch between them in the browser."
 msgid_plural "{n} studies found — switch between them in the browser."
 msgstr[0] "{n} Untersuchung gefunden – wechseln Sie in der Serienübersicht zwischen den Untersuchungen."
@@ -3882,6 +3886,10 @@ msgid "About {subject}"
 msgstr "Erklärung zu {subject}"
 
 #: crates/ui/src/inspector.rs
+msgid "reading the file stopped unexpectedly"
+msgstr "das Lesen der Datei wurde unerwartet beendet"
+
+#: crates/ui/src/inspector.rs
 msgid "Overview"
 msgstr "Übersicht"
 
@@ -3951,6 +3959,10 @@ msgstr "Lizenzen von Drittanbietern"
 #: crates/ui/src/licences.rs
 msgid "SumMRIse is built with software by others. Their licences follow in their original wording, in English. The same text is in the file THIRD-PARTY-NOTICES.txt that comes with the application."
 msgstr "SumMRIse verwendet Software anderer Autoren. Deren Lizenzen folgen im Originalwortlaut auf Englisch. Derselbe Text steht in der Datei THIRD-PARTY-NOTICES.txt, die mit der Anwendung geliefert wird."
+
+#: crates/ui/src/licences.rs
+msgid "Scroll with the mouse or with Page Up, Page Down, Home and End."
+msgstr "Blättern Sie mit der Maus oder mit Bild auf, Bild ab, Pos1 und Ende."
 
 #: crates/ui/src/measure.rs
 msgid "Length: drag from one point to the other (D)"
@@ -4277,6 +4289,10 @@ msgid "Composing pages"
 msgstr "Seiten werden erstellt"
 
 #: crates/ui/src/print.rs
+msgid "the job stopped unexpectedly"
+msgstr "Der Auftrag wurde unerwartet beendet"
+
+#: crates/ui/src/print.rs
 msgid "Sent to {printer}."
 msgstr "An {printer} gesendet."
 
@@ -4295,10 +4311,6 @@ msgstr "{name} gespeichert, konnte aber nicht geöffnet werden: {reason}"
 #: crates/ui/src/print.rs
 msgid "Could not print: {reason}"
 msgstr "Drucken nicht möglich: {reason}"
-
-#: crates/ui/src/print.rs
-msgid "the job stopped unexpectedly"
-msgstr "Der Auftrag wurde unerwartet beendet"
 
 #: crates/ui/src/print.rs
 msgid "Print anyway"
