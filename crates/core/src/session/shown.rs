@@ -172,12 +172,22 @@ mod tests {
         let fine = session.data(FINE).expect("planned at once");
         assert_eq!(fine.len(), 49);
 
-        // Everything is let through: while the active series loads, the other one reads
-        // only the image on screen.
-        slow.allow(6);
-        wait(&mut session, "five axial images and one fine", |s| {
-            s.data(AXIAL).is_some_and(|data| data.loaded() >= 4) && fine.loaded() >= 1
-        });
+        // Reads are let through one at a time, each waited for until its image is decoded:
+        // while the active series loads, the other one reads only the image on screen. (A
+        // fixed number of reads would race: reads get their turns as they arrive, and on a
+        // busy machine the loader of the active series can take them all before the other
+        // one asks. The active series has 25 images, so the other one reads within them.)
+        let ready = |s: &Session| s.data(AXIAL).is_some_and(|data| data.loaded() >= 4) && fine.loaded() >= 1;
+        let decoded = |s: &Session| s.data(AXIAL).map_or(0, |data| data.loaded()) + fine.loaded();
+        for _ in 0..24 {
+            if ready(&session) {
+                break;
+            }
+            let before = decoded(&session);
+            slow.allow(1);
+            wait(&mut session, "the image let through", |s| decoded(s) > before);
+        }
+        wait(&mut session, "four axial images and one fine", ready);
         let reads_before = slow.reads_of(FINE_FOLDER).len();
         assert_eq!(reads_before, 1, "the image on screen of the series beside it: {:?}", slow.reads_of(FINE_FOLDER));
 

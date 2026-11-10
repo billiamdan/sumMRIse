@@ -3,8 +3,8 @@
 | | |
 | --- | --- |
 | Product | SumMRIse, a desktop viewer for the image discs that hospitals hand to patients |
-| Version | 0.2 (this statement describes the code it is kept with) |
-| Date | 2026-11-06 |
+| Version | 0.3 (this statement describes the code it is kept with) |
+| Date | 2026-11-10 |
 | Platforms | macOS 11 or later, Windows 10 or later, Linux (X11 and Wayland) |
 
 SumMRIse is **not a medical device** and is not intended for diagnosis. This statement
@@ -58,6 +58,7 @@ File-set Creator (FSC) and File-set Updater (FSU) are not supported.
 | --- | --- | --- |
 | 1 | 2026-11-06 | First statement (OpenSpec change `display-fidelity`) |
 | 2 | 2026-11-09 | Structured reports, dose reports and encapsulated PDF are displayed (`report-viewer`); images can be exported and printed by the user (`export-and-share`) |
+| 3 | 2026-11-10 | JPEG-LS Lossless and Near-Lossless are decoded in release builds (`jpeg-ls-support`); crash reports without patient data (`crash-reports`); paths of opened media are not logged above debug level |
 
 ### 3.2 Audience
 
@@ -217,8 +218,8 @@ XL can be lossless or lossy; for those only Lossy Image Compression tells.
 | JPEG Extended (Process 2 & 4) | `1.2.840.10008.1.2.4.51` | Yes | Yes |
 | JPEG Lossless, Non-Hierarchical (Process 14) | `1.2.840.10008.1.2.4.57` | Yes | No |
 | JPEG Lossless, Non-Hierarchical, First-Order Prediction | `1.2.840.10008.1.2.4.70` | Yes | No |
-| JPEG-LS Lossless Image Compression | `1.2.840.10008.1.2.4.80` | With the jpeg-ls build option | No |
-| JPEG-LS Lossy (Near-Lossless) Image Compression | `1.2.840.10008.1.2.4.81` | With the jpeg-ls build option | Yes |
+| JPEG-LS Lossless Image Compression | `1.2.840.10008.1.2.4.80` | Yes (release builds) | No |
+| JPEG-LS Lossy (Near-Lossless) Image Compression | `1.2.840.10008.1.2.4.81` | Yes (release builds) | Yes |
 | JPEG 2000 Image Compression (Lossless Only) | `1.2.840.10008.1.2.4.90` | Yes | No |
 | JPEG 2000 Image Compression | `1.2.840.10008.1.2.4.91` | Yes | No |
 | JPEG 2000 Part 2 Multi-component Image Compression (Lossless Only) | `1.2.840.10008.1.2.4.92` | Yes | No |
@@ -257,9 +258,11 @@ XL can be lossless or lossy; for those only Lossy Image Compression tells.
 
 Remarks:
 
-- The released builds do not include the jpeg-ls and jpeg-xl build options (the first
-  needs a C++ toolchain); series stored in those transfer syntaxes are listed with the
-  name of the transfer syntax and a "not supported by this build" notice.
+- JPEG-LS is decoded by CharLS, a C++ library that the released builds include (the
+  jpeg-ls build option). A build made without it — a developer's build without CMake, for
+  example — lists such series with the name of the transfer syntax and a "not supported
+  by this build" notice, as it does for JPEG XL, which no released build includes (the
+  jpeg-xl build option).
 - JPIP Referenced Deflate data sets can be read, but they hold no pixel data (the pixels
   are on a JPIP server, which SumMRIse never contacts): their images are reported as not
   decodable.
@@ -303,8 +306,8 @@ order prefix, given, middle, family name, suffix.
 
 ### 7.1 Security profiles
 
-No DICOM security profile is supported. There is no network and no file is written, so
-none applies.
+No DICOM security profile is supported. There is no network and no DICOM file is
+written, so none applies.
 
 ### 7.2 Association-level security
 
@@ -322,8 +325,16 @@ Not applicable.
   user ticks them for that export; a warning comes first when the picture itself may show
   personal details.
 - The list of recently opened folders stores the path, the study description and date
-  and the modalities only — never names, IDs or birth dates; it can be switched off.
-- Patient-identifying values are never written to logs above debug level.
+  and the modalities only — never the name, ID or birth date read from the images. The
+  path is kept as it is, so a folder named after a person keeps that name; the list can
+  be switched off.
+- Patient-identifying values, and the paths of opened folders and archives, are never
+  written to logs above debug level.
+- When a fault in the program stops it, a crash report is written to a crash-report
+  folder of the user (among the logs on macOS). It holds the version, the system, the
+  time, the place in the program's source code and the functions that were running — no
+  names, IDs, birth dates, file or folder names, and no values read from DICOM files. A
+  panic message composed while the program ran is withheld.
 - Privacy mode hides the patient's name, ID and birth date everywhere in the interface.
   When an image records Burned In Annotation (0028,0301) as YES, privacy mode says that
   patient details may be part of the picture itself and cannot be hidden.

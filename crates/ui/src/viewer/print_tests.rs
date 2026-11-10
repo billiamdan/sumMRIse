@@ -5,13 +5,18 @@
 //!
 //! The data is the export study of the testkit (`summrise_testkit::export`).
 
-// The fake print systems are shell scripts.
-#![cfg(unix)]
+// The fake `lp` and `lpstat` are shell scripts: the tests that print run where
+// there are shell scripts, on macOS and Linux. Windows has no `lp` (saved PDFs
+// open in the default application), so the tests of saving and opening, and of
+// the pages themselves, run there too, with a batch file as the fake opener.
 
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
 use std::process::Command;
 use std::sync::Arc;
+#[cfg(unix)]
 use std::time::Instant;
 
 use egui::Theme;
@@ -26,9 +31,12 @@ use summrise_core::print::{
     TextRaster, compose_page,
 };
 use summrise_testkit::export::{self as fx, LUNG_FOV_MM, LUNG_SIZE, write_export_study};
+#[cfg(unix)]
 use summrise_testkit::{PATIENT_ID, PATIENT_NAME};
 
-use super::export_tests::{Fixture, open, open_loading, open_study, snapshot_dir};
+#[cfg(unix)]
+use super::export_tests::open_loading;
+use super::export_tests::{Fixture, open, open_study, snapshot_dir};
 use crate::print::{PageFonts, PageOptions, Plan};
 use crate::theme;
 
@@ -37,13 +45,18 @@ struct FakePrinter {
     dir: tempfile::TempDir,
 }
 
+/// The fake application that opens files: it keeps the path it is given.
+const OPENER: &str = if cfg!(windows) { "open.cmd" } else { "open" };
+
 /// Lists the printers "Office" (the default) and "Home", and accepts every job.
 const ACCEPTS: &str =
     "printf '%s\\n' \"$@\" > {record}/args\ncat > {record}/stdin\necho 'request id is Home-1 (1 file(s))'";
 /// Refuses every job, without reading it.
+#[cfg(unix)]
 const REFUSES: &str = "echo 'lp: The printer or class does not exist.' >&2\nexit 1";
 
 impl FakePrinter {
+    #[cfg(unix)]
     fn new(lp: &str) -> Self {
         let dir = tempfile::tempdir().expect("tempdir");
         let root = dir.path().display();
@@ -65,19 +78,32 @@ impl FakePrinter {
             "case \"$1\" in\n-e) printf 'Home\\nOffice\\n' ;;\n-d) echo 'system default destination: Office' ;;\nesac"
                 .to_owned(),
         );
-        script("open", format!("echo \"$1\" > {record}/opened"));
+        script(OPENER, format!("echo \"$1\" > {record}/opened"));
         Self { dir }
     }
 
+    /// Windows: only the opener, a batch file; there is no `lp` to fake.
+    #[cfg(windows)]
+    fn new(_lp: &str) -> Self {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let record = dir.path().join("record");
+        std::fs::create_dir(&record).expect("record");
+        let opened = record.join("opened");
+        let script = format!("@echo off\r\necho %~1>\"{}\"\r\n", opened.display());
+        std::fs::write(dir.path().join(OPENER), script).expect("script");
+        Self { dir }
+    }
+
+    #[cfg(unix)]
     fn system(&self) -> PrintSystem {
         let path = |name: &str| self.dir.path().join(name);
-        PrintSystem::at(path("lp"), path("lpstat"), path("open"))
+        PrintSystem::at(path("lp"), path("lpstat"), path(OPENER))
     }
 
     /// No `lp` on this computer, as on Windows; the application for PDFs is there.
     fn system_without_lp(&self) -> PrintSystem {
         let path = |name: &str| self.dir.path().join(name);
-        PrintSystem::at(path("no-lp"), path("no-lpstat"), path("open"))
+        PrintSystem::at(path("no-lp"), path("no-lpstat"), path(OPENER))
     }
 
     fn record(&self, name: &str) -> PathBuf {
@@ -101,6 +127,7 @@ impl TextRaster for Recording {
 
 impl Fixture {
     /// The print window open on this fake print system, with its printers known.
+    #[cfg(unix)]
     fn open_print_window(&mut self, printer: &FakePrinter) {
         self.harness.state_mut().viewer.export.print_system = printer.system();
         self.keys(Modifiers::COMMAND, Key::P);
@@ -110,11 +137,13 @@ impl Fixture {
         });
     }
 
+    #[cfg(unix)]
     fn click_button(&mut self, label: &str) {
         self.harness.query_all(by().label(label).role(Role::Button)).next().expect(label).click();
         self.harness.run_steps(3);
     }
 
+    #[cfg(unix)]
     fn choose(&mut self, label: &str, entry: &str) {
         self.harness.query_all(by().label(label).role(Role::ComboBox)).next().expect(label).click();
         self.harness.run_steps(3);
@@ -154,6 +183,7 @@ fn options(whole_series: bool, per_page: usize) -> PageOptions {
 }
 
 /// How many pages a PDF says it has.
+#[cfg(unix)]
 fn pdf_pages(pdf: &[u8]) -> usize {
     let plain = String::from_utf8_lossy(pdf);
     plain.split("/Count ").nth(1).and_then(|rest| rest.split(' ').next()).and_then(|n| n.parse().ok()).expect("/Count")
@@ -161,6 +191,7 @@ fn pdf_pages(pdf: &[u8]) -> usize {
 
 /// Spec "A series on sheets": 60 images with 9 per page: 7 pages, the preview
 /// says "Page 1 of 7", the first page holds images 1 to 9, the last 55 to 60.
+#[cfg(unix)]
 #[test]
 fn a_series_on_sheets_has_seven_pages() {
     let mut f = open(fx::SIXTY);
@@ -204,6 +235,7 @@ fn a_series_on_sheets_has_seven_pages() {
 /// Spec "Printing on macOS or Linux with CUPS": the printers are listed with the
 /// default preselected; `lp` gets the PDF on standard input with the printer
 /// chosen, the copies and the neutral title; no file is written.
+#[cfg(unix)]
 #[test]
 fn printing_hands_the_pdf_to_lp_on_standard_input() {
     let mut f = open(fx::SIXTY);
@@ -242,6 +274,7 @@ fn printing_hands_the_pdf_to_lp_on_standard_input() {
 
 /// Spec "Printer refuses the job": a message gives its error text, the window
 /// stays open, and "Save as PDF…" is still available; nothing is retried.
+#[cfg(unix)]
 #[test]
 fn a_refused_job_is_reported_and_the_window_stays() {
     let mut f = open(fx::LUNG_CT);
@@ -297,6 +330,7 @@ fn without_a_print_system_the_pdf_is_saved_and_opened() {
 /// Task 4.3, from the window: a saved PDF of a series opens in the system's PDF
 /// reader, where there is one, with its first page as composed. Without one the
 /// test says so and passes.
+#[cfg(unix)]
 #[test]
 fn a_saved_pdf_opens_in_a_system_reader() {
     let sips = Path::new("/usr/bin/sips");
@@ -332,6 +366,7 @@ fn a_saved_pdf_opens_in_a_system_reader() {
 
 /// Spec "Picture with burned-in text": the warning appears first, with "Print
 /// anyway" and "Cancel"; cancelling leaves the print window, with nothing sent.
+#[cfg(unix)]
 #[test]
 fn a_scanned_page_warns_before_it_is_printed() {
     let mut f = open(fx::SCANNED);
@@ -359,6 +394,7 @@ fn a_scanned_page_warns_before_it_is_printed() {
 
 /// Spec "Printed pages are private by default": no patient details on default
 /// pages, and they are there when asked for, once; never in the title or names.
+#[cfg(unix)]
 #[test]
 fn pages_are_private_by_default() {
     let mut f = open(fx::SIXTY);
@@ -450,6 +486,7 @@ fn the_scale_bar_of_a_printed_slice_is_true() {
 }
 
 /// Design D11: letters follow the view; a mirrored view prints mirrored and says so.
+#[cfg(unix)]
 #[test]
 fn a_mirrored_view_prints_mirrored_and_says_so() {
     let mut f = open(fx::LUNG_CT);
@@ -506,6 +543,7 @@ fn a_reformat_and_the_3d_view_print_as_what_they_are() {
 
 /// Task 4.7: the job runs in the background, with progress and cancel, and a
 /// cancelled job hands nothing over.
+#[cfg(unix)]
 #[test]
 fn a_print_job_can_be_cancelled() {
     let mut f = open(fx::SIXTY);
@@ -527,6 +565,7 @@ fn a_print_job_can_be_cancelled() {
 
 /// The window works at the smallest window size, from the keyboard: everything
 /// on screen, Tab through it, Enter on the button in focus, Esc to close.
+#[cfg(unix)]
 #[test]
 fn the_window_fits_the_smallest_window_and_works_from_the_keyboard() {
     let write = |dir: &Path| drop(write_export_study(dir).expect("fixture"));
@@ -574,6 +613,7 @@ fn the_window_fits_the_smallest_window_and_works_from_the_keyboard() {
 
 /// Spec "Series still loading": only the current image can be printed, and the
 /// window says that the whole series can be printed when it has loaded.
+#[cfg(unix)]
 #[test]
 fn while_a_series_loads_only_the_current_image_can_be_printed() {
     let (mut harness, gate, _study) = open_loading(fx::SIXTY, 3);
@@ -592,6 +632,7 @@ fn while_a_series_loads_only_the_current_image_can_be_printed() {
 
 /// Where the list of printers cannot be read, the system's default printer is
 /// still tried, and what the print system then says is reported.
+#[cfg(unix)]
 #[test]
 fn without_a_list_of_printers_the_default_printer_is_tried() {
     let mut f = open(fx::LUNG_CT);

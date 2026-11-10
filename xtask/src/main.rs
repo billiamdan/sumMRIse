@@ -2,14 +2,20 @@
 //!
 //! Commands:
 //!   icons                         Regenerate the app icon (PNG set, .icns, .ico)
-//!   bundle-macos [options]        Build SumMRIse.app (and optionally a .dmg)
+//!   bundle-macos [options]        Build SumMRIse.app (and optionally a .dmg), with JPEG-LS
 //!       --universal               arm64 + x86_64 universal binary (default: host arch)
 //!       --sign <identity>         codesign identity (default: "-" = ad-hoc)
 //!       --dmg                     also create a compressed disk image
 //!       --notarize <profile>      notarize + staple the DMG (xcrun notarytool keychain profile)
+//!       --notary-key <file.p8> --notary-key-id <id> --notary-issuer <uuid>
+//!                                 notarize + staple with an App Store Connect API key (CI)
+//!   package-windows [--msi] [--sign <file.pfx>]   Windows zip (and per-user MSI with WiX 5)
+//!   package-linux [--appimagetool <tool> --appimage-runtime <file>]   Linux tarball (and AppImage)
+//!   release-notes <version>       Release notes from CHANGELOG.md (--signed-macos, --signed-windows)
 //!   fixtures <dir> [--small]      Write a synthetic, PHI-free DICOM test CD to <dir>
-//!   ci                            fmt check, clippy (deny warnings) and tests
+//!   ci                            fmt check, clippy (deny warnings), tests, notices check
 //!   i18n                          Bring the translation catalogues up to date with the source code
+//!   notices [--check]             Write THIRD-PARTY-NOTICES.txt (--check: fail if out of date)
 
 #![allow(clippy::print_stdout, clippy::print_stderr)]
 
@@ -19,6 +25,9 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail, ensure};
 use image::{Rgba, RgbaImage};
+
+mod notices;
+mod package;
 
 const APP_NAME: &str = "SumMRIse";
 const BUNDLE_ID: &str = "com.summrise.Viewer";
@@ -37,6 +46,10 @@ fn main() -> Result<()> {
         "fixtures" => fixtures(rest),
         "ci" => ci(),
         "i18n" => i18n(),
+        "notices" => notices::run(&root(), rest),
+        "package-windows" => package::package_windows(rest),
+        "package-linux" => package::package_linux(rest),
+        "release-notes" => package::release_notes(rest),
         "-h" | "--help" | "help" => {
             print_help();
             Ok(())
@@ -51,7 +64,7 @@ fn print_help() {
         include_str!("main.rs")
             .lines()
             .skip(2)
-            .take(11)
+            .take(17)
             .map(|l| l.trim_start_matches("//!"))
             .collect::<Vec<_>>()
             .join("\n")
@@ -211,6 +224,8 @@ fn bundle_macos(args: &[String]) -> Result<()> {
             "--locked",
             "-p",
             BIN,
+            "--features",
+            notices::RELEASE_FEATURES,
             "--target",
             target,
         ]))?;
@@ -241,6 +256,9 @@ fn bundle_macos(args: &[String]) -> Result<()> {
         .replace("${NAME}", APP_NAME);
     fs::write(contents.join("Info.plist"), plist)?;
     fs::write(contents.join("PkgInfo"), "APPL????")?;
+    for (from, name) in package::licence_files(&root) {
+        fs::copy(&from, contents.join("Resources").join(name))?;
+    }
 
     let mut sign = Command::new("codesign");
     sign.args(["--force", "--options", "runtime", "--entitlements"])
@@ -253,13 +271,18 @@ fn bundle_macos(args: &[String]) -> Result<()> {
     run(Command::new("codesign").args(["--verify", "--strict", "--verbose=2"]).arg(&app))?;
     println!("built {}", app.display());
 
-    if flag(args, "--dmg") || option(args, "--notarize").is_some() {
+    let notary_key = option(args, "--notary-key");
+    if flag(args, "--dmg") || option(args, "--notarize").is_some() || notary_key.is_some() {
         let arch = if universal { "universal" } else { host_arch };
         let dmg = dist.join(format!("{APP_NAME}-{version}-macos-{arch}.dmg"));
         let staging = dist.join("dmg-staging");
         let _ = fs::remove_dir_all(&staging);
         fs::create_dir_all(&staging)?;
         run(Command::new("ditto").arg(&app).arg(staging.join(format!("{APP_NAME}.app"))))?;
+        // The licence and the notices also next to the app, where they can be read.
+        for (from, name) in package::licence_files(&root) {
+            fs::copy(&from, staging.join(name))?;
+        }
         // bundle-macos only runs on macOS (checked above); the cfg keeps the
         // workspace compiling on Windows.
         #[cfg(unix)]
@@ -282,14 +305,24 @@ fn bundle_macos(args: &[String]) -> Result<()> {
         if identity != "-" {
             run(Command::new("codesign").args(["--force", "--timestamp", "--sign", identity]).arg(&dmg))?;
         }
-        if let Some(profile) = option(args, "--notarize") {
+        let mut notarize = Command::new("xcrun");
+        notarize.args(["notarytool", "submit"]).arg(&dmg).arg("--wait");
+        let notarizing = if let Some(profile) = option(args, "--notarize") {
+            notarize.args(["--keychain-profile", profile]);
+            true
+        } else if let Some(key) = notary_key {
+            let key_id = option(args, "--notary-key-id").context("--notary-key needs --notary-key-id")?;
+            let issuer = option(args, "--notary-issuer").context("--notary-key needs --notary-issuer")?;
+            notarize.args(["--key", key, "--key-id", key_id, "--issuer", issuer]);
+            true
+        } else {
+            false
+        };
+        if notarizing {
             ensure!(identity != "-", "notarization requires a Developer ID identity (--sign)");
-            run(Command::new("xcrun").args(["notarytool", "submit"]).arg(&dmg).args([
-                "--keychain-profile",
-                profile,
-                "--wait",
-            ]))?;
+            run(&mut notarize)?;
             run(Command::new("xcrun").args(["stapler", "staple"]).arg(&dmg))?;
+            run(Command::new("xcrun").args(["stapler", "validate"]).arg(&dmg))?;
         }
         println!("built {}", dmg.display());
     }
@@ -311,20 +344,26 @@ fn fixtures(args: &[String]) -> Result<()> {
     Ok(())
 }
 
+/// The checks of CI, with the features of the release packages (JPEG-LS needs
+/// CMake and a C++ compiler; plain `cargo test` works without them).
 fn ci() -> Result<()> {
     let cargo = env!("CARGO");
     let root = root();
+    let features = format!("{BIN}/{}", notices::RELEASE_FEATURES);
     run(Command::new(cargo).current_dir(&root).args(["fmt", "--all", "--check"]))?;
     run(Command::new(cargo).current_dir(&root).args([
         "clippy",
         "--workspace",
         "--all-targets",
         "--locked",
+        "--features",
+        &features,
         "--",
         "-D",
         "warnings",
     ]))?;
-    run(Command::new(cargo).current_dir(&root).args(["test", "--workspace", "--locked"]))?;
+    run(Command::new(cargo).current_dir(&root).args(["test", "--workspace", "--locked", "--features", &features]))?;
+    notices::run(&root, &["--check".to_owned()])?;
     Ok(())
 }
 

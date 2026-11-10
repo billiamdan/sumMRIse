@@ -1,0 +1,8 @@
+# Text files are checked out with LF line endings on every platform. Tests read
+# files of the repository byte for byte (the translation catalogues, the DICOM
+# conformance statement), and Git for Windows would otherwise convert them to CRLF.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.icns binary

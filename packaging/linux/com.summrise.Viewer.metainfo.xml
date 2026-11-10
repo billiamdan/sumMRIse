@@ -4,13 +4,15 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>SumMRIse</name>
-  <summary>View MRI and CT scans from hospital CDs</summary>
+  <summary>View MRI, CT and PET scans from hospital discs</summary>
   <description>
     <p>
       SumMRIse opens the DICOM images that hospitals hand out on CDs, DVDs and USB
-      sticks. It shows every series with correct anatomical orientation, contrast
-      presets, multiplanar reformatting (axial, coronal, sagittal, MIP) and the
-      complete image metadata. All processing happens locally.
+      sticks, and the ZIP files and disc images they send. It shows every series with
+      correct anatomical orientation, contrast presets, multiplanar reformatting, a 3D
+      view, PET uptake values, measurements and the reports on the disc, and explains
+      in plain language what each series is. All processing happens on the computer:
+      nothing is uploaded.
     </p>
     <p>SumMRIse is not a medical device and must not be used for diagnosis.</p>
   </description>
@@ -22,6 +24,7 @@
   </categories>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.0" date="2026-11-10"/>
     <release version="0.2.0" date="2026-11-05"/>
   </releases>
 </component>

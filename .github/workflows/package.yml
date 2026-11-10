@@ -1,0 +1,256 @@
+name: Package
+
+# The release packages for macOS, Windows and Linux, built by `cargo xtask` with the
+# release features (JPEG-LS). Called by CI (pushes to main, manual runs) and by the
+# release workflow (version tags). Signing and notarization run only when their
+# secrets exist; without them the packages are built unsigned (see SECURITY.md).
+on:
+  workflow_call:
+    outputs:
+      macos_signed:
+        description: "'true' when the DMG holds a Developer ID-signed, notarized app"
+        value: ${{ jobs.macos.outputs.signed }}
+      windows_signed:
+        description: "'true' when the executable and the MSI are Authenticode-signed"
+        value: ${{ jobs.windows.outputs.signed }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  macos:
+    name: Package (macos-universal)
+    runs-on: macos-latest
+    outputs:
+      signed: ${{ steps.bundle.outputs.signed }}
+    env:
+      HAS_SIGNING: ${{ secrets.MACOS_CERT_P12 != '' && secrets.MACOS_SIGNING_IDENTITY != '' }}
+      HAS_NOTARY: ${{ secrets.APPLE_API_KEY_P8 != '' && secrets.APPLE_API_KEY_ID != '' && secrets.APPLE_API_ISSUER != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: Import the Developer ID certificate
+        if: env.HAS_SIGNING == 'true'
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          keychain="$RUNNER_TEMP/build.keychain-db"
+          password="$(uuidgen)"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain"
+          # Keep the existing keychains in the search list (one word per keychain path).
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+
+      - name: App Store Connect API key for notarization
+        if: env.HAS_SIGNING == 'true' && env.HAS_NOTARY == 'true'
+        env:
+          APPLE_API_KEY_P8: ${{ secrets.APPLE_API_KEY_P8 }}
+        run: echo "$APPLE_API_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Bundle (universal .app and .dmg)
+        id: bundle
+        env:
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          args=(--universal --dmg)
+          if [ "$HAS_SIGNING" = true ]; then
+            args+=(--sign "$MACOS_SIGNING_IDENTITY")
+            if [ "$HAS_NOTARY" = true ]; then
+              args+=(--notary-key "$RUNNER_TEMP/AuthKey.p8" --notary-key-id "$APPLE_API_KEY_ID" --notary-issuer "$APPLE_API_ISSUER")
+            fi
+          else
+            echo "::notice::No signing secrets: the app is ad-hoc signed and not notarized."
+          fi
+          cargo xtask bundle-macos "${args[@]}"
+          # Signed and notarized only with all of the secrets (the release notes depend on it).
+          if [ "$HAS_SIGNING" = true ] && [ "$HAS_NOTARY" = true ]; then signed=true; else signed=false; fi
+          echo "signed=$signed" >> "$GITHUB_OUTPUT"
+
+      - name: Check the bundle
+        run: |
+          app=dist/macos/SumMRIse.app
+          exe="$app/Contents/MacOS/summrise"
+          archs="$(lipo -archs "$exe")"
+          echo "architectures: $archs"
+          [[ "$archs" == *x86_64* && "$archs" == *arm64* ]]
+          "$exe" --version
+          # The Intel slice, where Rosetta is installed (not on every runner).
+          if /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
+            /usr/bin/arch -x86_64 "$exe" --version
+          else
+            echo "::notice::No Rosetta on this runner: the x86_64 slice was not started."
+          fi
+          test -f "$app/Contents/Resources/THIRD-PARTY-NOTICES.txt"
+          test -f "$app/Contents/Resources/LICENSE.txt"
+          codesign --verify --strict --verbose=2 "$app"
+          if [ "$HAS_SIGNING" = true ] && [ "$HAS_NOTARY" = true ]; then
+            spctl --assess --type execute --verbose "$app"
+          fi
+          ls -l dist/macos/*.dmg
+
+      - name: Remove the keychain
+        if: always() && env.HAS_SIGNING == 'true'
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" || true
+          rm -f "$RUNNER_TEMP/AuthKey.p8"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SumMRIse-macos-universal
+          path: dist/macos/*.dmg
+          if-no-files-found: error
+
+  windows:
+    name: Package (windows-x64)
+    runs-on: windows-latest
+    outputs:
+      signed: ${{ steps.package.outputs.signed }}
+    env:
+      HAS_SIGNING: ${{ secrets.WINDOWS_CERT_PFX != '' && secrets.WINDOWS_CERT_PASSWORD != '' }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain
+        run: rustup show active-toolchain; if ($LASTEXITCODE -ne 0) { rustup toolchain install }
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - name: WiX 5
+        run: dotnet tool install --global wix --version 5.0.2
+
+      - name: Code-signing certificate
+        if: env.HAS_SIGNING == 'true'
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+        run: '[IO.File]::WriteAllBytes("$env:RUNNER_TEMP\cert.pfx", [Convert]::FromBase64String($env:WINDOWS_CERT_PFX))'
+
+      - name: Package (zip and per-user MSI)
+        id: package
+        env:
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          if ($env:HAS_SIGNING -eq 'true') {
+            cargo xtask package-windows --msi --sign "$env:RUNNER_TEMP\cert.pfx"
+          } else {
+            Write-Output "::notice::No signing secrets: the executable and the MSI are not signed."
+            cargo xtask package-windows --msi
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "signed=$env:HAS_SIGNING" >> $env:GITHUB_OUTPUT
+
+      # Windows Installer's own consistency checks (ICE): `wix build` does not run them.
+      - name: Validate the MSI
+        run: |
+          wix msi validate (Get-Item dist\*.msi).FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Check the executable
+        run: |
+          $exe = "dist\windows\SumMRIse\SumMRIse.exe"
+          $version = (cargo metadata --no-deps --format-version 1 | ConvertFrom-Json).packages | Where-Object name -eq summrise | Select-Object -ExpandProperty version
+          $info = (Get-Item $exe).VersionInfo
+          Write-Output "ProductName=$($info.ProductName) ProductVersion=$($info.ProductVersion) FileVersion=$($info.FileVersion)"
+          if ($info.ProductName -ne 'SumMRIse' -or $info.ProductVersion -ne $version) { throw "version resource missing or wrong" }
+          # A GUI program: its output arrives only when redirected.
+          $p = Start-Process -FilePath $exe -ArgumentList '--version' -Wait -PassThru -NoNewWindow -RedirectStandardOutput "$env:RUNNER_TEMP\version.txt"
+          $said = Get-Content "$env:RUNNER_TEMP\version.txt"
+          Write-Output $said
+          if ($p.ExitCode -ne 0 -or $said -ne "SumMRIse $version") { throw "SumMRIse.exe --version failed" }
+
+      - name: Install and remove the MSI
+        run: |
+          $msi = (Get-Item dist\*.msi).FullName
+          $installed = "$env:LOCALAPPDATA\Programs\SumMRIse\SumMRIse.exe"
+          $shortcut = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\SumMRIse.lnk"
+          $p = Start-Process msiexec.exe -ArgumentList '/i', "`"$msi`"", '/qn', '/l*v', "`"$env:RUNNER_TEMP\install.log`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content "$env:RUNNER_TEMP\install.log" -Tail 60; throw "install failed: $($p.ExitCode)" }
+          foreach ($path in $installed, "$env:LOCALAPPDATA\Programs\SumMRIse\THIRD-PARTY-NOTICES.txt", $shortcut) {
+            if (-not (Test-Path $path)) { throw "not installed: $path" }
+          }
+          $p = Start-Process msiexec.exe -ArgumentList '/x', "`"$msi`"", '/qn' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "removal failed: $($p.ExitCode)" }
+          foreach ($path in $installed, $shortcut) {
+            if (Test-Path $path) { throw "left behind: $path" }
+          }
+          Write-Output "installed per user and removed again"
+
+      - name: Remove the certificate
+        if: always() && env.HAS_SIGNING == 'true'
+        run: Remove-Item -Force -ErrorAction SilentlyContinue "$env:RUNNER_TEMP\cert.pfx"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SumMRIse-windows-x64
+          path: |
+            dist/*.zip
+            dist/*.msi
+          if-no-files-found: error
+
+  linux:
+    name: Package (linux-x64)
+    # The oldest supported runner: the packages need glibc 2.35 or later.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: System libraries and packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev \
+            libxi-dev libgl1-mesa-dev appstream desktop-file-utils
+      - name: Toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+
+      - name: appimagetool and the AppImage runtime (pinned)
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          curl -sSfL -o "$RUNNER_TEMP/runtime-x86_64" \
+            https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
+          cd "$RUNNER_TEMP"
+          printf '%s\n' \
+            'ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0  appimagetool' \
+            '2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d  runtime-x86_64' | sha256sum -c
+          chmod +x appimagetool
+
+      - name: Validate the desktop entry and the AppStream metadata
+        run: |
+          desktop-file-validate packaging/linux/com.summrise.Viewer.desktop
+          appstreamcli validate --no-net --explain packaging/linux/com.summrise.Viewer.metainfo.xml
+
+      - name: Package (tarball and AppImage)
+        run: cargo xtask package-linux --appimagetool "$RUNNER_TEMP/appimagetool" --appimage-runtime "$RUNNER_TEMP/runtime-x86_64"
+
+      - name: Check the packages
+        run: |
+          ldd dist/linux/summrise/summrise
+          dist/linux/summrise/summrise --version
+          appimage=(dist/*.AppImage)
+          chmod +x "${appimage[0]}"
+          APPIMAGE_EXTRACT_AND_RUN=1 "${appimage[0]}" --version
+          tar -tzf dist/*.tar.gz
+          test -f dist/linux/SumMRIse.AppDir/usr/share/doc/summrise/THIRD-PARTY-NOTICES.txt
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SumMRIse-linux-x64
+          path: |
+            dist/*.tar.gz
+            dist/*.AppImage
+          if-no-files-found: error

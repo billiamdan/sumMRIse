@@ -1,0 +1,28 @@
+# Weekly dependency updates. Minor and patch updates of Cargo crates come in one pull
+# request, GitHub Actions in another; major Cargo updates come one by one. A Cargo
+# update that adds or removes a crate or changes a licence text also needs
+# `cargo xtask notices` (CI checks it); one that brings in a network client crate
+# named in deny.toml fails `cargo deny`.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      cargo:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci(deps)"

@@ -35,7 +35,8 @@ pub(crate) fn app(language: &str, open: Option<PathBuf>, size: [f32; 2], render:
         builder = builder.wgpu();
     }
     let system_languages = vec![language.to_owned()];
-    let mut app = builder.build_eframe(move |cc| SumMRIseApp::new(cc, AppOptions { open, system_languages }));
+    let mut app =
+        builder.build_eframe(move |cc| SumMRIseApp::new(cc, AppOptions { open, system_languages, crash_report: None }));
     // The first frame installs the language.
     app.step();
     app

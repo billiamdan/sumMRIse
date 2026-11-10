@@ -58,6 +58,7 @@ pub mod measure;
 pub mod pet;
 pub mod reports;
 pub mod stacks;
+pub mod transcode;
 
 use std::fs;
 use std::path::{Path, PathBuf};

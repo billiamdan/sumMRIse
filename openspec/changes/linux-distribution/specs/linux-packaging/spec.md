@@ -10,7 +10,14 @@ SumMRIse SHALL install a desktop entry and AppStream metadata with application i
 
 ### Requirement: Portable packages
 Releases SHALL include a tarball and an AppImage that run on current Ubuntu, Fedora and
-Debian releases without installing additional libraries beyond a desktop session.
+Debian releases without installing additional libraries beyond a desktop session. Both
+are built on Ubuntu 22.04 (glibc 2.35) and carry the licence and
+`THIRD-PARTY-NOTICES.txt`; the AppImage is made with pinned, checksum-verified tools and
+starts without FUSE when `APPIMAGE_EXTRACT_AND_RUN=1` is set.
+
+#### Scenario: AppImage on a CI runner
+- **WHEN** the AppImage is started with `--version` and `APPIMAGE_EXTRACT_AND_RUN=1` on Ubuntu 22.04
+- **THEN** it prints `SumMRIse 0.3.0`
 
 #### Scenario: AppImage on Fedora
 - **WHEN** the AppImage is made executable and started on Fedora Workstation (Wayland)

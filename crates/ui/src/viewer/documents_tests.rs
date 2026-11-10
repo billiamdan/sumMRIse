@@ -79,8 +79,11 @@ fn cd_sized(settings: Settings, size: [f32; 2], theme: Theme) -> Fixture {
     write_reports_cd(dir.path(), &PhantomOptions::small()).expect("fixture");
     let open = dir.path().to_path_buf();
     let mut f = start(dir, open, settings, size, theme);
-    f.run_until("the CT", |f| f.viewer().session.data(CT).is_some_and(|series| series.is_viewable()));
-    f.harness.step();
+    // The whole series, not only its first image: while it loads, the image on screen is
+    // labelled "Loading image 13 / 24", and the tests that go back to the images look for
+    // "Image 13 / 24". (They failed on slow runners, where the series was still loading.)
+    f.run_until("the CT", |f| f.viewer().session.data(CT).is_some_and(|series| series.is_complete()));
+    f.steps(3);
     f
 }
 
@@ -138,7 +141,9 @@ impl Fixture {
     /// Opens a document from the list and waits until it is read.
     fn open(&mut self, title: &str) {
         self.click(title);
-        self.run_until("the document", |f| !f.shows("Loading the document…"));
+        // The state of the pane, not the absence of "Loading the document…": that label
+        // can be missing for a frame while the document is still being read.
+        self.run_until("the document", |f| f.viewer().documents.is_read());
         self.steps(2);
     }
 
@@ -492,7 +497,7 @@ fn privacy_mode_hides_a_document_until_it_is_revealed() {
     let first_report = "Report, Report · 2026-01-15";
     f.harness.query_all_by_label(first_report).next().expect("a report").click();
     f.steps(3);
-    f.run_until("the document", |f| !f.shows("Loading the document…"));
+    f.run_until("the document", |f| f.viewer().documents.is_read());
     f.steps(2);
     assert!(f.shows("Hidden in privacy mode — reports contain personal details"));
     assert!(f.shows("Show anyway"));
@@ -510,7 +515,7 @@ fn privacy_mode_hides_a_document_until_it_is_revealed() {
     f.press(Key::Escape);
     f.harness.query_all_by_label(first_report).next().expect("a report").click();
     f.steps(3);
-    f.run_until("the document", |f| !f.shows("Loading the document…"));
+    f.run_until("the document", |f| f.viewer().documents.is_read());
     f.steps(2);
     assert!(f.shows("Hidden in privacy mode — reports contain personal details"));
     assert!(!f.shows("Diameter: 12 mm"));
@@ -547,7 +552,7 @@ fn documents_can_be_reached_and_left_with_the_keyboard() {
     f.harness.key_press(Key::Enter);
     f.steps(3);
     assert!(f.viewer().documents.is_open(), "Enter opens the document");
-    f.run_until("the document", |f| !f.shows("Loading the document…"));
+    f.run_until("the document", |f| f.viewer().documents.is_read());
     f.steps(2);
     assert!(f.shows("Normal study."));
     f.press(Key::Escape);
@@ -584,7 +589,22 @@ fn a_report_nested_too_deeply_says_what_is_missing() {
     let open = dir.path().to_path_buf();
     let mut f = start(dir, open, Settings::default(), [1280.0, 800.0], Theme::Dark);
     f.open("Deep report");
-    assert!(f.shows("Part of this report is not shown: it is nested too deeply or is too long."));
+    // Waited for, not looked for once: on a slow runner the report can arrive a few frames
+    // after "Loading the document…" has gone.
+    let notice = "Part of this report is not shown: it is nested too deeply or is too long.";
+    let start = Instant::now();
+    while !f.shows(notice) && start.elapsed() < Duration::from_secs(60) {
+        f.harness.step();
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    let pane: Vec<String> = f
+        .harness
+        .query_all(by())
+        .filter_map(|node| node.accesskit_node().label())
+        .skip_while(|label| label != "Back to images")
+        .take(20)
+        .collect();
+    assert!(f.shows(notice), "the document pane shows: {pane:?}");
     assert!(!f.shows("Deep down"));
 }
 
@@ -620,6 +640,8 @@ fn a_study_without_images_opens_on_its_document_and_closes_with_it() {
         .expect("fixture");
     let spec = reports::ReportSpec {
         study_uid: "2.25.42".to_owned(),
+        // Its own SOP Instance UID: not a duplicate of the first report of the CD.
+        series: 191,
         ..reports::ReportSpec::new(
             "1.2.840.10008.5.1.4.1.1.88.11",
             "Report of another study",

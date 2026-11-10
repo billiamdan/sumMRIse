@@ -144,9 +144,12 @@ fn files_below<'a>(media: &'a Media, root: &Path, max_depth: usize) -> Box<dyn I
             archive.files().filter(move |entry| entry.depth() <= max_depth).map(|entry| entry.path().to_path_buf()),
         ),
         None => Box::new(
+            // In the order of the names, whatever the file system lists first: a file
+            // whose UID another file has as well is the duplicate on every system.
             WalkDir::new(root)
                 .max_depth(max_depth)
                 .follow_links(false)
+                .sort_by_file_name()
                 .into_iter()
                 .filter_entry(|e| e.depth() == 0 || !is_hidden(e.path()))
                 .filter_map(std::result::Result::ok)
@@ -206,7 +209,9 @@ fn discover_from_dicomdirs(media: &Media, dicomdirs: &[PathBuf], progress: &Prog
                     continue;
                 }
                 if missing * 10 > total {
-                    warn!("DICOMDIR {} references {missing}/{total} missing files", logged.display());
+                    // Paths only at debug level: a folder can be named after the patient.
+                    warn!("a DICOMDIR references {missing}/{total} missing files");
+                    debug!("that DICOMDIR: {}", logged.display());
                     warnings.push(tr_n!(
                         "{n} of the {total} files that DICOMDIR lists is missing; the folder was scanned instead",
                         "{n} of the {total} files that DICOMDIR lists are missing; the folder was scanned instead",
@@ -230,12 +235,9 @@ fn discover_from_dicomdirs(media: &Media, dicomdirs: &[PathBuf], progress: &Prog
                 used.push(dicomdir.clone());
             }
             Err(e) => {
-                if media.archive().is_some() {
-                    warn!("ignoring an unreadable DICOMDIR in {}", logged.display());
-                    debug!("unreadable DICOMDIR: {e}");
-                } else {
-                    warn!("ignoring unreadable DICOMDIR {}: {e}", dicomdir.display());
-                }
+                // The reason names the path: both only at debug level.
+                warn!("ignoring an unreadable DICOMDIR");
+                debug!("unreadable DICOMDIR in {}: {e}", logged.display());
                 warnings.push(tr!("DICOMDIR could not be read ({reason}); the folder was scanned instead", reason = e));
                 return Ok(FromDicomdirs::Unusable(warnings));
             }
@@ -250,6 +252,14 @@ fn discover_from_dicomdirs(media: &Media, dicomdirs: &[PathBuf], progress: &Prog
 /// Parses a DICOMDIR and resolves its Referenced File IDs relative to the
 /// DICOMDIR's folder. Returns (existing files, number of missing files).
 pub fn referenced_files(media: &Media, dicomdir: &Path) -> Result<(Vec<PathBuf>, usize)> {
+    // A damaged DICOMDIR can make the DICOM library panic: that is an unreadable
+    // DICOMDIR (the folder is scanned instead), not a crash.
+    crate::panics::catch(|| read_referenced_files(media, dicomdir)).unwrap_or_else(|_| {
+        Err(DicomError::Parse { path: media.display_path(dicomdir), reason: crate::panics::damaged().to_owned() })
+    })
+}
+
+fn read_referenced_files(media: &Media, dicomdir: &Path) -> Result<(Vec<PathBuf>, usize)> {
     let obj = media
         .open_object(dicomdir, None)
         .map_err(|reason| DicomError::Parse { path: media.display_path(dicomdir), reason })?;
