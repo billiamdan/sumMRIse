@@ -7,7 +7,6 @@
 //! they do to a reader or to the PDF rasteriser ends in a message in the view.
 
 use std::collections::HashMap;
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 
@@ -40,7 +39,8 @@ impl<T: Send + 'static> Task<T> {
             .name("summrise-document".to_owned())
             .stack_size(TASK_STACK_BYTES)
             .spawn(move || {
-                let result = catch_unwind(AssertUnwindSafe(work)).ok();
+                // Documents come from the disc: a parser stopping on a damaged one is a failed task, not a crash.
+                let result = summrise_dicom::panics::catch(work).ok();
                 let _ = tx.send(result);
                 if let Some(wake) = waker {
                     wake();

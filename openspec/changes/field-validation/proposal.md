@@ -16,7 +16,11 @@ compromising anyone's privacy.
   orientation letters, ordering, CT values at reference points, reformat availability.
 - Screen-reader walkthroughs (VoiceOver, Narrator, Orca) of the core flows.
 - Usability sessions with non-expert participants.
-- Privacy review of info-level logs produced while opening the real studies.
+- Privacy review of info-level logs produced while opening the real studies, and of the
+  crash report and its message on each system.
+- The checks of the shipped features that need the real window on each system, an
+  optical drive, a printer, other hardware or people, moved here when their changes were
+  archived (tasks section 5).
 - Every finding becomes a fix plus a synthetic testkit fixture reproducing the quirk.
 
 ## Capabilities

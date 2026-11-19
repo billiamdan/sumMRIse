@@ -8,6 +8,7 @@
 //! unchanged.
 
 mod contrast;
+pub mod crash;
 pub mod documents;
 pub mod export;
 pub mod guide;

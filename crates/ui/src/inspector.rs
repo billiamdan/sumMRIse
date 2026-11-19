@@ -84,6 +84,10 @@ impl Inspector {
                 Err(e) => self.error = Some(e),
             }
             self.job = None;
+        } else if self.job.as_ref().is_some_and(Job::is_finished) {
+            // A fault stopped the reading: say so instead of loading for ever.
+            self.error = Some(tr!("reading the file stopped unexpectedly").to_owned());
+            self.job = None;
         }
 
         ui.add_space(6.0);

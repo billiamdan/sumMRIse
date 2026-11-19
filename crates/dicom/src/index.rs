@@ -1,7 +1,6 @@
 //! Header-only indexing of DICOM files into patients' studies and series.
 
 use std::collections::HashMap;
-use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 
 use dicom_core::Tag;
@@ -278,7 +277,11 @@ impl InstanceHeader {
 
 /// Discovers and indexes all images below `root`.
 pub fn scan(root: &Path, progress: &Progress) -> Result<StudyIndex> {
-    let discovery = discover(root, progress)?;
+    // Discovery reads the disc's own structures (DICOMDIR, ISO 9660, ZIP): a
+    // reader stopping on damaged data is an error to show, not a crash.
+    let discovery = crate::panics::catch(|| discover(root, progress)).unwrap_or_else(|_| {
+        Err(DicomError::Parse { path: root.to_path_buf(), reason: crate::panics::damaged().to_owned() })
+    })?;
     let mut index = index_files(&discovery.media, &discovery.files, progress)?;
     index.root = root.to_path_buf();
     index.source = discovery.source;
@@ -317,8 +320,8 @@ pub fn index_files(media: &Media, files: &[PathBuf], progress: &Progress) -> Res
             if progress.is_cancelled() {
                 return Err("cancelled".to_owned());
             }
-            let record = catch_unwind(AssertUnwindSafe(|| read_header(media, path)))
-                .unwrap_or_else(|_| Err("parser panicked".to_owned()));
+            let record =
+                crate::panics::catch(|| read_header(media, path)).unwrap_or_else(|_| Err("parser panicked".to_owned()));
             progress.advance();
             record.map_err(|e| {
                 debug!("skipping {}: {e}", path.display());

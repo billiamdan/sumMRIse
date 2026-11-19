@@ -20,7 +20,11 @@ unmaintained = "workspace"
 version = 2
 confidence-threshold = 0.9
 # Permissive licences plus the bundled egui font licences. No GPL/LGPL: every
-# dual-licensed crate in the graph offers a permissive alternative.
+# dual-licensed crate in the graph offers a permissive alternative. One thing
+# cargo-deny cannot see: `wayland-protocols-plasma` (MIT) generates code from
+# KDE protocol definitions, some of them LGPL-2.1-or-later, and winit links the
+# one for blurred windows into the Linux build. THIRD-PARTY-NOTICES.txt says so
+# and gives the text (`cargo xtask notices`).
 allow = [
     "0BSD",
     "Apache-2.0",
@@ -45,6 +49,28 @@ wildcards = "deny"
 # Internal crates are path dependencies without a version requirement; they are
 # never published (`publish = false`), so path wildcards are safe.
 allow-wildcard-paths = true
+# SumMRIse opens no network connection (privacy spec "No network client
+# dependencies"): HTTP, WebSocket and TLS client crates may not enter the graph,
+# not even through another dependency.
+deny = [
+    { name = "attohttpc", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "curl", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "curl-sys", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "ehttp", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "h2", reason = "HTTP/2 client: SumMRIse has no network access" },
+    { name = "hyper", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "hyper-util", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "isahc", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "minreq", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "native-tls", reason = "TLS client: SumMRIse has no network access" },
+    { name = "openssl", reason = "TLS client: SumMRIse has no network access" },
+    { name = "openssl-sys", reason = "TLS client: SumMRIse has no network access" },
+    { name = "reqwest", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "rustls", reason = "TLS client: SumMRIse has no network access" },
+    { name = "surf", reason = "HTTP client: SumMRIse has no network access" },
+    { name = "tungstenite", reason = "WebSocket client: SumMRIse has no network access" },
+    { name = "ureq", reason = "HTTP client: SumMRIse has no network access" },
+]
 
 [sources]
 unknown-registry = "deny"

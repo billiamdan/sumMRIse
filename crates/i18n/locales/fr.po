@@ -2296,6 +2296,11 @@ msgstr "Identifiants"
 msgid "its data is nested too deeply"
 msgstr "ses données comportent trop de niveaux d'imbrication"
 
+#. why a file or a disc could not be read: the reader stopped on damaged data.
+#: crates/dicom/src/panics.rs
+msgid "the reader stopped on damaged data"
+msgstr "la lecture s'est arrêtée sur des données endommagées"
+
 #: crates/dicom/src/pet.rs
 msgid "The images do not record the unit of their values."
 msgstr "Les images n'indiquent pas l'unité de leurs valeurs."
@@ -2768,6 +2773,10 @@ msgid "ZIP archives and disc images"
 msgstr "Archives ZIP et images disque"
 
 #: crates/ui/src/app.rs
+msgid "Opening stopped unexpectedly."
+msgstr "L'ouverture s'est arrêtée de façon inattendue."
+
+#: crates/ui/src/app.rs
 msgid "{n} study found — switch between them in the browser."
 msgid_plural "{n} studies found — switch between them in the browser."
 msgstr[0] "{n} examen trouvé — passez de l'un à l'autre dans la liste des séries."
@@ -2899,11 +2908,17 @@ msgid "Not a medical device. Not for diagnostic use."
 msgstr "Ce n'est pas un dispositif médical. Ne pas utiliser à des fins de diagnostic."
 
 #: crates/ui/src/app.rs
-msgid "Built with dicom-rs, egui/eframe and wgpu. Licensed under the MIT licence."
-msgstr "Réalisé avec dicom-rs, egui/eframe et wgpu. Distribué sous licence MIT."
+msgid "Licensed under the MIT licence. Built with dicom-rs, egui/eframe, wgpu and other software by others, under their own licences."
+msgstr "Distribué sous licence MIT. Conçu avec dicom-rs, egui/eframe, wgpu et d'autres logiciels de tiers, sous leurs propres licences."
 
 #: crates/ui/src/app.rs
+msgid "Third-party licences…"
+msgstr "Licences tierces…"
+
+#: crates/ui/src/app.rs
+#: crates/ui/src/crash_notice.rs
 #: crates/ui/src/display_check.rs
+#: crates/ui/src/licences.rs
 msgid "Close"
 msgstr "Fermer"
 
@@ -3224,6 +3239,46 @@ msgstr "Comparer les examens du {earlier} et du {later}"
 #: crates/ui/src/compare.rs
 msgid "Matching series of the studies of {earlier} and {later} side by side, the earlier one on the left. Replace either side by dropping another series on it."
 msgstr "Les séries correspondantes des examens du {earlier} et du {later} côte à côte, le plus ancien à gauche. Déposez une autre série sur un côté pour le remplacer."
+
+#: crates/ui/src/crash_notice.rs
+msgid "SumMRIse closed unexpectedly"
+msgstr "SumMRIse s'est fermé de façon inattendue"
+
+#: crates/ui/src/crash_notice.rs
+msgid "The last time SumMRIse was used, it stopped because of a fault in the program."
+msgstr "La dernière fois que SumMRIse a été utilisé, il s'est arrêté à cause d'une erreur du programme."
+
+#: crates/ui/src/crash_notice.rs
+msgid "Something went wrong"
+msgstr "Un problème est survenu"
+
+#: crates/ui/src/crash_notice.rs
+msgid "Part of SumMRIse stopped because of a fault in the program, and what it was doing may be incomplete. If something looks wrong, close SumMRIse and open it again."
+msgstr "Une partie de SumMRIse s'est arrêtée à cause d'une erreur du programme, et ce qu'elle faisait est peut-être incomplet. Si quelque chose semble anormal, fermez SumMRIse et rouvrez-le."
+
+#: crates/ui/src/crash_notice.rs
+msgid "Copy path"
+msgstr "Copier le chemin"
+
+#: crates/ui/src/crash_notice.rs
+msgid "A report was saved. It contains no patient data: no names, IDs, dates of birth, file names or values from the images. You can send it with a bug report to help fix the fault."
+msgstr "Un rapport a été enregistré. Il ne contient aucune donnée de patient : ni noms, ni identifiants, ni dates de naissance, ni noms de fichiers, ni valeurs des images. Vous pouvez l'envoyer avec un signalement de bogue pour aider à corriger l'erreur."
+
+#: crates/ui/src/crash_notice.rs
+msgid "SumMRIse stopped because of a fault in the program."
+msgstr "SumMRIse s'est arrêté à cause d'une erreur du programme."
+
+#: crates/ui/src/crash_notice.rs
+msgid "No report could be saved."
+msgstr "Aucun rapport n'a pu être enregistré."
+
+#: crates/ui/src/crash_notice.rs
+msgid "SumMRIse could not start"
+msgstr "SumMRIse n'a pas pu démarrer"
+
+#: crates/ui/src/crash_notice.rs
+msgid "The window could not be opened: {reason}"
+msgstr "La fenêtre n'a pas pu être ouverte : {reason}"
 
 #: crates/ui/src/crosshair.rs
 msgid "Tilt handle of the {plane} plane in the {view} view"
@@ -3831,6 +3886,10 @@ msgid "About {subject}"
 msgstr "À propos : {subject}"
 
 #: crates/ui/src/inspector.rs
+msgid "reading the file stopped unexpectedly"
+msgstr "la lecture du fichier s'est arrêtée de façon inattendue"
+
+#: crates/ui/src/inspector.rs
 msgid "Overview"
 msgstr "Aperçu"
 
@@ -3892,6 +3951,18 @@ msgstr "Élément {number}"
 #: crates/ui/src/language.rs
 msgid "System language ({language})"
 msgstr "Langue du système ({language})"
+
+#: crates/ui/src/licences.rs
+msgid "Third-party licences"
+msgstr "Licences tierces"
+
+#: crates/ui/src/licences.rs
+msgid "SumMRIse is built with software by others. Their licences follow in their original wording, in English. The same text is in the file THIRD-PARTY-NOTICES.txt that comes with the application."
+msgstr "SumMRIse utilise des logiciels créés par d'autres. Leurs licences suivent dans leur formulation d'origine, en anglais. Le même texte se trouve dans le fichier THIRD-PARTY-NOTICES.txt fourni avec l'application."
+
+#: crates/ui/src/licences.rs
+msgid "Scroll with the mouse or with Page Up, Page Down, Home and End."
+msgstr "Faites défiler avec la souris ou avec Page préc., Page suiv., Début et Fin."
 
 #: crates/ui/src/measure.rs
 msgid "Length: drag from one point to the other (D)"
@@ -4218,6 +4289,10 @@ msgid "Composing pages"
 msgstr "Composition des pages"
 
 #: crates/ui/src/print.rs
+msgid "the job stopped unexpectedly"
+msgstr "la tâche s'est arrêtée de façon inattendue"
+
+#: crates/ui/src/print.rs
 msgid "Sent to {printer}."
 msgstr "Envoyé à {printer}."
 
@@ -4236,10 +4311,6 @@ msgstr "{name} enregistré, mais impossible de l'ouvrir : {reason}"
 #: crates/ui/src/print.rs
 msgid "Could not print: {reason}"
 msgstr "Impossible d'imprimer : {reason}"
-
-#: crates/ui/src/print.rs
-msgid "the job stopped unexpectedly"
-msgstr "la tâche s'est arrêtée de façon inattendue"
 
 #: crates/ui/src/print.rs
 msgid "Print anyway"

@@ -31,7 +31,8 @@ single Rust code base. Everything happens on your computer — nothing is upload
   in place: nothing is unpacked to disk; password-protected archives and UDF-only
   images are refused with a reason.
 - **Correct images** — dicom-rs 0.10 decoding of uncompressed, deflate, JPEG
-  (baseline/extended/lossless), JPEG 2000 and RLE data; Hounsfield units for CT;
+  (baseline/extended/lossless), JPEG-LS (CharLS, in the release packages), JPEG 2000 and RLE
+  data; Hounsfield units for CT;
   MONOCHROME1/2, colour and palette colour; Modality and VOI lookup tables
   ("contrast tables"); padding outside the scanned area; scanner graphics (overlay
   planes, G); a mark on images that were compressed lossily; multi-frame and Enhanced
@@ -78,10 +79,12 @@ single Rust code base. Everything happens on your computer — nothing is upload
   acquisition parameters with units, image geometry) and the complete searchable
   attribute tree.
 - **Private by default** — no network access and no image cache on disk: image data is
-  only written where you explicitly export it, and printing hands the pages to the
-  system's print queue (which may keep a copy until they are printed) without a temporary
-  file of the app's own. Privacy mode for screenshots, with a warning on images whose
-  pixels contain patient details. Minimal recent-studies list.
+  only written where you explicitly export it. On macOS and Linux, printing hands the
+  pages to the system's print queue (which may keep a copy until they are printed) without
+  a temporary file of the app's own; on Windows the pages are saved as a PDF where you
+  choose and opened there. Privacy mode for screenshots, with a warning on images whose
+  pixels contain patient details. Minimal recent-studies list. If SumMRIse stops because of
+  a fault, it says so and saves a crash report without patient data.
 - **Five languages** — English, German, Spanish, French and Russian; the interface
   follows the language of the system and can be changed in the settings. Text from the
   disc is never translated. The translations are machine-made and have not yet been
@@ -90,36 +93,55 @@ single Rust code base. Everything happens on your computer — nothing is upload
   screen-reader labels, trackpad gestures, drag and drop, a toolbar that wraps in narrow
   windows, and a display check to see whether the screen shows all grey levels.
 
-## Download and build
+## Download
+
+From version 0.3.0 on, packages for every version are on the
+[releases page](https://github.com/billiamdan/sumMRIse/releases), with a `SHA256SUMS` file
+to check them:
+
+| System | Package |
+| --- | --- |
+| macOS 11 or later (Apple silicon and Intel) | `SumMRIse-<version>-macos-universal.dmg` |
+| Windows 10 or later | `SumMRIse-<version>-windows-x64.msi` (installs for you only, no administrator rights) or the portable `…-windows-x64.zip` |
+| Linux (x86-64, glibc 2.35 or later: Ubuntu 22.04, Debian 12, Fedora 36 and newer) | `SumMRIse-<version>-linux-x64.AppImage` or `…-linux-x64.tar.gz` |
+
+Until the project has an Apple Developer ID and a Windows code-signing certificate, the
+packages are not signed: macOS asks you to allow the app in System Settings ▸ Privacy &
+Security the first time, and Windows SmartScreen may warn about an unknown publisher. The
+release notes explain both. See [SECURITY.md](SECURITY.md) for what SumMRIse promises about
+privacy.
+
+## Build
 
 Prerequisite: [rustup](https://rustup.rs). The exact toolchain (Rust 1.99.1) is pinned
-in `rust-toolchain.toml` and installs itself on first use.
+in `rust-toolchain.toml` and installs itself on first use. The release packages decode
+JPEG-LS with CharLS, a C++ library: building with `--features jpeg-ls` needs CMake and a
+C++ compiler.
 
 ```bash
 cargo run --release -p summrise                 # run the app
 cargo run --release -p summrise -- /Volumes/CD  # open a disc/folder directly
+cargo run --release -p summrise --features jpeg-ls   # with JPEG-LS, as released
 ```
 
-### macOS app bundle
+### Packages
 
 ```bash
-cargo xtask bundle-macos --universal --dmg
+cargo xtask bundle-macos --universal --dmg     # macOS: dist/macos/SumMRIse.app and the DMG
+cargo xtask package-windows --msi              # Windows: zip and per-user MSI (needs WiX 5)
+cargo xtask package-linux                      # Linux: tarball (AppImage: see the CI workflow)
 ```
 
-Produces `dist/macos/SumMRIse.app` (universal arm64 + x86_64, ad-hoc signed, hardened
-runtime) and `dist/macos/SumMRIse-<version>-macos-universal.dmg`. Developer ID signing
-and notarization: see [packaging/macos/README.md](packaging/macos/README.md).
-
-### Windows and Linux
-
-```bash
-cargo build --release -p summrise
-```
+The macOS app is universal (arm64 + x86_64) and ad-hoc signed with the hardened runtime;
+Developer ID signing and notarization: see [packaging/macos/README.md](packaging/macos/README.md).
+Every package carries `LICENSE.txt` and `THIRD-PARTY-NOTICES.txt`. CI builds all of them on
+pushes to `main` and manual runs (`.github/workflows/package.yml`); a version tag prepares
+them as a draft GitHub Release for the maintainer to publish
+(`.github/workflows/release.yml`, see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 Linux needs the usual X11/Wayland development packages (Debian/Ubuntu:
 `libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev`).
-Desktop entry and AppStream metadata live in `packaging/linux`. CI builds a Windows zip
-and a Linux tarball; installers (MSI, AppImage, Flatpak) are planned — see the plan below.
+Desktop entry and AppStream metadata live in `packaging/linux`.
 
 ## Using SumMRIse
 
@@ -159,7 +181,7 @@ sumMRIse/
 │   ├── core/            UI-agnostic app layer: session, viewports, view state, jobs, measurements, export and print, settings, guide texts
 │   ├── ui/              egui/eframe interface (wgpu → Metal / DirectX 12 / Vulkan)
 │   └── testkit/         synthetic, PHI-free DICOM CDs for tests and QA
-├── xtask/               cargo xtask: icons, bundle-macos, fixtures, ci
+├── xtask/               cargo xtask: icons, packages, notices, release notes, fixtures, ci
 ├── docs/                DICOM conformance statement, screenshots
 ├── packaging/           macOS Info.plist & icns, Windows ico, Linux desktop/AppStream
 └── openspec/            specification-driven change plan (see below)
@@ -170,54 +192,55 @@ the binary know about egui, so the domain layers can be reused by another front-
 (for example a native SwiftUI shell via FFI) without changes. Why one cross-platform UI
 instead of a different stack per platform, and why egui rather than Qt, GTK, Tauri or
 Slint, is documented in
-[openspec/changes/restructure-monorepo/design.md](openspec/changes/restructure-monorepo/design.md).
+[the design of `restructure-monorepo`](openspec/changes/archive/2026-11-05-restructure-monorepo/design.md).
 
 ## Development
 
 ```bash
-cargo xtask ci                      # fmt check + clippy -D warnings + all tests
+cargo xtask ci                      # what CI checks: fmt, clippy -D warnings and all tests with JPEG-LS, notices
 cargo test --workspace              # unit, integration and offscreen UI tests
 cargo xtask fixtures /tmp/test-cd   # write a synthetic patient CD for manual testing
 cargo xtask icons                   # regenerate app icons
 cargo xtask i18n                    # update the PO catalogues after changing interface text
+cargo xtask notices                 # update THIRD-PARTY-NOTICES.txt after changing dependencies
 SUMMRISE_SNAPSHOT_DIR=/tmp/shots cargo test -p summrise-ui --test smoke   # keep UI renders
 ```
 
 Never commit real imaging data — `.gitignore` blocks `DICOMDIR` and `*.dcm`; use the
-testkit fixtures instead. Licences and advisories are checked with `cargo deny check`.
+testkit fixtures instead. Licences, advisories and the ban on network client crates are
+checked with `cargo deny check`. See [CONTRIBUTING.md](CONTRIBUTING.md) and
+[CHANGELOG.md](CHANGELOG.md).
 
 ## Plan (OpenSpec)
 
 Work is organised as [OpenSpec](https://github.com/Fission-AI/OpenSpec) changes
 (`openspec list`, `openspec show <change>`; in Claude Code use `/opsx:propose`,
 `/opsx:apply`, `/opsx:archive`). Shipped changes are archived in
-`openspec/changes/archive/`, and their requirements form the baseline specifications in
-`openspec/specs/`: build system, application shell, DICOM import, image decoding, image
-viewing, contrast windowing, metadata inspector, privacy, macOS packaging and continuous
-integration.
+`openspec/changes/archive/`, and their requirements form the specifications in
+`openspec/specs/`, which describe what the application does: build system, continuous
+integration, application shell, DICOM import, image decoding, image viewing, contrast
+windowing, metadata inspector, privacy, macOS packaging, DICOM conformance, translations,
+plain-language guide, series comparison, measurements, 3D view, PET, reports and export.
 
-**Shipped** (PR #1, archived 2026-11-05): `restructure-monorepo`,
+**Shipped:** 0.2.0 (archived 2026-11-05): `restructure-monorepo`,
 `adopt-cross-platform-ui`, `dicom-media-import`, `image-decoding-and-volumes`,
 `multiplanar-viewing`, `contrast-windowing`, `metadata-inspector`, `privacy-safeguards`,
-`macos-distribution`, `ci-quality-gates`.
+`macos-distribution`, `ci-quality-gates`. 0.3.0 (archived 2026-11-09):
+`progressive-loading`, `archive-import`, `oblique-reformats`, `plain-language-guide`,
+`multi-phase-cine`, `volume-rendering`, `display-fidelity`, `pet-support`, `translations`,
+`series-comparison`, `measurement-tools`, `report-viewer`, `export-and-share`,
+`jpeg-ls-support`, `crash-reports`, `third-party-notices`, `release-review-corrections`.
+See [CHANGELOG.md](CHANGELOG.md).
 
-**Implemented, not yet archived:** `progressive-loading`, `archive-import`,
-`oblique-reformats`, `plain-language-guide`, `multi-phase-cine`, `volume-rendering`,
-`display-fidelity`, `pet-support`, `translations`, `series-comparison`,
-`measurement-tools`, `report-viewer`, `export-and-share`. Their open tasks — above all
-checks with real vendor discs, a real printer and the real window on every platform —
-are listed in each change's `tasks.md`.
+**Open:**
 
-**Planned — releases and platforms:**
-
-| Change | Scope |
-| --- | --- |
-| `signed-releases` | Developer ID signing and notarization, Intel check, tagged GitHub Releases with checksums, no-network dependency gate |
-| `macos-integration` | Native menu bar; open folders from the Dock and Finder ("Open With") |
-| `jpeg-ls-support` | JPEG-LS decoding (CharLS) in release builds |
-| `field-validation` | Real vendor CDs, screen readers, usability sessions, log privacy review |
-| `windows-distribution` | Executable resources, MSI installer, Authenticode signing; re-enable the Windows CI check (paused to save CI time) |
-| `linux-distribution` | AppImage and Flatpak |
+| Change | Scope | What is left |
+| --- | --- | --- |
+| `signed-releases` | Draft GitHub Releases from tags, with checksums; signing and notarization; a gate against network client crates | Built; needs an Apple Developer ID and notarization credentials, a second Mac, an Intel Mac or Rosetta, and the first tag |
+| `windows-distribution` | Executable resources, per-user MSI, Authenticode signing | Built; needs a code-signing certificate and checks on Windows 10 and 11 desktops |
+| `linux-distribution` | AppImage, tarball, Flatpak | AppImage and tarball built; Flatpak manifest and checks on GNOME and KDE left |
+| `field-validation` | Real vendor discs, screen readers, usability sessions, log and crash-report privacy review, and every check of the shipped features that needs the real window, a drive, a printer or people | Needs people, discs and machines |
+| `macos-integration` | Native menu bar; open folders from the Dock and Finder ("Open With") | Not started |
 
 Later ideas (not yet proposed): de-identified DICOM export, and — only with
 de-identification and explicit consent — AI explanations.
@@ -225,4 +248,9 @@ de-identification and explicit consent — AI explanations.
 ## Licence
 
 MIT — see [LICENSE](LICENSE). Third-party crates are permissively licensed (checked by
-`cargo deny`); platform UI fonts are loaded from the operating system at run time.
+`cargo deny`), with one exception that reaches the Linux build through the windowing
+library: code generated from a KDE protocol definition under LGPL-2.1-or-later. The
+licences of everything in the packages, the Rust standard library and bundled fonts
+included, are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) (`cargo xtask notices`),
+which every package carries and the About dialog shows. Platform UI fonts are loaded from
+the operating system at run time.

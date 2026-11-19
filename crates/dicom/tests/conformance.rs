@@ -1,7 +1,8 @@
 //! The DICOM conformance statement (`docs/dicom-conformance-statement.md`)
 //! is kept in step with the code: its transfer-syntax table lists every
 //! transfer syntax of the DICOM library, with whether this build decodes it
-//! (`format::transfer_syntax_supported` and the build options) and whether it
+//! (`format::transfer_syntax_supported` and the build options; "release builds"
+//! means with the features the release packages are built with) and whether it
 //! is always lossy (`format::transfer_syntax_is_lossy`).
 
 use std::collections::BTreeSet;
@@ -41,7 +42,8 @@ fn decoded(row: &Row) -> bool {
     match row.decoded.as_str() {
         "Yes" => true,
         "No" => false,
-        "With the jpeg-ls build option" => cfg!(feature = "jpeg-ls"),
+        // The release packages are built with the jpeg-ls feature (xtask, CI).
+        "Yes (release builds)" => cfg!(feature = "jpeg-ls"),
         "With the jpeg-xl build option" => cfg!(feature = "jpeg-xl"),
         other => panic!("{}: unknown entry {other:?} in the column \"Decoded\"", row.uid),
     }
@@ -83,7 +85,7 @@ fn the_decoded_and_lossy_columns_agree_with_the_code() {
     let row = |uid: &str| rows.iter().find(|r| r.uid == uid).unwrap_or_else(|| panic!("{uid} is listed"));
     let jpeg = row("1.2.840.10008.1.2.4.50");
     assert_eq!((jpeg.decoded.as_str(), jpeg.lossy.as_str()), ("Yes", "Yes"));
-    assert_eq!(row("1.2.840.10008.1.2.4.80").decoded, "With the jpeg-ls build option");
+    assert_eq!(row("1.2.840.10008.1.2.4.80").decoded, "Yes (release builds)");
     if !cfg!(feature = "jpeg-ls") {
         assert!(!transfer_syntax_supported("1.2.840.10008.1.2.4.80"));
     }

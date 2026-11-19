@@ -5,7 +5,11 @@ offscreen UI test on macOS, Windows and Linux runners. Items moved here from the
 changes: real-CD field test (`dicom-media-import` 4.2), Enhanced multi-frame/JPEG 2000
 sample set (`image-decoding-and-volumes` 4.3), VoiceOver check (`adopt-cross-platform-ui`
 4.4), usability check (`contrast-windowing` 3.2), log review with real data
-(`privacy-safeguards` 3.3).
+(`privacy-safeguards` 3.3). On 2026-11-09 the crash message checks of `crash-reports`
+(4.2, 4.3) and the open checks of eleven archived changes (section 5:
+`progressive-loading`, `archive-import`, `oblique-reformats`, `plain-language-guide`,
+`multi-phase-cine`, `volume-rendering`, `display-fidelity`, `pet-support`,
+`translations`, `report-viewer`, `export-and-share`) moved here.
 
 ## Goals / Non-Goals
 

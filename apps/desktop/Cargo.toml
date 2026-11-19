@@ -13,12 +13,27 @@ default-run = "summrise"
 name = "summrise"
 path = "src/main.rs"
 
+[features]
+default = []
+# JPEG-LS decoding through CharLS, a C++ library built from source (needs CMake and a
+# C++ compiler). Release packages enable it; developer builds work without it.
+jpeg-ls = ["summrise-dicom/jpeg-ls"]
+
 [dependencies]
 anyhow.workspace = true
 eframe.workspace = true
 env_logger.workspace = true
 log.workspace = true
+# The message box after a crash, when the window is gone.
+rfd.workspace = true
+summrise-core.workspace = true
+# Only for the `jpeg-ls` feature: the decoders live in summrise-dicom.
+summrise-dicom.workspace = true
 summrise-ui.workspace = true
+
+[build-dependencies]
+# Icon and version information of SumMRIse.exe; used only when building on Windows (build.rs).
+winresource = { version = "0.1.34", default-features = false }
 
 [lints]
 workspace = true

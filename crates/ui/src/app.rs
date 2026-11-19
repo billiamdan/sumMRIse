@@ -10,8 +10,10 @@ use summrise_core::dicom::{DicomError, StudyIndex};
 use summrise_core::{Appearance, Job, MediaWatcher, RecentStudies, Session, Settings, Waker, recent_label};
 use summrise_i18n::{tr, tr_ctx, tr_n};
 
+use crate::crash_notice::{CrashNotice, When};
 use crate::display_check::{self, DisplayCheckScreen};
 use crate::language;
+use crate::licences;
 use crate::theme;
 use crate::viewer::Viewer;
 use crate::welcome;
@@ -29,6 +31,9 @@ pub struct AppOptions {
     /// ([`crate::system_languages`]): "System language" stands for the first
     /// one the interface has. Empty (the default, and in tests): English.
     pub system_languages: Vec<String>,
+    /// The crash report of a fault that ended the previous run, which the user
+    /// has not been told about (`summrise_core::crash::report_of_last_run`).
+    pub crash_report: Option<PathBuf>,
 }
 
 /// User intents raised by screens and handled centrally.
@@ -136,8 +141,12 @@ pub struct SumMRIseApp {
     pending: Vec<Action>,
     show_settings: bool,
     show_about: bool,
+    /// The licences of the third-party software, opened from the About dialog.
+    show_licences: bool,
     /// The display check, while it is open.
     display_check: Option<DisplayCheckScreen>,
+    /// A crash report the user is being told about.
+    crash_notice: Option<CrashNotice>,
     applied_appearance: Option<Appearance>,
     title: String,
     /// See [`AppOptions::system_languages`].
@@ -165,7 +174,9 @@ impl SumMRIseApp {
             pending,
             show_settings: false,
             show_about: false,
+            show_licences: false,
             display_check: None,
+            crash_notice: options.crash_report.map(|report| CrashNotice { when: When::LastRun, report }),
             applied_appearance: None,
             title: String::new(),
             system_languages: options.system_languages,
@@ -216,7 +227,9 @@ impl SumMRIseApp {
         if let Screen::Scanning { job, .. } = &self.screen {
             job.cancel();
         }
-        log::info!("opening {}", path.display());
+        // The path only at debug level: a folder or an archive can be named after the patient.
+        log::info!("opening a folder, disc or archive");
+        log::debug!("opening {}", path.display());
         let p = path.clone();
         let job =
             Job::spawn("scan", Some(self.waker.clone()), move |progress| summrise_core::dicom::scan(&p, progress));
@@ -227,12 +240,22 @@ impl SumMRIseApp {
         let Screen::Scanning { path, job } = &mut self.screen else {
             return;
         };
-        let Some(result) = job.poll() else { return };
+        let Some(result) = job.poll() else {
+            // The scan ended without a result: a fault stopped it (the crash notice says
+            // more). Back to the welcome screen instead of waiting for ever.
+            if job.is_finished() {
+                self.toasts.error(tr!("Opening stopped unexpectedly."));
+                self.screen = Screen::Welcome;
+            }
+            return;
+        };
         let path = path.clone();
         match result {
             Ok(index) => {
                 if !index.warnings.is_empty() {
-                    log::info!("index warnings: {:?}", index.warnings);
+                    // Their texts name paths: the number here, the texts at debug level.
+                    log::info!("{} index warnings", index.warnings.len());
+                    log::debug!("index warnings: {:?}", index.warnings);
                 }
                 if self.settings.remember_recent {
                     self.recent.add(&path, recent_label(&index));
@@ -433,20 +456,30 @@ impl SumMRIseApp {
             ui.label(RichText::new(disclaimer).color(theme::palette(ui).warn));
             ui.add_space(6.0);
             ui.label(
-                RichText::new(tr!("Built with dicom-rs, egui/eframe and wgpu. Licensed under the MIT licence."))
-                    .small()
-                    .weak(),
+                RichText::new(tr!(
+                    "Licensed under the MIT licence. Built with dicom-rs, egui/eframe, wgpu and other software \
+                     by others, under their own licences."
+                ))
+                .small()
+                .weak(),
             );
             ui.add_space(8.0);
-            let check = ui.vertical_centered(|ui| display_check::open_button(ui).clicked()).inner;
+            let (check, licences) = ui
+                .vertical_centered(|ui| {
+                    let check = display_check::open_button(ui).clicked();
+                    (check, ui.button(tr!("Third-party licences…")).clicked())
+                })
+                .inner;
             ui.add_space(4.0);
-            (ui.vertical_centered(|ui| ui.button(tr!("Close")).clicked()).inner, check)
+            (ui.vertical_centered(|ui| ui.button(tr!("Close")).clicked()).inner, check, licences)
         });
-        let (close, check) = response.inner;
+        let (close, check, licences) = response.inner;
         if check {
             self.display_check = Some(DisplayCheckScreen::default());
         }
-        if close || check || response.should_close() {
+        // In place of the About dialog: one modal at a time.
+        self.show_licences |= licences;
+        if close || check || licences || response.should_close() {
             self.show_about = false;
         }
     }
@@ -525,10 +558,24 @@ impl eframe::App for SumMRIseApp {
         if self.show_about {
             self.about_modal(&ctx);
         }
+        if self.show_licences {
+            self.show_licences = licences::show(&ctx);
+        }
         if let Some(check) = &mut self.display_check
             && !check.show(&ctx)
         {
             self.display_check = None;
+        }
+        // A fault that stopped part of the program while the window lives on.
+        if self.crash_notice.is_none()
+            && let Some(report) = summrise_core::crash::take_new_report()
+        {
+            self.crash_notice = Some(CrashNotice { when: When::ThisRun, report });
+        }
+        if let Some(notice) = &self.crash_notice
+            && !notice.show(&ctx)
+        {
+            self.crash_notice = None;
         }
         self.toasts.show(&ctx);
         Self::drop_overlay(&ctx);
@@ -548,8 +595,33 @@ impl eframe::App for SumMRIseApp {
 #[cfg(test)]
 mod tests {
     use egui_kittest::Harness;
+    use egui_kittest::kittest::Queryable;
 
     use super::*;
+
+    /// A scan whose thread ended without a result (a fault stopped it) does not
+    /// leave the scanning screen waiting for ever: an error is shown, and the
+    /// welcome screen is back.
+    #[test]
+    fn a_scan_that_died_goes_back_to_the_welcome_screen() {
+        let mut harness =
+            Harness::builder().with_size([960.0, 600.0]).build_eframe(|cc| SumMRIseApp::new(cc, AppOptions::default()));
+        harness.run_steps(2);
+        // The thread ends as after a panic, without the noise of one in the test output.
+        let job = Job::spawn("test", None, |_| -> Result<StudyIndex, DicomError> {
+            std::panic::resume_unwind(Box::new("the scan thread dies"))
+        });
+        harness.state_mut().screen = Screen::Scanning { path: PathBuf::from("disc"), job };
+        let start = Instant::now();
+        while matches!(harness.state().screen, Screen::Scanning { .. }) {
+            assert!(start.elapsed() < Duration::from_secs(30), "still scanning");
+            harness.step();
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        harness.run_steps(2);
+        assert!(matches!(harness.state().screen, Screen::Welcome));
+        assert!(harness.query_all_by_label_contains("Opening stopped unexpectedly.").next().is_some());
+    }
 
     /// The shortcut for archives is the one for folders with Shift: each asks
     /// for its own dialog, and never for both.

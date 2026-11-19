@@ -10,7 +10,6 @@
 //! series.
 
 use std::borrow::Cow;
-use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use dicom_dictionary_std::tags;
 use dicom_object::file::ReadPreamble;
@@ -377,7 +376,7 @@ pub fn read_instance(media: &Media, header: &InstanceHeader) -> Result<Vec<u8>> 
 /// Decodes every frame of one file from its bytes, as read by
 /// [`read_instance`]. Malformed data yields an error, never a panic.
 pub fn decode_instance(bytes: Vec<u8>) -> Result<DecodedInstance> {
-    catch_unwind(AssertUnwindSafe(|| decode_bytes(bytes)))
+    crate::panics::catch(|| decode_bytes(bytes))
         // Translators: the reason an image could not be decoded: the decoder stopped on damaged data.
         .unwrap_or_else(|_| Err(tr!("decoder panicked on malformed data").into()))
         .map_err(DicomError::Image)
@@ -397,7 +396,7 @@ pub fn load_series(media: &Media, series: &Series, progress: &Progress) -> Resul
             if progress.is_cancelled() {
                 return Err("cancelled".into());
             }
-            let r = catch_unwind(AssertUnwindSafe(|| decode_file(media, header)))
+            let r = crate::panics::catch(|| decode_file(media, header))
                 .unwrap_or_else(|_| Err(tr!("decoder panicked on malformed data").into()));
             progress.advance();
             r
@@ -711,7 +710,7 @@ pub struct Thumbnail {
 /// renders a thumbnail no larger than `max_size` pixels per side.
 pub fn thumbnail(media: &Media, series: &Series, max_size: u32) -> Result<Thumbnail> {
     let header = series.representative().ok_or_else(|| DicomError::DecodeFailed("empty series".into()))?;
-    let inst = catch_unwind(AssertUnwindSafe(|| decode_file(media, header)))
+    let inst = crate::panics::catch(|| decode_file(media, header))
         .unwrap_or_else(|_| Err("decoder panicked".into()))
         .map_err(DicomError::DecodeFailed)?;
     let middle = inst.frames.len() / 2;

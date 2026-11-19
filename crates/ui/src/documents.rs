@@ -179,6 +179,12 @@ impl DocumentPane {
         self.pictures.get(&page).map(|picture| picture.scale)
     }
 
+    /// Whether the document on screen has been read (or could not be), for tests.
+    #[cfg(test)]
+    pub(crate) fn is_read(&self) -> bool {
+        self.open.as_ref().is_some_and(|open| !matches!(open.state(), DocumentState::Loading))
+    }
+
     /// Whether no link is waiting for its image, for tests.
     #[cfg(test)]
     pub(crate) fn is_settled(&self) -> bool {

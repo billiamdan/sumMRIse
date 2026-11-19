@@ -285,6 +285,10 @@ impl PrintWindow {
                 self.printers = PrinterList::Known(printers);
             }
             Some(Err(reason)) => self.printers = PrinterList::Failed(reason),
+            // A fault stopped the search: the default printer can still be tried.
+            None if job.is_finished() => {
+                self.printers = PrinterList::Failed(tr!("the job stopped unexpectedly").to_owned());
+            }
             None => {}
         }
     }

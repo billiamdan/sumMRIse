@@ -1,26 +1,36 @@
 # macOS packaging
 
 `cargo xtask bundle-macos` produces `dist/macos/SumMRIse.app` (and with `--dmg` a
-compressed disk image) using only tools that ship with Xcode / macOS
-(`lipo`, `codesign`, `hdiutil`, `iconutil`).
+compressed disk image) with tools that ship with Xcode / macOS (`lipo`, `codesign`,
+`diskutil` or `hdiutil`, `iconutil`), plus CMake to build CharLS.
 
 | Option | Effect |
 | --- | --- |
 | `--universal` | Builds `aarch64` and `x86_64` and merges them with `lipo` |
 | `--sign "<identity>"` | Signs with a Developer ID certificate (default: ad-hoc `-`) |
 | `--dmg` | Creates `SumMRIse-<version>-macos-<arch>.dmg` with an Applications link |
-| `--notarize <profile>` | Submits the DMG with `xcrun notarytool` and staples the ticket |
+| `--notarize <profile>` | Submits the DMG with `xcrun notarytool` (keychain profile) and staples the ticket |
+| `--notary-key <AuthKey.p8> --notary-key-id <id> --notary-issuer <uuid>` | The same with an App Store Connect API key (CI) |
 
-Ad-hoc signed builds run on the machine that built them. To distribute to other
-Macs without Gatekeeper warnings you need an Apple Developer account:
+The executable is built with the release features (JPEG-LS through CharLS, which needs
+CMake). `LICENSE.txt` and `THIRD-PARTY-NOTICES.txt` go into `Contents/Resources` and next
+to the app in the disk image.
+
+Ad-hoc signed builds open without a warning only on the Mac that built them; on another
+Mac the user has to allow the app in System Settings ▸ Privacy & Security. To distribute
+to other Macs without Gatekeeper warnings you need an Apple Developer account:
 
 1. Create a *Developer ID Application* certificate and install it in your keychain.
 2. Store notarization credentials once:
    `xcrun notarytool store-credentials summrise --apple-id <id> --team-id <team>`
 3. `cargo xtask bundle-macos --universal --sign "Developer ID Application: … (TEAMID)" --notarize summrise`
 
-CI signs automatically when the `MACOS_CERT_P12`, `MACOS_CERT_PASSWORD` and
-`MACOS_SIGNING_IDENTITY` repository secrets are set.
+CI (`.github/workflows/package.yml`) signs when the `MACOS_CERT_P12` (base64 of the
+exported certificate), `MACOS_CERT_PASSWORD` and `MACOS_SIGNING_IDENTITY` repository
+secrets are set, and notarizes as well when `APPLE_API_KEY_P8` (base64 of the `.p8` key
+of an App Store Connect API key with the Developer role), `APPLE_API_KEY_ID` and
+`APPLE_API_ISSUER` are set. Without them it builds an ad-hoc signed app, and the release
+notes tell users how to open it.
 
 Files: `Info.plist` (template; `${VERSION}` etc. are filled in by xtask),
 `entitlements.plist` (hardened runtime, no exceptions), `AppIcon.icns`
